@@ -212,7 +212,9 @@ function listAudit(token, limit) {
 }
 
 /* ============================ WEB ENTRY ============================ */
-function doGet() {
+function doGet(e) {
+  // GitHub Action calls ?update=1&key=... after each push to main (see .github/workflows/update.yml).
+  if (e && e.parameter && e.parameter.update !== undefined) return updateEndpoint_(e.parameter.key);
   let name = SETTINGS_DEFAULT.appName;
   try { name = settings_().appName || name; } catch (e) { /* database not set up yet */ }
   const t = HtmlService.createTemplateFromFile('Index');

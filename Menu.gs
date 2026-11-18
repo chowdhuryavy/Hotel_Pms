@@ -10,8 +10,6 @@ function onOpen() {
     .addItem('Load demo data', 'menuDemo')
     .addSeparator()
     .addItem('Update from GitHub', 'menuUpdate')
-    .addItem('Turn on automatic updates', 'menuAutoOn')
-    .addItem('Turn off automatic updates', 'menuAutoOff')
     .addItem('Show web app link', 'menuLink')
     .addToUi();
 }
@@ -61,16 +59,4 @@ function menuLink() {
   ui.alert(url
     ? 'Web app link:\n' + url
     : 'Not deployed yet. In the Apps Script editor: Deploy → New deployment → Web app (Execute as: Me, Who has access: Anyone). Then use this menu again.');
-}
-
-function menuAutoOn() {
-  const ui = SpreadsheetApp.getUi();
-  try { ui.alert('Stayline', installUpdateTrigger(), ui.ButtonSet.OK); }
-  catch (e) { ui.alert('Could not turn on automatic updates: ' + e.message); }
-}
-
-function menuAutoOff() {
-  const ui = SpreadsheetApp.getUi();
-  try { ui.alert('Stayline', removeUpdateTrigger(), ui.ButtonSet.OK); }
-  catch (e) { ui.alert('Could not turn off automatic updates: ' + e.message); }
 }

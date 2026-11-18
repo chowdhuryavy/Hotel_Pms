@@ -1,0 +1,19 @@
+# Runs after every push to main. Tells the Stayline web app to check this repo.
+# The app installs the update only when APP_VERSION in Config.gs is higher than the installed one.
+name: Stayline update
+on:
+  push:
+    branches: [main]
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask Stayline to update
+        env:
+          STAYLINE_UPDATE_URL: ${{ secrets.STAYLINE_UPDATE_URL }}
+          STAYLINE_UPDATE_KEY: ${{ secrets.STAYLINE_UPDATE_KEY }}
+        run: |
+          curl -sL --max-time 300 -G "$STAYLINE_UPDATE_URL" \
+            --data-urlencode "update=1" --data-urlencode "key=$STAYLINE_UPDATE_KEY" -o result.txt
+          echo "Stayline says:"; cat result.txt; echo
+          if grep -qiE "failed|forbidden" result.txt; then exit 1; fi

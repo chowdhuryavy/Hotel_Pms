@@ -145,31 +145,16 @@ function updateFromGitHub() {
 }
 
 /**
- * Runs on a timer (installed by installUpdateTrigger). Checks GitHub and updates only when
- * the repo has a higher APP_VERSION. Errors are logged, never shown to users.
+ * Web app endpoint called by the GitHub Action after each push to main.
+ * The request must carry the UPDATE_KEY script property, otherwise nothing happens.
  */
-function autoUpdate_() {
+function updateEndpoint_(key) {
+  const expected = PropertiesService.getScriptProperties().getProperty('UPDATE_KEY');
+  const text = (msg) => ContentService.createTextOutput(msg).setMimeType(ContentService.MimeType.TEXT);
+  if (!expected || key !== expected) return text('Forbidden');
   try {
-    const result = updateFromGitHub();
-    console.log('Stayline auto-update: ' + result);
+    return text(updateFromGitHub());
   } catch (e) {
-    console.error('Stayline auto-update failed: ' + e.message);
+    return text('Update failed: ' + e.message);
   }
-}
-
-/** Installs an hourly check (replaces any earlier one). Run once from the sheet menu. */
-function installUpdateTrigger() {
-  ScriptApp.getProjectTriggers().forEach(t => {
-    if (t.getHandlerFunction() === 'autoUpdate_') ScriptApp.deleteTrigger(t);
-  });
-  ScriptApp.newTrigger('autoUpdate_').timeBased().everyHours(1).create();
-  return 'Automatic updates are on. Stayline checks GitHub every hour and installs a new version when APP_VERSION is higher.';
-}
-
-/** Turns automatic updates off. */
-function removeUpdateTrigger() {
-  ScriptApp.getProjectTriggers().forEach(t => {
-    if (t.getHandlerFunction() === 'autoUpdate_') ScriptApp.deleteTrigger(t);
-  });
-  return 'Automatic updates are off. Use "Update from GitHub" to update by hand.';
 }
