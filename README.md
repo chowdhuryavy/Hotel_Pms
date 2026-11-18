@@ -4,9 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.1.2**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.1.3**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
 
-Release notes for 1.1.2: updates install automatically after each push to `main` (GitHub Action), with no hourly polling.
+Release notes for 1.1.3: pushes to GitHub go live automatically within about 5 minutes (no version bump needed for the update to run). Stayline → Turn on automatic updates sets this up.
 
 Release notes for 1.1.0: company accounts (city ledger), cashier shifts with cash count, guest alerts, night-audit warnings, registration card, folio PDF, late-checkout fee, 14-day forecast, housekeeper assignment, loading screen with hover and entrance animations.
 
@@ -65,20 +65,16 @@ Example: FrontDesk checks guests in and out and posts charges. Only Manager and 
 
 ### Updating from GitHub
 
-The code can be kept in a private GitHub repo. `Updater.gs` downloads the top-level `.gs`, `.html` and `appsscript.json` files from the repo, replaces the project's code, and creates a new version. It acts only when the repo's `APP_VERSION` (in `Config.gs`) is higher than the installed one, so a push without a version bump changes nothing.
+Stayline is kept in the GitHub repo `chowdhuryavy/Hotel_Pms`. Each push to `main` goes live automatically: once the automatic check is on, the project looks at GitHub every 5 minutes. If there is a new commit with app changes, it loads the files, makes a new version and moves the web app to it. Pushes that change only README or other non-app files do nothing. Every update is logged in Apps Script (Executions).
 
 One-time setup:
-1. Create a fine-grained GitHub token with read-only **Contents** access to the repo.
-2. In Apps Script: Project Settings → Script properties, add `GITHUB_TOKEN` (the token) and `GITHUB_REPO` (for example `owner/Stayline`). Optionally add `DEPLOYMENT_ID` so the web app moves to the new version automatically (Deploy → Manage deployments shows the ID).
+1. Create a fine-grained GitHub token with read-only **Contents** access to `Hotel_Pms`.
+2. In Apps Script: Project Settings → Script properties, add `GITHUB_TOKEN` (the token). `GITHUB_REPO` and `GITHUB_BRANCH` are optional (defaults `chowdhuryavy/Hotel_Pms` and `main`).
 3. Settings (gear icon) → turn on **Google Apps Script API**.
 4. Reload the sheet and choose **Stayline → Update from GitHub**. Approve the permissions when asked.
+5. Choose **Stayline → Turn on automatic updates**.
 
-**Automatic updates after a push.** The workflow in `.github/workflows/update.yml` runs on every push to `main` and tells the web app to check GitHub. The app installs the update only when `APP_VERSION` is higher than the installed one. Setup, once:
-1. Script property `UPDATE_KEY`: a long random text (this is the password for the update call).
-2. GitHub repo → Settings → Secrets and variables → Actions: `STAYLINE_UPDATE_URL` (the web app URL, ending in `/exec`) and `STAYLINE_UPDATE_KEY` (the same text as `UPDATE_KEY`).
-3. Push a change with a higher `APP_VERSION`. The Actions tab shows the result. Apps Script → Executions shows the update.
-
-Without `DEPLOYMENT_ID`, the update creates a version and you choose it under Deploy → Manage deployments. Deployment changes only take effect after that step.
+**Stayline → Turn off automatic updates** stops the checks. **Update from GitHub** still works by hand at any time.
 
 ### Upgrading an existing database
 

@@ -1,19 +1,18 @@
 /**
  * Stayline – Updater.gs
- * Pulls the latest Stayline files from the private GitHub repo and replaces this project's code.
- * It only updates when the repo's APP_VERSION is higher than the installed one, so a push with
- * no version bump does nothing.
+ * Keeps this Apps Script project in step with the GitHub repo. When new code is pushed to the branch,
+ * the project picks it up within about 5 minutes (after installAutoUpdate has been run once):
+ * the files are loaded, a new version is made and the web app moves to it. Nobody has to deploy.
  *
  * Script properties (Project Settings → Script properties):
  *   GITHUB_TOKEN   fine-grained token with read-only "Contents" access to the repo (required)
- *   GITHUB_REPO    owner/repo, for example chowdhuryavy/Stayline (required)
- *   GITHUB_BRANCH  branch to follow, default "main"
- *   DEPLOYMENT_ID  optional. When set, the web app deployment is pointed at the new version automatically.
+ *   GITHUB_REPO    owner/repo (optional, default chowdhuryavy/Hotel_Pms)
+ *   GITHUB_BRANCH  branch to follow (optional, default "main")
  *
  * One-time setup: script.google.com → Settings → turn on "Google Apps Script API".
- * Google asks you to approve the updated permissions the first time you run an update.
  */
 
+const UPDATER_DEFAULT_REPO = 'chowdhuryavy/Hotel_Pms';
 // Only the top-level files of the repo are deployed: .gs, .html and appsscript.json.
 const UPDATER_FILE_RX = /^[^\/]+\.(gs|html)$|^appsscript\.json$/;
 
@@ -21,35 +20,165 @@ function updaterConfig_() {
   const p = PropertiesService.getScriptProperties();
   const cfg = {
     token: p.getProperty('GITHUB_TOKEN'),
-    repo: p.getProperty('GITHUB_REPO'),
-    branch: p.getProperty('GITHUB_BRANCH') || 'main',
-    deployId: p.getProperty('DEPLOYMENT_ID') || ''
+    repo: p.getProperty('GITHUB_REPO') || UPDATER_DEFAULT_REPO,
+    branch: p.getProperty('GITHUB_BRANCH') || 'main'
   };
-  if (!cfg.token || !cfg.repo) throw new Error('Set GITHUB_TOKEN and GITHUB_REPO in Script properties first.');
+  if (!cfg.token) throw new Error('Add GITHUB_TOKEN in Script properties first (Project Settings → Script properties).');
   return cfg;
 }
 
-function githubJson_(cfg, path) {
+/** Calls the GitHub API and returns the response text. */
+function gh_(cfg, path, accept) {
   const res = UrlFetchApp.fetch('https://api.github.com/repos/' + cfg.repo + path, {
-    headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github+json' },
+    headers: { Authorization: 'Bearer ' + cfg.token, Accept: accept || 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
     muteHttpExceptions: true
   });
   if (res.getResponseCode() !== 200) {
     throw new Error('GitHub returned ' + res.getResponseCode() + ' for ' + path + '. Check GITHUB_TOKEN and GITHUB_REPO.');
   }
-  return JSON.parse(res.getContentText());
+  return res.getContentText();
 }
 
-/** Reads the top-level files of the branch from GitHub. Returns [{ path, text }]. */
-function fetchRepoFiles_(cfg) {
-  const tree = githubJson_(cfg, '/git/trees/' + encodeURIComponent(cfg.branch) + '?recursive=1');
+/** The newest commit on the branch. */
+function headSha_(cfg) {
+  return gh_(cfg, '/commits/' + encodeURIComponent(cfg.branch), 'application/vnd.github.sha').trim();
+}
+
+/** Reads the top-level files of one commit from GitHub. Returns [{ path, text }]. */
+function fetchRepoFiles_(cfg, sha) {
+  const tree = JSON.parse(gh_(cfg, '/git/trees/' + sha + '?recursive=1'));
   return tree.tree
     .filter(t => t.type === 'blob' && UPDATER_FILE_RX.test(t.path))
     .map(t => {
-      const blob = githubJson_(cfg, '/git/blobs/' + t.sha);
+      const blob = JSON.parse(gh_(cfg, '/git/blobs/' + t.sha));
       const bytes = Utilities.base64Decode(blob.content.replace(/\n/g, ''));
       return { path: t.path, text: Utilities.newBlob(bytes).getDataAsString('UTF-8') };
     });
+}
+
+/** Calls the Apps Script API for this project. */
+function scriptApi_(method, path, body) {
+  const res = UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/' + ScriptApp.getScriptId() + path, {
+    method: method,
+    contentType: 'application/json',
+    payload: body ? JSON.stringify(body) : undefined,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true
+  });
+  const text = res.getContentText();
+  if (res.getResponseCode() >= 300) {
+    if (/User has not enabled the Apps Script API/i.test(text)) {
+      throw new Error('Turn on "Google Apps Script API" at script.google.com/home/usersettings, wait 2–3 minutes and try again.');
+    }
+    throw new Error('Apps Script API ' + res.getResponseCode() + ': ' + text.slice(0, 300));
+  }
+  return text ? JSON.parse(text) : {};
+}
+
+/** Replaces every file of this project with the repo's files. */
+function pushFiles_(files) {
+  scriptApi_('put', '/content', {
+    files: files.map(f => {
+      if (f.path === 'appsscript.json') return { name: 'appsscript', type: 'JSON', source: f.text };
+      return { name: f.path.replace(/\.(gs|html)$/, ''), type: /\.html$/.test(f.path) ? 'HTML' : 'SERVER_JS', source: f.text };
+    })
+  });
+}
+
+/** Makes a numbered version of the project. */
+function createVersion_(description) {
+  return scriptApi_('post', '/versions', { description: description }).versionNumber;
+}
+
+/** Every web app deployment of this project (the links staff use). */
+function webAppDeployments_() {
+  const list = scriptApi_('get', '/deployments?pageSize=50');
+  return (list.deployments || []).filter(d =>
+    d.deploymentConfig && d.deploymentConfig.versionNumber &&
+    (d.entryPoints || []).some(e => e.entryPointType === 'WEB_APP'));
+}
+
+/** Moves one web app deployment to a version. */
+function pointDeployment_(deployId, versionNumber, description) {
+  scriptApi_('put', '/deployments/' + deployId, {
+    deploymentConfig: { scriptId: ScriptApp.getScriptId(), versionNumber: versionNumber, manifestFileName: 'appsscript', description: description }
+  });
+}
+
+/**
+ * Loads the newest code of the branch, makes a version and moves the web app to it.
+ * Returns a message for the user. Pushes that change only non-app files (README, tools) do nothing.
+ */
+function updateFromGitHub(auto) {
+  const cfg = updaterConfig_();
+  const p = PropertiesService.getScriptProperties();
+  const sha = headSha_(cfg);
+  const files = fetchRepoFiles_(cfg, sha);
+  if (!files.some(f => f.path === 'Updater.gs')) throw new Error('Updater.gs is missing in the repo; the update was stopped to keep the updater working.');
+  if (!files.some(f => f.path === 'appsscript.json')) throw new Error('appsscript.json is missing in the repo.');
+
+  const hash = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,
+    files.map(f => f.path + '\n' + f.text).join('\n\u0000\n'), Utilities.Charset.UTF_8));
+  if (hash === p.getProperty('CONTENT_HASH') && !p.getProperty('PENDING_SHA')) {
+    p.setProperty('LAST_SHA', sha);
+    return 'No app changes in GitHub ' + sha.slice(0, 7) + ' – nothing to update.';
+  }
+
+  // Remember that publishing is still due: this run can be cut off after the code has been replaced.
+  p.setProperty('PENDING_SHA', sha);
+  pushFiles_(files);
+  const cfgFile = files.find(f => f.path === 'Config.gs');
+  const m = cfgFile && cfgFile.text.match(/const APP_VERSION = '([^']+)'/);
+  const desc = 'v' + (m ? m[1] : '?') + ' from GitHub ' + sha.slice(0, 7);
+  const version = createVersion_(desc);
+
+  const deps = webAppDeployments_();
+  let failed = [];
+  deps.forEach(d => {
+    try { pointDeployment_(d.deploymentId, version, desc); } catch (e) { failed.push(e.message); }
+  });
+  p.setProperty('CONTENT_HASH', hash);
+  p.setProperty('LAST_SHA', sha);
+  p.deleteProperty('PENDING_SHA');
+
+  let msg = (auto ? 'Automatic update: ' : 'Update: ') + desc + ' is now version ' + version + '.';
+  if (deps.length) msg += ' ' + (deps.length - failed.length) + ' web app link(s) now run it – reload the app.';
+  else msg += ' No web app deployment was found: use Deploy → New deployment → Web app once; later updates move it automatically.';
+  if (failed.length) msg += ' Could not move: ' + failed.join(' | ');
+  return msg;
+}
+
+/** Runs every 5 minutes (installed by installAutoUpdate). Updates only when the branch has a new commit. */
+function autoUpdate() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return;
+  try {
+    const p = PropertiesService.getScriptProperties();
+    if (!p.getProperty('GITHUB_TOKEN')) return;
+    const sha = headSha_(updaterConfig_());
+    if (sha && (sha !== p.getProperty('LAST_SHA') || p.getProperty('PENDING_SHA'))) {
+      console.log(updateFromGitHub(true));
+    }
+  } catch (e) {
+    console.error('Stayline automatic update failed: ' + e.message);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Turns on automatic updates. Run once (also from Stayline → Turn on automatic updates). */
+function installAutoUpdate() {
+  removeAutoUpdate();
+  ScriptApp.newTrigger('autoUpdate').timeBased().everyMinutes(5).create();
+  return 'Automatic updates are on: code pushed to GitHub goes live within about 5 minutes.';
+}
+
+/** Turns automatic updates off. */
+function removeAutoUpdate() {
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === 'autoUpdate') ScriptApp.deleteTrigger(t);
+  });
+  return 'Automatic updates are off. Use "Update from GitHub" to update by hand.';
 }
 
 /** Compares dotted versions: returns >0 if a is newer than b, <0 if older, 0 if equal. */
@@ -60,101 +189,4 @@ function compareVersions_(a, b) {
     if (d) return d;
   }
   return 0;
-}
-
-/** Replaces every file of this project with the repo's files (Apps Script API projects.updateContent). */
-function pushFiles_(files) {
-  const body = {
-    files: files.map(f => {
-      if (f.path === 'appsscript.json') return { name: 'appsscript', type: 'JSON', source: f.text };
-      return {
-        name: f.path.replace(/\.(gs|html)$/, ''),
-        type: /\.html$/.test(f.path) ? 'HTML' : 'SERVER_JS',
-        source: f.text
-      };
-    })
-  };
-  const res = UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/' + ScriptApp.getScriptId() + '/content', {
-    method: 'put',
-    contentType: 'application/json',
-    payload: JSON.stringify(body),
-    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
-    muteHttpExceptions: true
-  });
-  if (res.getResponseCode() !== 200) {
-    throw new Error('Apps Script update failed (' + res.getResponseCode() + '): ' + res.getContentText().slice(0, 300));
-  }
-}
-
-/** Creates a numbered version of the project (Apps Script API projects.versions.create). */
-function createVersion_(description) {
-  const res = UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/' + ScriptApp.getScriptId() + '/versions', {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify({ description: description }),
-    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
-    muteHttpExceptions: true
-  });
-  if (res.getResponseCode() !== 200) {
-    throw new Error('Could not create a version (' + res.getResponseCode() + '): ' + res.getContentText().slice(0, 300));
-  }
-  return JSON.parse(res.getContentText()).versionNumber;
-}
-
-/** Points the web app deployment at a version (Apps Script API projects.deployments.update). */
-function pointDeployment_(deployId, versionNumber, description) {
-  const scriptId = ScriptApp.getScriptId();
-  const res = UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/' + scriptId + '/deployments/' + deployId, {
-    method: 'put',
-    contentType: 'application/json',
-    payload: JSON.stringify({
-      deploymentConfig: { scriptId: scriptId, versionNumber: versionNumber, manifestFileName: 'appsscript', description: description }
-    }),
-    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
-    muteHttpExceptions: true
-  });
-  if (res.getResponseCode() !== 200) {
-    throw new Error('Could not update the deployment (' + res.getResponseCode() + '): ' + res.getContentText().slice(0, 300));
-  }
-}
-
-/**
- * Main update. Returns a message for the user.
- * Installed version is APP_VERSION in Config.gs; the repo's version is read from the same line in the repo.
- */
-function updateFromGitHub() {
-  const cfg = updaterConfig_();
-  const files = fetchRepoFiles_(cfg);
-  const configFile = files.find(f => f.path === 'Config.gs');
-  const m = configFile && configFile.text.match(/const APP_VERSION = '([^']+)'/);
-  if (!m) throw new Error('Config.gs in the repo has no APP_VERSION line.');
-  const remote = m[1];
-  if (compareVersions_(remote, APP_VERSION) <= 0) {
-    return 'Already up to date (version ' + APP_VERSION + ' is the latest in the repo).';
-  }
-  if (!files.some(f => f.path === 'Updater.gs')) throw new Error('Updater.gs is missing from the repo; the update was stopped to keep it working.');
-
-  pushFiles_(files);
-  const description = 'Stayline ' + remote;
-  const version = createVersion_(description);
-  if (cfg.deployId) {
-    pointDeployment_(cfg.deployId, version, description);
-    return 'Updated to ' + remote + '. The web app now runs version ' + version + '. Reload the app.';
-  }
-  return 'Updated to ' + remote + '. Version ' + version + ' is ready: in Apps Script go to Deploy → Manage deployments and choose it.';
-}
-
-/**
- * Web app endpoint called by the GitHub Action after each push to main.
- * The request must carry the UPDATE_KEY script property, otherwise nothing happens.
- */
-function updateEndpoint_(key) {
-  const expected = PropertiesService.getScriptProperties().getProperty('UPDATE_KEY');
-  const text = (msg) => ContentService.createTextOutput(msg).setMimeType(ContentService.MimeType.TEXT);
-  if (!expected || key !== expected) return text('Forbidden');
-  try {
-    return text(updateFromGitHub());
-  } catch (e) {
-    return text('Update failed: ' + e.message);
-  }
 }
