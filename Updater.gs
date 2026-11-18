@@ -19,7 +19,7 @@ const UPDATER_FILE_RX = /^[^\/]+\.(gs|html)$|^appsscript\.json$/;
 function updaterConfig_() {
   const p = PropertiesService.getScriptProperties();
   const cfg = {
-    token: p.getProperty('GITHUB_TOKEN'),
+    token: String(p.getProperty('GITHUB_TOKEN') || '').replace(/\s+/g, ''),   // a phone paste can add spaces or line breaks
     repo: p.getProperty('GITHUB_REPO') || UPDATER_DEFAULT_REPO,
     branch: p.getProperty('GITHUB_BRANCH') || 'main'
   };
@@ -34,7 +34,9 @@ function gh_(cfg, path, accept) {
     muteHttpExceptions: true
   });
   if (res.getResponseCode() !== 200) {
-    throw new Error('GitHub returned ' + res.getResponseCode() + ' for ' + path + '. Check GITHUB_TOKEN and GITHUB_REPO.');
+    const t = cfg.token || '';
+    throw new Error('GitHub returned ' + res.getResponseCode() + ' for ' + path + '. Check GITHUB_TOKEN and GITHUB_REPO. ' +
+      'Stored token: ' + t.length + ' characters, starts with "' + t.slice(0, 11) + '".');
   }
   return res.getContentText();
 }
