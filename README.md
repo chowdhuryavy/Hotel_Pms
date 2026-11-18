@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.1.0**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.1.1**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.1.1: automatic hourly update check (Stayline → Turn on automatic updates), menu items to turn it on and off.
 
 Release notes for 1.1.0: company accounts (city ledger), cashier shifts with cash count, guest alerts, night-audit warnings, registration card, folio PDF, late-checkout fee, 14-day forecast, housekeeper assignment, loading screen with hover and entrance animations.
 
@@ -70,6 +72,8 @@ One-time setup:
 2. In Apps Script: Project Settings → Script properties, add `GITHUB_TOKEN` (the token) and `GITHUB_REPO` (for example `owner/Stayline`). Optionally add `DEPLOYMENT_ID` so the web app moves to the new version automatically (Deploy → Manage deployments shows the ID).
 3. Settings (gear icon) → turn on **Google Apps Script API**.
 4. Reload the sheet and choose **Stayline → Update from GitHub**. Approve the permissions when asked.
+
+Automatic updates: Stayline → **Turn on automatic updates** checks GitHub every hour and installs a higher version. **Turn off automatic updates** stops it. Each update is logged in Apps Script (Executions).
 
 Without `DEPLOYMENT_ID`, the update creates a version and you choose it under Deploy → Manage deployments. Deployment changes only take effect after that step.
 

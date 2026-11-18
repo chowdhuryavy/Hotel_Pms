@@ -143,3 +143,33 @@ function updateFromGitHub() {
   }
   return 'Updated to ' + remote + '. Version ' + version + ' is ready: in Apps Script go to Deploy → Manage deployments and choose it.';
 }
+
+/**
+ * Runs on a timer (installed by installUpdateTrigger). Checks GitHub and updates only when
+ * the repo has a higher APP_VERSION. Errors are logged, never shown to users.
+ */
+function autoUpdate_() {
+  try {
+    const result = updateFromGitHub();
+    console.log('Stayline auto-update: ' + result);
+  } catch (e) {
+    console.error('Stayline auto-update failed: ' + e.message);
+  }
+}
+
+/** Installs an hourly check (replaces any earlier one). Run once from the sheet menu. */
+function installUpdateTrigger() {
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === 'autoUpdate_') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('autoUpdate_').timeBased().everyHours(1).create();
+  return 'Automatic updates are on. Stayline checks GitHub every hour and installs a new version when APP_VERSION is higher.';
+}
+
+/** Turns automatic updates off. */
+function removeUpdateTrigger() {
+  ScriptApp.getProjectTriggers().forEach(t => {
+    if (t.getHandlerFunction() === 'autoUpdate_') ScriptApp.deleteTrigger(t);
+  });
+  return 'Automatic updates are off. Use "Update from GitHub" to update by hand.';
+}
