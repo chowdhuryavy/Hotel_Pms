@@ -1,0 +1,112 @@
+# Stayline – Hotel management (front office to check-out)
+
+A multi-page property management system built on Google Apps Script with Google Sheets as the database. It follows the Opera-style flow: reservations → rate and availability → room rack → arrival and check-in → folio charges and payments → transfers → check-out → night audit → reports. Company (city ledger) accounts, cashier shifts with cash reconciliation, guest alerts and housekeeping assignment are included.
+
+## Version
+
+Stayline **1.1.0**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.1.0: company accounts (city ledger), cashier shifts with cash count, guest alerts, night-audit warnings, registration card, folio PDF, late-checkout fee, 14-day forecast, housekeeper assignment, loading screen with hover and entrance animations.
+
+## What's in it
+
+| Module | Pages | Highlights |
+|---|---|---|
+| Dashboard | Dashboard | In-house, arrivals, departures, occupancy, past-due arrivals, dirty rooms, daily flash, **14-night occupancy forecast** |
+| Front desk | Front desk, Walk-in | Arrivals, in-house, departures, past-due; check-in with room and deposit (**guest alerts enforced**); check-out with balance check (company-billed folios excluded); move room; extend stay |
+| Reservations | Reservations, Reservation detail, New reservation | Availability by room type; rate quote per night; plans (BAR, Corporate, Package); modify, cancel, no-show; per-night rate schedule; **print folio (PDF)**; **late checkout fee**; **bill a folio to a company** |
+| Room rack | Room rack | 14–31 day grid, rooms × nights, out-of-order rooms shown |
+| Guests | Guests, Guest profile | Duplicate-safe profiles (matched on email, phone, ID); VIP flag; **alert message with Info / Block level**; stay history; preferences |
+| Groups | Groups, Group detail | Room blocks; group check-in; group charges to the master folio or each room; transfer to rooms |
+| Housekeeping | Housekeeping | Clean / Dirty / Inspected / Pickup per room; **housekeeper assignment**; take rooms out of order |
+| Cashier | Cashier | All open folios with balances; quick payment and charge; shift status banner |
+| Cashier shifts | Cashier shifts | **Open shift with a cash float; close with a cash count; expected cash and variance**; shift history for managers |
+| City ledger | City ledger, Company account | **Company accounts with credit limits**; charges billed to the company; payments against the account; statement of postings |
+| Night audit | Night audit | **Warnings before close** (unpaid departures, open shifts, dirty rooms, past-due arrivals); posts room and tax charges, marks no-shows, closes the date, advances the business date |
+| Rates & charges | Rates & charges | Rate plans, seasonal rates by room type, quote tool, charge codes |
+| Reports | Reports | Flash, occupancy & ADR, arrivals, departures, in-house, revenue by code, posting ledger, cancellations, **city ledger, cashier shifts, housekeeping**; PDF and CSV |
+| Administration | Admin | Users and roles, hotel settings, room types, rooms, permission list |
+| Audit | Audit log | Every sign-in, denial, booking change, posting, void, transfer, audit, shift and account change |
+
+## Key concepts
+
+- **Business date.** The front desk works on the hotel's business date, not the wall clock. Night audit is the only thing that advances it. This matches how hotels actually run and keeps arrivals and departures correct across midnight.
+- **Folios.** Each stay has folio 1 by default. You can add up to nine (guest, company, extras). Charges are positive, payments negative.
+- **Automatic tax.** Taxable charge codes post a TAX line at the rate in Settings. Voiding or transferring a charge also moves its tax.
+- **Transfers and voids keep history.** The original line is marked voided and a new line is posted on the target folio. Nothing is deleted.
+- **Rate schedule per night.** Each night's rate is stored when the booking is made. Night audit posts what was quoted, even if rates change later.
+- **Override is explicit.** Admins and managers can override a Dirty room, an open balance or a guest alert, but only on a single action where they tick the override box. A normal click cannot bypass the check.
+- **Group master folio.** Group charges can post once to a master folio (not counted in revenue until transferred to a room), or to every in-house room.
+- **Company accounts (city ledger).** A folio can be billed to a company account instead of the guest. Its charges count against the company's credit limit (0 = no limit). The guest can check out without paying that folio, and the company is invoiced through the City ledger page. Payments from a company are posted to its own ledger, so the guest's folio is never affected.
+- **Guest alerts.** An alert with level *Info* shows a warning when the guest checks in. Level *Block* stops check-in until a manager ticks the override box. Alerts appear on the reservation, the guest profile and the check-in message.
+- **Cashier shifts.** A cashier must open a shift before taking payments. On close, expected cash = opening float + cash payments taken (CASH code) during the shift. The difference is shown as the variance. Other roles take payments without a shift.
+- **Late checkout.** The LCO charge code posts a late-checkout fee to the in-house guest's folio, with tax if the code is taxable.
+- **Forecast.** The dashboard shows rooms sold and occupancy % for the next 14 nights, counting reserved and in-house stays against active rooms.
+- **Folio PDF.** Each reservation can print a guest folio (all folios, postings and balances) as a PDF.
+
+## Roles (default permission grid)
+
+Seven roles: **Admin, Manager, FrontDesk, Cashier, Housekeeping, Sales, Accountant**. Permissions are 31 TRUE/FALSE flags on the *Permissions* tab. The server checks them on every action, so a hidden button cannot be bypassed. Edit the grid to change what a role can do.
+
+Example: FrontDesk checks guests in and out and posts charges. Only Manager and Admin can run night audit, void a posting or manage company accounts. Cashier opens a shift and takes payments. Accountant reads reports, the city ledger and the shift history but cannot post. Housekeeping updates room status only.
+
+## Setup (about 15 minutes)
+
+1. **Create the spreadsheet.** In Google Sheets, create a blank spreadsheet named "Stayline". This is the database.
+2. **Open the script from the sheet.** Extensions → Apps Script. This project is attached to the sheet. Delete the default `Code.gs` contents.
+3. **Add files.** Add the `.gs` files as script files: `Config`, `Core`, `Setup`, `Menu`, `Rooms`, `Rates`, `Guests`, `Reservations`, `FrontDesk`, `Folio`, `Groups`, `NightAudit`, `Reports`, `Advanced`. Add HTML files: `Index`, `Styles`, `App`. Paste each file's contents. Set the manifest (Project Settings → "Show appsscript.json") to the contents of `appsscript.json`. Save.
+4. **(Optional) Set a script property** (Project Settings → Script properties): `ADMIN_PASSWORD`, at least 8 characters. Otherwise a random password is generated and shown once during setup.
+5. **Reload the spreadsheet.** A **Stayline** menu appears in the menu bar. Choose **Stayline → Set up database** and approve the permissions. The message shows the first admin login (`admin` and the password, if generated). Keep it safe and change it after signing in.
+6. **(Optional) Stayline → Load demo data** creates four sample reservations on the current business date.
+7. **Deploy.** In the Apps Script editor: Deploy → New deployment → Web app. Execute as: **Me**. Who has access: **Anyone**. Open the URL and sign in as `admin`. **Stayline → Show web app link** shows the URL again later.
+8. **Set up the hotel** under Administration: hotel name, logo, tax rate, currency, room types, rooms, rate plans and seasonal rates. Create staff accounts with the right roles. Change the admin password.
+
+### Updating from GitHub
+
+The code can be kept in a private GitHub repo. `Updater.gs` downloads the top-level `.gs`, `.html` and `appsscript.json` files from the repo, replaces the project's code, and creates a new version. It acts only when the repo's `APP_VERSION` (in `Config.gs`) is higher than the installed one, so a push without a version bump changes nothing.
+
+One-time setup:
+1. Create a fine-grained GitHub token with read-only **Contents** access to the repo.
+2. In Apps Script: Project Settings → Script properties, add `GITHUB_TOKEN` (the token) and `GITHUB_REPO` (for example `owner/Stayline`). Optionally add `DEPLOYMENT_ID` so the web app moves to the new version automatically (Deploy → Manage deployments shows the ID).
+3. Settings (gear icon) → turn on **Google Apps Script API**.
+4. Reload the sheet and choose **Stayline → Update from GitHub**. Approve the permissions when asked.
+
+Without `DEPLOYMENT_ID`, the update creates a version and you choose it under Deploy → Manage deployments. Deployment changes only take effect after that step.
+
+### Upgrading an existing database
+
+Open the sheet and choose **Stayline → Set up database** again (after pasting the new files). It is safe to re-run: it creates missing tabs, adds new columns to the end of existing tabs (accounts, shifts, folio account, room assignment, guest alert), adds the four new permission rows (set to the defaults, which you can then edit) and adds the LCO charge code. It never deletes or overwrites data. Then run `checkDatabase()`; it should report *Database structure OK*.
+
+Run `checkDatabase()` if you point the app at an older spreadsheet. It lists any tab or column that doesn't match.
+
+## Testing
+
+`tests/harness.js` runs the business flows against an in-memory mock of the Apps Script services. It covers: setup and the permission grid, login and wrong-password rejection, availability, rate quoting, booking, check-in, tax on a minibar charge, a blocked check-out with an open balance, settlement, check-out, room going Dirty, night audit (posts once and refuses a repeat for the same date), role denial, group blocks, group check-in with a dirty-room skip, cancellation, date modification, reports, and the upgrade migration (run twice). It also covers company accounts (billing, credit limit refusal, check-out with company-billed folio, settlement), guest alerts (Block refused, manager override with warning), cashier shifts (no payment without a shift, expected cash and zero variance on close, night-audit warning for an open shift, cashier denied account management), late checkout, folio PDF, the 14-day forecast, housekeeper assignment and the new reports.
+
+```
+node tests/harness.js
+```
+
+This checks the business logic, not the browser UI or Google's runtime. Do one pass in the live web app with each role before go-live, following the checklist below.
+
+## Go-live checklist
+
+1. Sign in as each role and confirm the menu and buttons match the permission grid.
+2. Create a reservation, check it in with a deposit, post a charge, take a payment, check out.
+3. Try check-out with an open balance (should be blocked), then with the override box ticked as a manager.
+4. Add a guest alert set to *Block*, try to check that guest in (should be blocked), then override as a manager.
+5. As a cashier: try a payment before opening a shift (should be blocked), open a shift, take a payment, close with the cash count.
+6. Create a company account with a credit limit, bill a folio to it, check the limit is enforced, record a payment against the account.
+7. Create a group block, check it in, post a group charge to the master folio, transfer it to one room.
+8. Run night audit. Read the warnings first, then confirm the room charge appears and the business date moves on.
+9. Export a revenue report as PDF and CSV, and print one guest folio.
+
+## Limits to know about
+
+- Built for one property. Google Sheets and Apps Script handle a few hundred bookings a day comfortably. For a multi-property group at scale, move the data layer to a proper database.
+- No payment gateway, channel manager, key-card integration or e-invoicing. Those need separate connectors.
+- Company credit limits are checked when a charge is posted. Charges that were already posted before a limit was lowered are not reversed.
+- Cashier cash count counts only the CASH payment code. Card, bank and deposit payments are shown on the shift but not included in expected cash.
+- Housekeeper assignment is one name per room (a dropdown of users with the Housekeeping role). It does not track task lists or time.
+- Apps Script web apps can't serve a custom domain directly. Put a redirect or proxy in front of the deployed URL.
+- Night audit is manual by design. Hotels usually run it themselves, so there's no automatic trigger.

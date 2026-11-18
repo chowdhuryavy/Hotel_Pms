@@ -1,0 +1,1151 @@
+/* Stayline – browser app (inlined into Index.html by include('App')) */
+
+const S = { token: null, user: null, perms: {}, settings: {}, bizDate: '', page: 'dashboard', param: null };
+let RES = null, NR = {}, RF = { status: '', q: '', from: '', to: '' }, ADM = 'users', LAST = null, CODES = null, RACK = null;
+
+const $ = id => document.getElementById(id);
+const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const can = p => S.perms[p] === true;
+const canAny = list => list.some(can);
+const num = v => (Number(v) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = v => num(v) + ' ' + (S.settings.currency || '');
+const isoDay = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const addDaysIso = (s, n) => { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + n); return isoDay(d); };
+const balCell = v => `<span class="${Number(v) > 0.005 ? 'neg' : 'pos'}">${num(v)}</span>`;
+const pill = s => `<span class="pill ${esc(s)}">${esc(s)}</span>`;
+const lnk = resNo => `<span class="lnk" onclick="go('res','${esc(resNo)}')">${esc(resNo)}</span>`;
+const lnkTo = (page, id, label) => `<span class="lnk" onclick="go('${page}','${esc(id)}')">${esc(label)}</span>`;
+const tr = (cells, cls) => `<tr class="${cls || ''}">${cells.map(c => `<td>${c}</td>`).join('')}</tr>`;
+const kpi = (l, v) => `<div class="kpi"><span>${esc(l)}</span><b>${v}</b></div>`;
+const kv = pairs => `<dl class="kv">${pairs.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>`;
+function table(headers, rows) {
+  return `<div class="tbl"><table><thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.join('') : `<tr><td colspan="${headers.length}" class="muted">No records</td></tr>`}</tbody></table></div>`;
+}
+function setView(html) { $('view').innerHTML = html; }
+
+/* ---------- RPC ---------- */
+function rpc(fn, ...args) {
+  return new Promise((resolve, reject) => {
+    google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(err => {
+        const m = String((err && err.message) || err);
+        if (m.indexOf('SESSION_EXPIRED') >= 0) sessionEnd('Your session has expired. Please sign in again.');
+        reject(new Error(m.replace(/^(Error|Exception):\s*/, '')));
+      })[fn](...args);
+  });
+}
+const api = (fn, ...a) => rpc(fn, S.token, ...a);
+
+/* ---------- Feedback ---------- */
+function toast(msg, bad) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (bad ? ' bad' : '');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => { t.className = 'toast'; }, 3400);
+}
+async function act(fn, msg, ...args) {
+  try { await api(fn, ...args); if (msg) toast(msg); refresh(); }
+  catch (e) { toast(e.message, true); }
+}
+function refresh() { go(S.page, S.param); }
+
+/* ---------- Modal & forms ---------- */
+function openModal(title, html) { $('mTitle').textContent = title; $('mBody').innerHTML = html; $('modal').classList.remove('hidden'); }
+function closeModal() { $('modal').classList.add('hidden'); $('mBody').innerHTML = ''; }
+function fieldHtml(f) {
+  const v = f.value == null ? '' : f.value;
+  let input;
+  if (f.type === 'select') {
+    input = `<select name="${f.name}">${f.options.map(o => {
+      const val = Array.isArray(o) ? o[0] : o, lab = Array.isArray(o) ? o[1] : o;
+      return `<option value="${esc(val)}"${String(val) === String(v) ? ' selected' : ''}>${esc(lab)}</option>`;
+    }).join('')}</select>`;
+  } else if (f.type === 'textarea') {
+    input = `<textarea name="${f.name}" rows="2">${esc(v)}</textarea>`;
+  } else if (f.type === 'check') {
+    input = `<input type="checkbox" name="${f.name}" value="true"${v ? ' checked' : ''} style="width:auto">`;
+  } else {
+    input = `<input name="${f.name}" type="${f.type || 'text'}" value="${esc(v)}"` +
+      (f.required ? ' required' : '') + (f.readonly ? ' readonly' : '') + (f.step ? ` step="${f.step}"` : '') +
+      (f.min != null ? ` min="${f.min}"` : '') + (f.placeholder ? ` placeholder="${esc(f.placeholder)}"` : '') + '>';
+  }
+  return `<label class="${f.wide ? 'wide' : ''}"><span>${esc(f.label)}${f.required ? ' *' : ''}</span>${input}</label>`;
+}
+function formHtml(id, fields, submitLabel, showCancel) {
+  return `<form id="${id}" class="fgrid">${fields.map(fieldHtml).join('')}<div class="actions">` +
+    (showCancel === false ? '' : '<button class="btn ghost" type="button" onclick="closeModal()">Cancel</button>') +
+    `<button class="btn" type="submit">${esc(submitLabel || 'Save')}</button></div></form>`;
+}
+function bindForm(id, fn) {
+  const f = $(id);
+  if (!f) return;
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = f.querySelector('button[type=submit]');
+    if (btn) btn.disabled = true;
+    try { await fn(Object.fromEntries(new FormData(f))); }
+    catch (err) { toast(err.message, true); if (btn) btn.disabled = false; }
+  });
+}
+const chk = v => v === 'true';
+
+/* ---------- Session ---------- */
+function saveSession() {
+  try { sessionStorage.setItem('st_session', JSON.stringify({ token: S.token, user: S.user, perms: S.perms, settings: S.settings, bizDate: S.bizDate })); } catch (e) {}
+}
+function loadSession() { try { return JSON.parse(sessionStorage.getItem('st_session') || 'null'); } catch (e) { return null; } }
+function clearSession() { try { sessionStorage.removeItem('st_session'); } catch (e) {} }
+/* Default brand mark, used when no logo is set in Settings. */
+const BRAND_ICON = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="6" y="6" width="52" height="52" rx="14" fill="#0f3d3e"/><path d="M16 42V24l16-10 16 10v18" fill="none" stroke="#f2b134" stroke-width="4" stroke-linejoin="round"/><rect x="26" y="32" width="12" height="10" fill="#f2b134"/><path d="M12 42h40" stroke="#1d7874" stroke-width="4" stroke-linecap="round"/></svg>';
+function brand() {
+  const s = S.settings, logo = s.logoUrl ? `<img src="${esc(s.logoUrl)}" alt="">` : BRAND_ICON;
+  $('brandLogo').innerHTML = logo; $('loginLogo').innerHTML = logo;
+  $('brandName').textContent = s.appName || 'Stayline';
+  $('brandHotel').textContent = s.hotelName || '';
+  $('loginTitle').textContent = s.appName || 'Stayline';
+  $('loginHotel').textContent = s.hotelName || '';
+  document.title = s.appName || 'Stayline';
+}
+async function doLogin(e) {
+  e.preventDefault();
+  const f = e.target;
+  $('loginErr').textContent = '';
+  try {
+    const r = await rpc('login', f.u.value, f.p.value);
+    S.token = r.token; S.user = r.user; S.perms = r.perms; S.settings = r.settings; S.bizDate = r.bizDate;
+    saveSession(); brand(); startApp();
+  } catch (err) { $('loginErr').textContent = err.message; }
+}
+function sessionEnd(msg) {
+  S.token = null; S.user = null; S.perms = {};
+  clearSession();
+  $('app').classList.add('hidden');
+  $('login').classList.remove('hidden');
+  $('loginErr').textContent = msg || '';
+  closeModal();
+}
+async function logout() { try { await rpc('logout', S.token); } catch (e) {} sessionEnd(''); }
+function startApp() {
+  $('login').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  brand();
+  buildNav();
+  $('who').innerHTML = `${esc(S.user.name)} &middot; ${esc(S.user.role)} &nbsp; <button class="btn ghost sm" onclick="go('password')">Password</button> <button class="btn ghost sm" onclick="logout()">Sign out</button>`;
+  go(firstPage());
+}
+
+/* ---------- Navigation ---------- */
+const NAV = [
+  { h: 'Front office' },
+  { k: 'dashboard', l: 'Dashboard', p: ['dashboard.view'] },
+  { k: 'frontdesk', l: 'Front desk', p: ['frontdesk.checkin', 'frontdesk.checkout'] },
+  { k: 'rack', l: 'Room rack', p: ['rack.view'] },
+  { k: 'reservations', l: 'Reservations', p: ['reservations.view'] },
+  { k: 'newres', l: 'New reservation', p: ['reservations.create'] },
+  { k: 'guests', l: 'Guests', p: ['guests.view'] },
+  { k: 'groups', l: 'Groups', p: ['groups.manage'] },
+  { h: 'Operations' },
+  { k: 'housekeeping', l: 'Housekeeping', p: ['rooms.view'] },
+  { k: 'cashier', l: 'Cashier', p: ['folio.view'] },
+  { k: 'shifts', l: 'Cashier shifts', p: ['shifts.manage', 'shifts.view'] },
+  { k: 'accounts', l: 'City ledger', p: ['accounts.view'] },
+  { k: 'nightaudit', l: 'Night audit', p: ['nightaudit.run'] },
+  { h: 'Management' },
+  { k: 'rates', l: 'Rates & charges', p: ['rates.view'] },
+  { k: 'reports', l: 'Reports', p: ['reports.view'] },
+  { k: 'log', l: 'Audit log', p: ['audit.view'] },
+  { k: 'admin', l: 'Administration', p: ['users.manage', 'settings.manage', 'rooms.manage', 'rates.manage'] }
+];
+function firstPage() { const f = NAV.find(n => n.k && canAny(n.p)); return f ? f.k : 'password'; }
+function buildNav() {
+  let html = '', pendingHead = '';
+  NAV.forEach(n => {
+    if (n.h) { pendingHead = n.h; return; }
+    if (!canAny(n.p)) return;
+    if (pendingHead) { html += `<div class="grp">${esc(pendingHead)}</div>`; pendingHead = ''; }
+    html += `<a data-p="${n.k}" onclick="go('${n.k}')">${esc(n.l)}</a>`;
+  });
+  $('nav').innerHTML = html;
+  $('bizbox').innerHTML = `Business date<b>${esc(S.bizDate)}</b>`;
+}
+const PAGES = {
+  dashboard: pgDashboard, frontdesk: pgFrontDesk, rack: pgRack, reservations: pgReservations, res: pgRes,
+  newres: pgNewRes, guests: pgGuests, guest: pgGuest, groups: pgGroups, group: pgGroup,
+  housekeeping: pgHousekeeping, cashier: pgCashier, nightaudit: pgNightAudit, rates: pgRates,
+  reports: pgReports, log: pgLog, admin: pgAdmin, password: pgPassword,
+  accounts: pgAccounts, account: pgAccount, shifts: pgShifts
+};
+function go(page, param) {
+  if (!PAGES[page]) page = firstPage();
+  S.page = page; S.param = param || null;
+  closeModal();
+  document.body.classList.remove('menu-open');
+  document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('on', a.dataset.p === page));
+  setView('<div class="loading">Loading…</div>');
+  PAGES[page]().catch(e => setView(`<div class="card err">${esc(e.message)}</div>`));
+}
+async function loadCodes() { if (!CODES) CODES = await api('listChargeCodes'); return CODES; }
+function codeOptions(type) {
+  return CODES.filter(c => c.active && c.type === type && (type !== 'Charge' || c.code !== 'TAX')).map(c => [c.code, c.code + ' · ' + c.description]);
+}
+function bizPill() { return `<span class="pill Reserved">Business date ${esc(S.bizDate)}</span>`; }
+
+/* ============================================================
+ * DASHBOARD
+ * ============================================================ */
+async function pgDashboard() {
+  const [b, f, fc] = await Promise.all([api('frontDeskBoard'), api('runReport', 'flash', '', ''), api('occupancyForecast', 14)]);
+  const occ = (f.rows.find(r => r[0] === 'Occupancy %') || [])[1] || '0%';
+  setView(`<h1>Dashboard<small>${esc(b.bizDate)}</small></h1>
+    <div class="kpis">${kpi('In-house', b.inHouse.length)}${kpi('Arrivals', b.arrivals.length)}${kpi('Departures', b.departures.length)}
+      ${kpi('Occupancy', occ)}${kpi('Past-due arrivals', b.pastDue.length)}${kpi('Dirty rooms', b.dirtyRooms)}</div>
+    <div class="grid2">
+      <div class="card"><h3>Flash · ${esc(b.bizDate)}</h3>${table(f.headers, f.rows.map(r => tr(r.map(c => typeof c === 'number' ? `<span>${num(c)}</span>` : esc(c)))))}</div>
+      <div class="card"><h3>Quick actions</h3><div class="acts">
+        ${can('frontdesk.checkin') ? '<button class="btn" onclick="go(\'frontdesk\')">Front desk</button>' : ''}
+        ${can('reservations.create') ? '<button class="btn" onclick="go(\'newres\')">New reservation</button>' : ''}
+        ${can('rack.view') ? '<button class="btn ghost" onclick="go(\'rack\')">Room rack</button>' : ''}
+        ${can('nightaudit.run') ? '<button class="btn ghost" onclick="go(\'nightaudit\')">Night audit</button>' : ''}
+      </div><p class="muted" style="margin-top:14px">Occupancy counts in-house guests against rooms that are Active (not out of order).</p></div>
+    </div>
+    <div class="card"><h3>Next 14 nights · occupancy</h3>${forecastHtml(fc)}</div>`);
+}
+
+/* ============================================================
+ * FRONT DESK
+ * ============================================================ */
+async function pgFrontDesk() {
+  const b = await api('frontDeskBoard');
+  const actions = r => {
+    let h = '';
+    if (r.status === 'Reserved' && can('frontdesk.checkin')) h += `<button class="btn sm ok" onclick="ciModal('${esc(r.resNo)}')">Check in</button> `;
+    if (r.status === 'In-House' && can('frontdesk.checkout')) h += `<button class="btn sm" onclick="coAct('${esc(r.resNo)}')">Check out</button> `;
+    if (r.status === 'In-House' && can('reservations.modify')) h += `<button class="btn sm ghost" onclick="moveModal('${esc(r.resNo)}')">Move</button> <button class="btn sm ghost" onclick="extendModal('${esc(r.resNo)}')">Extend</button>`;
+    return h;
+  };
+  const rowsFor = list => list.map(r => tr([lnk(r.resNo), (r.vip ? '★ ' : '') + esc(r.guestName), esc(r.roomNo), esc(r.roomType), esc(r.arrival), esc(r.departure), balCell(r.balance), actions(r)]));
+  const H = ['Res #', 'Guest', 'Room', 'Type', 'Arrival', 'Departure', 'Balance', ''];
+  setView(`<h1>Front desk<small>${esc(b.bizDate)}</small></h1>
+    <div class="head-row"><div class="acts">${bizPill()}</div><div class="acts">
+      ${can('reservations.create') && can('frontdesk.checkin') ? '<button class="btn" onclick="walkInModal()">+ Walk-in</button>' : ''}
+      ${can('reservations.create') ? '<button class="btn ghost" onclick="go(\'newres\')">+ Reservation</button>' : ''}
+    </div></div>
+    ${b.pastDue.length ? `<div class="card"><h3>Past-due arrivals (${b.pastDue.length})</h3>${table(H, rowsFor(b.pastDue))}</div>` : ''}
+    <div class="card"><h3>Arrivals today (${b.arrivals.length})</h3>${table(H, rowsFor(b.arrivals))}</div>
+    <div class="card"><h3>Departures today (${b.departures.length})</h3>${table(H, rowsFor(b.departures))}</div>
+    <div class="card"><h3>In-house (${b.inHouse.length})</h3>${table(H, rowsFor(b.inHouse))}</div>
+    <div class="card"><h3>Departed today (${b.departed.length})</h3>${table(H, rowsFor(b.departed))}</div>`);
+}
+function ciModal(resNo) {
+  openModal('Check in · ' + resNo, formHtml('fCi', [
+    { name: 'roomNo', label: 'Room (blank = reserved room)', placeholder: 'e.g. 204' },
+    { name: 'deposit', label: 'Deposit collected', type: 'number', step: '0.01', value: 0 },
+    { name: 'depositCode', label: 'Deposit method', type: 'select', options: [['DEP', 'Deposit'], ['CASH', 'Cash'], ['CARD', 'Card'], ['BANK', 'Bank transfer']] },
+    ...(can('frontdesk.override') ? [{ name: 'force', label: 'Override dirty room (manager)', type: 'check', value: false, wide: true }] : [])
+  ], 'Check in'));
+  bindForm('fCi', async d => {
+    const r = await api('checkIn', resNo, d.roomNo || '', Number(d.deposit) || 0, d.depositCode || 'DEP', d.force === 'true');
+    toast('Checked in ' + resNo + ' to room ' + r.roomNo + (r.warnings && r.warnings.length ? ' · ' + r.warnings.join(' · ') : '')); closeModal(); refresh();
+  });
+}
+function coAct(resNo) {
+  openModal('Check out · ' + resNo, formHtml('fCo', [
+    { name: 'note', label: 'Check-out confirmation', type: 'select', options: ['Settled in full', 'Keys returned'] },
+    ...(can('frontdesk.override') ? [{ name: 'force', label: 'Override open balance (manager only)', type: 'check', value: false, wide: true }] : [])
+  ], 'Check out'));
+  bindForm('fCo', async d => {
+    const r = await api('checkOut', resNo, d.force === 'true');
+    toast('Checked out. Balance ' + money(r.balance)); closeModal(); refresh();
+  });
+}
+async function walkInModal() {
+  const types = await api('listRoomTypes');
+  const dep = addDaysIso(S.bizDate, 1);
+  openModal('Walk-in guest', formHtml('fWi', [
+    { name: 'firstName', label: 'First name', required: true }, { name: 'lastName', label: 'Last name', required: true },
+    { name: 'phone', label: 'Phone' }, { name: 'email', label: 'Email', type: 'email' },
+    { name: 'nationality', label: 'Nationality' }, { name: 'idNo', label: 'ID / passport no.' },
+    { name: 'roomType', label: 'Room type', type: 'select', options: types.map(t => [t.code, t.name + ' · ' + num(t.baseRate)]) },
+    { name: 'roomNo', label: 'Room no. (optional)' },
+    { name: 'departure', label: 'Departure', type: 'date', required: true, value: dep },
+    { name: 'adults', label: 'Adults', type: 'number', min: 1, value: 1 },
+    { name: 'deposit', label: 'Deposit now', type: 'number', step: '0.01', value: 0 },
+    { name: 'depositCode', label: 'Deposit method', type: 'select', options: [['CASH', 'Cash'], ['CARD', 'Card'], ['DEP', 'Deposit']] }
+  ], 'Check in walk-in'));
+  bindForm('fWi', async d => {
+    const r = await api('walkIn', { firstName: d.firstName, lastName: d.lastName, phone: d.phone, email: d.email, nationality: d.nationality,
+      idNo: d.idNo, roomType: d.roomType, roomNo: d.roomNo, departure: d.departure, adults: Number(d.adults) || 1,
+      deposit: Number(d.deposit) || 0, depositCode: d.depositCode });
+    toast('Walk-in checked in: ' + r.resNo + ' room ' + r.roomNo); closeModal(); go('res', r.resNo);
+  });
+}
+async function moveModal(resNo) {
+  const av = await api('availability', S.bizDate, (await api('getReservation', resNo)).res.departure, '');
+  const opts = av.reduce((a, t) => a.concat(t.rooms.map(no => [no, no + ' · ' + t.type])), []);
+  if (!opts.length) { toast('No free rooms for the rest of this stay.', true); return; }
+  openModal('Move guest · ' + resNo, formHtml('fMv', [{ name: 'roomNo', label: 'New room', type: 'select', options: opts }], 'Move'));
+  bindForm('fMv', async d => { await api('moveRoom', resNo, d.roomNo); toast('Moved to ' + d.roomNo); closeModal(); refresh(); });
+}
+function extendModal(resNo) {
+  openModal('Extend stay · ' + resNo, formHtml('fEx', [{ name: 'departure', label: 'New departure', type: 'date', required: true, value: addDaysIso(S.bizDate, 2) }], 'Extend'));
+  bindForm('fEx', async d => { await api('extendStay', resNo, d.departure); toast('Stay extended to ' + d.departure); closeModal(); refresh(); });
+}
+
+/* ============================================================
+ * RESERVATIONS
+ * ============================================================ */
+async function pgReservations() {
+  const rows = await api('listReservations', RF);
+  const statuses = ['', 'Reserved', 'In-House', 'Departed', 'Cancelled', 'No-Show'];
+  setView(`<h1>Reservations</h1>
+  <form class="card toolbar" onsubmit="resFilter(event)">
+    <label><span>Status</span><select name="status">${statuses.map(s => `<option value="${s}"${s === RF.status ? ' selected' : ''}>${s || 'All'}</option>`).join('')}</select></label>
+    <label><span>Search</span><input name="q" value="${esc(RF.q)}" placeholder="Name, room, res #, company"></label>
+    <label><span>From</span><input type="date" name="from" value="${esc(RF.from)}"></label>
+    <label><span>To</span><input type="date" name="to" value="${esc(RF.to)}"></label>
+    <button class="btn" type="submit">Filter</button>
+  </form>
+  <div class="card">${table(['Res #', 'Guest', 'Room', 'Type', 'Arrival', 'Departure', 'Status', 'Channel', 'Balance'],
+    rows.map(r => tr([lnk(r.resNo), (r.vip ? '★ ' : '') + esc(r.guestName) + (r.groupId ? ' <span class="muted">(group)</span>' : ''), esc(r.roomNo), esc(r.roomType), esc(r.arrival), esc(r.departure), pill(r.status), esc(r.channel), balCell(r.balance)])))}
+    <p class="muted">Up to 500 results.</p></div>`);
+}
+function resFilter(e) {
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(e.target));
+  RF = { status: d.status || '', q: d.q || '', from: d.from || '', to: d.to || '' };
+  go('reservations');
+}
+
+async function pgRes() {
+  const d = await api('getReservation', S.param);
+  RES = d;
+  const r = d.res, st = r.status;
+  const btn = [];
+  if (st === 'Reserved' && can('frontdesk.checkin')) btn.push(`<button class="btn ok" onclick="ciModal('${esc(r.resNo)}')">Check in</button>`);
+  if (st === 'In-House' && can('frontdesk.checkout')) btn.push(`<button class="btn ok" onclick="coAct('${esc(r.resNo)}')">Check out</button>`);
+  if (st === 'Reserved' && can('reservations.modify')) btn.push(`<button class="btn ghost" onclick="modifyModal('${esc(r.resNo)}')">Modify</button>`);
+  if (st === 'In-House' && can('reservations.modify')) btn.push(`<button class="btn ghost" onclick="moveModal('${esc(r.resNo)}')">Move room</button>`, `<button class="btn ghost" onclick="extendModal('${esc(r.resNo)}')">Extend stay</button>`);
+  if (st === 'Reserved' && r.arrival < S.bizDate && can('reservations.cancel')) btn.push(`<button class="btn ghost" onclick="noShowAct('${esc(r.resNo)}')">No-show</button>`);
+  if (st === 'Reserved' && can('reservations.cancel')) btn.push(`<button class="btn danger" onclick="cancelModal('${esc(r.resNo)}')">Cancel</button>`);
+
+  if (can('folio.view')) btn.push(`<button class="btn ghost" onclick="printFolio('${esc(r.resNo)}')">Print folio</button>`);
+  if (can('reservations.view')) btn.push(`<button class="btn ghost" onclick="printRegCard('${esc(r.resNo)}')">Registration card</button>`);
+  if (st === 'In-House' && can('folio.post')) btn.push(`<button class="btn ghost" onclick="lateCoModal('${esc(r.resNo)}')">Late checkout fee</button>`);
+  let folios = '';
+  if (d.folios) {
+    folios = d.folios.map(f => {
+      const rows = f.postings.map(p => tr([esc(p.bizDate), esc(p.code), esc(p.description), `<span class="${Number(p.amount) < 0 ? 'neg' : ''}">${num(p.amount)}</span>`,
+        p.voided ? `<span class="pill Cancelled" title="${esc(p.voidReason)}">VOID</span>` : (p.parentId ? '<span class="muted">tax</span>' : '<span class="pill Clean">OK</span>'),
+        p.voided ? '' : `${can('folio.transfer') ? `<button class="btn sm ghost" onclick="transferModal('${esc(p.id)}')">Transfer</button> ` : ''}${can('folio.void') ? `<button class="btn sm danger" onclick="voidModal('${esc(p.id)}')">Void</button>` : ''}`], p.voided ? 'muted' : ''));
+      const canPost = can('folio.post') && f.status === 'Open' && st !== 'Departed' && st !== 'Cancelled' && st !== 'No-Show';
+      return `<div class="card"><div class="head-row"><h3>Folio ${f.folioNo} · ${esc(f.name)} ${f.status === 'Closed' ? pill('Closed') : ''} ${f.accountId ? '<span class="pill Reserved">Company billed</span>' : ''}</h3>
+        <div class="acts">Balance ${balCell(f.balance)}
+          ${canPost && st === 'In-House' ? `<button class="btn sm" onclick="chargeModal('${esc(f.id)}')">Post charge</button>` : ''}
+          ${canPost ? `<button class="btn sm ok" onclick="payModal('${esc(f.id)}')">Payment</button>` : ''}
+          ${can('accounts.manage') && f.status === 'Open' ? `<button class="btn sm ghost" onclick="billToModal('${esc(f.id)}','${esc(f.accountId || '')}')">Bill to company</button>` : ''}
+        </div></div>${table(['Date', 'Code', 'Description', 'Amount', 'Status', ''], rows)}</div>`;
+    }).join('') + (can('folio.post') && st !== 'Departed' && st !== 'Cancelled' && st !== 'No-Show' ? `<div class="acts"><button class="btn ghost" onclick="addFolioModal('${esc(r.resNo)}')">+ Add folio</button></div>` : '');
+  } else {
+    folios = '<div class="card muted"><h3>Folios</h3>Hidden for your role.</div>';
+  }
+
+  setView(`<h1>${esc(r.resNo)} ${pill(st)}</h1>
+    <div class="head-row"><div>${d.balance !== undefined ? `Total balance ${balCell(d.balance)}` : ''}</div><div class="acts">${btn.join('')}</div></div>
+    <div class="grid2">
+      <div class="card"><h3>Guest & stay</h3>${kv([
+        ['Guest', esc(d.guestName)], ['Email', esc(d.guest.email)], ['Phone', esc(d.guest.phone)], ['ID', esc(d.guest.idNo)],
+        ['Nationality', esc(d.guest.nationality)], ['Guest alert', alertHtml(d.guest)],['Room', esc(d.room.roomNo) + ' · ' + esc(d.room.type) + (d.room.housekeeping ? ' · ' + esc(d.room.housekeeping) : '')],
+        ['Arrival', esc(r.arrival)], ['Departure', esc(r.departure)], ['Adults / children', esc(r.adults) + ' / ' + esc(r.children)],
+        ['Plan', esc(r.plan)], ['Average rate', money(r.rate)], ['Channel', esc(r.channel)], ['Company', esc(r.company) || '—'],
+        ['Group', r.groupId ? lnkTo('group', r.groupId, 'Open group') : '—'],
+        ['Checked in', esc(r.checkedInAt) || '—'], ['Checked out', esc(r.checkedOutAt) || '—'],
+        ['Notes', esc(r.notes) || '—'], ...(r.cancelReason ? [['Cancel reason', esc(r.cancelReason)]] : [])
+      ])}
+      <h3 style="margin-top:14px">Nightly rates</h3>${table(['Night', 'Rate'], d.rates.map(x => tr([esc(x.date), num(x.rate)])))}
+      </div>
+      <div>${folios}</div>
+    </div>`);
+}
+async function modifyModal(resNo) {
+  const d = RES.res.resNo === resNo ? RES : await api('getReservation', resNo);
+  const [types, plans] = await Promise.all([api('listRoomTypes'), api('listRatePlans')]);
+  const r = d.res;
+  openModal('Modify reservation · ' + resNo, formHtml('fMod', [
+    { name: 'arrival', label: 'Arrival', type: 'date', required: true, value: r.arrival },
+    { name: 'departure', label: 'Departure', type: 'date', required: true, value: r.departure },
+    { name: 'roomType', label: 'Room type', type: 'select', options: types.map(t => [t.code, t.name]), value: r.roomType },
+    { name: 'plan', label: 'Rate plan', type: 'select', options: plans.map(p => [p.code, p.name]), value: r.plan },
+    { name: 'adults', label: 'Adults', type: 'number', min: 1, value: r.adults },
+    { name: 'rateOverride', label: 'Fixed nightly rate (blank = plan rate)', type: 'number', step: '0.01' },
+    { name: 'notes', label: 'Notes', type: 'textarea', wide: true, value: r.notes }
+  ], 'Save changes'));
+  bindForm('fMod', async f => { await api('modifyReservation', resNo, f); toast('Reservation updated'); closeModal(); refresh(); });
+}
+function cancelModal(resNo) {
+  openModal('Cancel ' + resNo, formHtml('fCx', [{ name: 'reason', label: 'Reason', type: 'textarea', required: true, wide: true }], 'Cancel reservation'));
+  bindForm('fCx', async d => { await api('cancelReservation', resNo, d.reason); toast('Cancelled'); closeModal(); refresh(); });
+}
+function noShowAct(resNo) { act('markNoShow', 'Marked no-show', resNo); }
+async function addFolioModal(resNo) {
+  openModal('Add folio', formHtml('fAF', [{ name: 'name', label: 'Folio name', required: true, value: 'Company / extras' }], 'Add folio'));
+  bindForm('fAF', async d => { await api('addFolio', resNo, d.name); toast('Folio added'); closeModal(); refresh(); });
+}
+async function chargeModal(folioId) {
+  await loadCodes();
+  openModal('Post charge', formHtml('fCh', [
+    { name: 'code', label: 'Charge code', type: 'select', options: codeOptions('Charge'), required: true },
+    { name: 'description', label: 'Description', wide: true, placeholder: 'Optional detail' },
+    { name: 'amount', label: 'Amount (before tax)', type: 'number', step: '0.01', required: true }
+  ], 'Post charge'));
+  bindForm('fCh', async d => {
+    const r = await api('postCharge', folioId, d.code, d.description, Number(d.amount));
+    toast('Posted. Stay balance ' + money(r.balance)); closeModal(); refresh();
+  });
+}
+async function payModal(folioId) {
+  await loadCodes();
+  openModal('Take payment', formHtml('fPy', [
+    { name: 'code', label: 'Method', type: 'select', options: codeOptions('Payment'), required: true },
+    { name: 'amount', label: 'Amount', type: 'number', step: '0.01', required: true }
+  ], 'Record payment'));
+  bindForm('fPy', async d => {
+    const r = await api('postPayment', folioId, d.code, Number(d.amount));
+    toast('Payment recorded. Stay balance ' + money(r.balance)); closeModal(); refresh();
+  });
+}
+async function transferModal(postingId) {
+  const folios = await api('cashierList');
+  const opts = folios.map(f => [f.id, f.resNo + ' · Room ' + f.roomNo + ' · ' + f.guest + ' · ' + f.name]);
+  if (!opts.length) { toast('No open folios to transfer to.', true); return; }
+  openModal('Transfer posting', formHtml('fTf', [{ name: 'folioId', label: 'Target folio', type: 'select', options: opts, wide: true }], 'Transfer'));
+  bindForm('fTf', async d => { await api('transferPosting', postingId, d.folioId); toast('Transferred'); closeModal(); refresh(); });
+}
+function voidModal(postingId) {
+  openModal('Void posting', formHtml('fVd', [{ name: 'reason', label: 'Reason (required)', type: 'textarea', required: true, wide: true }], 'Void'));
+  bindForm('fVd', async d => { await api('voidPosting', postingId, d.reason); toast('Voided'); closeModal(); refresh(); });
+}
+
+/* ============================================================
+ * NEW RESERVATION (availability → rate quote → guest → confirm)
+ * ============================================================ */
+async function pgNewRes() {
+  if (!NR.arrival) { NR.arrival = S.bizDate; NR.departure = addDaysIso(S.bizDate, 1); NR.plan = 'BAR'; }
+  const plans = await api('listRatePlans');
+  let html = `<h1>New reservation</h1>
+  <div class="card"><h3>1. Dates & availability</h3>
+    <form class="toolbar" onsubmit="nrSearch(event)">
+      <label><span>Arrival</span><input type="date" name="arrival" value="${NR.arrival}" required></label>
+      <label><span>Departure</span><input type="date" name="departure" value="${NR.departure}" required></label>
+      <button class="btn" type="submit">Check availability</button>
+    </form>
+    ${NR.avail ? table(['Room type', 'Average rate / night', 'Free / total', 'Free rooms', ''], NR.avail.map(t => tr([
+      esc(t.type), money(t.rate), `${t.free} / ${t.total}`, esc(t.rooms.join(', ')),
+      `<button class="btn sm${NR.type === t.type ? ' ok' : ''}" onclick="nrPick('${esc(t.type)}')">${NR.type === t.type ? 'Selected' : 'Select'}</button>`]))) : '<p class="muted">Choose dates to see free rooms.</p>'}
+  </div>`;
+
+  if (NR.type) {
+    const q = await api('quoteRates', NR.type, NR.plan || 'BAR', NR.arrival, NR.departure);
+    const g = NR.guest || {};
+    html += `<div class="card"><h3>2. Guest</h3>
+      <form class="toolbar" onsubmit="nrGuestSearch(event)">
+        <label><span>Find existing guest</span><input name="q" placeholder="Name, phone, email, ID" style="min-width:260px"></label>
+        <button class="btn ghost" type="submit">Search</button>
+        ${g.id ? `<span class="pill Clean">Linked: ${esc(g.name)}</span> <button class="btn sm ghost" type="button" onclick="nrClearGuest()">Unlink</button>` : ''}
+      </form>
+      ${NR.gres && NR.gres.length ? table(['Name', 'Phone', 'ID', 'Stays', ''], NR.gres.map(x => tr([esc(x.name) + (x.vip ? ' ★' : ''), esc(x.phone), esc(x.idNo), x.stays, `<button class="btn sm" onclick="nrPickGuest('${esc(x.id)}','${esc(x.name)}')">Use</button>`]))) : ''}
+    </div>
+    <div class="card"><h3>3. Stay & rate</h3>
+      <div class="kpi-line" style="margin-bottom:12px">
+        <span>${esc(NR.type)} · ${nightsOf_()} night(s)</span>
+        <span>Total <b>${money(q.total)}</b></span><span>Average <b>${money(q.average)}</b> / night</span>
+      </div>
+      ${formHtml('fNR', [
+        { name: 'firstName', label: 'First name', required: true, value: g.first || '' },
+        { name: 'lastName', label: 'Last name', required: true, value: g.last || '' },
+        { name: 'email', label: 'Email', type: 'email', value: g.email || '' },
+        { name: 'phone', label: 'Phone', value: g.phone || '' },
+        { name: 'nationality', label: 'Nationality', value: g.nationality || '' },
+        { name: 'idNo', label: 'ID / passport no.', value: g.idNo || '' },
+        { name: 'plan', label: 'Rate plan', type: 'select', options: plans.map(p => [p.code, p.name]), value: NR.plan },
+        { name: 'adults', label: 'Adults', type: 'number', min: 1, value: NR.adults || 1 },
+        { name: 'rateOverride', label: 'Fixed nightly rate (optional)', type: 'number', step: '0.01' },
+        { name: 'channel', label: 'Channel', type: 'select', options: ['Direct', 'Phone', 'Email', 'Booking.com', 'Expedia', 'Corporate', 'Other'] },
+        { name: 'company', label: 'Company' },
+        { name: 'notes', label: 'Notes / special requests', type: 'textarea', wide: true }
+      ], 'Confirm reservation', false)}
+    </div>`;
+  }
+  setView(html);
+  if (NR.type) bindForm('fNR', async d => {
+    const r = await api('createReservation', Object.assign({}, d, { arrival: NR.arrival, departure: NR.departure, roomType: NR.type, guestId: (NR.guest && NR.guest.id) || '' }));
+    NR = {}; toast('Reservation ' + r.resNo + ' confirmed · room ' + r.roomNo);
+    go('res', r.resNo);
+  });
+}
+function nightsOf_() { return Math.round((new Date(NR.departure) - new Date(NR.arrival)) / 86400000); }
+async function nrSearch(e) {
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(e.target));
+  NR.arrival = d.arrival; NR.departure = d.departure; NR.type = null;
+  try { NR.avail = await api('availability', d.arrival, d.departure, ''); go('newres'); }
+  catch (err) { toast(err.message, true); }
+}
+function nrPick(type) { NR.type = type; go('newres'); }
+async function nrGuestSearch(e) {
+  e.preventDefault();
+  const q = new FormData(e.target).get('q');
+  try { NR.gres = await api('searchGuests', q); go('newres'); } catch (err) { toast(err.message, true); }
+}
+function nrPickGuest(id, name) {
+  const parts = name.split(' ');
+  NR.guest = { id: id, name: name, first: parts[0], last: parts.slice(1).join(' ') || parts[0] };
+  const x = (NR.gres || []).find(g => g.id === id) || {};
+  Object.assign(NR.guest, { phone: x.phone, email: x.email, idNo: x.idNo, nationality: '' });
+  NR.gres = [];
+  go('newres');
+}
+function nrClearGuest() { NR.guest = null; go('newres'); }
+
+/* ============================================================
+ * GUESTS
+ * ============================================================ */
+async function pgGuests() {
+  const q = S.param || '';
+  const list = q ? await api('searchGuests', q) : [];
+  setView(`<h1>Guests</h1>
+    <form class="card toolbar" onsubmit="guestSearch(event)">
+      <label><span>Search</span><input name="q" value="${esc(q)}" placeholder="Name, phone, email, ID, company" style="min-width:300px"></label>
+      <button class="btn" type="submit">Search</button>
+      ${can('guests.manage') ? '<button class="btn ghost" type="button" onclick="guestModal()">+ New guest</button>' : ''}
+    </form>
+    ${q ? `<div class="card">${table(['Name', 'Phone', 'Email', 'ID', 'Company', 'Stays', ''], list.map(g => tr([(g.vip ? '★ ' : '') + esc(g.name), esc(g.phone), esc(g.email), esc(g.idNo), esc(g.company), g.stays, lnkTo('guest', g.id, 'Open')])))}</div>` : '<p class="muted">Type at least two characters.</p>'}`);
+}
+function guestSearch(e) { e.preventDefault(); go('guests', new FormData(e.target).get('q')); }
+async function pgGuest() {
+  const d = await api('getGuest', S.param);
+  const g = d.guest;
+  setView(`<h1>${esc(d.name)} ${g.vip ? '<span class="pill Dirty">VIP</span>' : ''}</h1>
+    <div class="grid2">
+      <div class="card"><h3>Profile</h3>${kv([['Email', esc(g.email)], ['Phone', esc(g.phone)], ['Nationality', esc(g.nationality)], ['ID', esc(g.idType) + ' ' + esc(g.idNo)], ['Company', esc(g.company)], ['Stays', esc(g.stays)], ['Last stay', esc(g.lastStay) || '—'], ['Preferences', esc(g.preferences) || '—'], ['Alert', alertHtml(g)], ['Notes', esc(g.notes) || '—']])}
+        ${can('guests.manage') ? `<div class="acts" style="margin-top:12px"><button class="btn" onclick="guestModal('${esc(g.id)}')">Edit profile</button></div>` : ''}</div>
+      <div class="card"><h3>Stay history</h3>${table(['Res #', 'Arrival', 'Departure', 'Room', 'Status'], d.stays.map(s => tr([lnk(s.resNo), esc(s.arrival), esc(s.departure), esc(s.roomNo), pill(s.status)])))}</div>
+    </div>`);
+}
+function guestModal(id) {
+  const g = id ? null : {};
+  const load = id ? api('getGuest', id).then(d => d.guest) : Promise.resolve(g);
+  load.then(x => {
+    openModal(id ? 'Edit guest' : 'New guest', formHtml('fGu', [
+      { name: 'firstName', label: 'First name', required: true, value: x.firstName || '' },
+      { name: 'lastName', label: 'Last name', required: true, value: x.lastName || '' },
+      { name: 'email', label: 'Email', type: 'email', value: x.email || '' },
+      { name: 'phone', label: 'Phone', value: x.phone || '' },
+      { name: 'nationality', label: 'Nationality', value: x.nationality || '' },
+      { name: 'idType', label: 'ID type', type: 'select', options: ['Passport', 'National ID', 'Driving licence', 'Other'], value: x.idType || 'Passport' },
+      { name: 'idNo', label: 'ID number', value: x.idNo || '' },
+      { name: 'company', label: 'Company', value: x.company || '' },
+      { name: 'vip', label: 'VIP', type: 'check', value: x.vip === true },
+      { name: 'alertLevel', label: 'Alert level', type: 'select', options: [['Info', 'Info · warn at check-in'], ['Block', 'Block · stop check-in']], value: x.alertLevel || 'Info' },
+      { name: 'alert', label: 'Alert message (leave blank for none)', wide: true, value: x.alert || '' },
+      { name: 'preferences', label: 'Preferences (pillow, floor, diet…)', type: 'textarea', wide: true, value: x.preferences || '' },
+      { name: 'notes', label: 'Notes', type: 'textarea', wide: true, value: x.notes || '' }
+    ], 'Save guest'));
+    bindForm('fGu', async d => {
+      const gid = await api('saveGuest', Object.assign({}, d, { id: id || '', vip: d.vip === 'true' }));
+      toast('Guest saved'); closeModal(); go('guest', gid);
+    });
+  }).catch(e => toast(e.message, true));
+}
+
+/* ============================================================
+ * ROOM RACK
+ * ============================================================ */
+async function pgRack() {
+  const start = S.param || S.bizDate;
+  const d = await api('rackData', start, 14);
+  const cells = d.rooms.map(rm => {
+    const tds = rm.cells.map((c, i) => {
+      const cls = (rm.status !== 'Active' ? 'ooo ' : '') + (c ? (c.status === 'In-House' ? 'In-House ' : 'Reserved ') : 'blank ') + (d.dates[i] === S.bizDate ? 'today' : '');
+      if (!c) return `<td class="cell ${cls}"></td>`;
+      return `<td class="cell ${cls}" title="${esc(c.guest)} · ${esc(c.resNo)}" onclick="go('res','${esc(c.resNo)}')">${c.start ? esc(c.guest) : '&nbsp;'}</td>`;
+    }).join('');
+    return `<tr><td class="rm">${esc(rm.roomNo)} <span class="muted">${esc(rm.type)}</span>${rm.status !== 'Active' ? ' ' + pill(rm.status === 'Out of Order' ? 'Out' : 'Out') : ''}</td>${tds}</tr>`;
+  }).join('');
+  setView(`<h1>Room rack <small>${esc(d.dates[0])} → ${esc(d.dates[d.dates.length - 1])}</small></h1>
+    <div class="head-row"><div class="acts">
+      <button class="btn ghost" onclick="go('rack','${addDaysIso(start, -7)}')">← 7 days</button>
+      <button class="btn ghost" onclick="go('rack','${S.bizDate}')">Today</button>
+      <button class="btn ghost" onclick="go('rack','${addDaysIso(start, 7)}')">7 days →</button>
+    </div><div class="acts"><span class="pill Reserved">Reserved</span><span class="pill In-House">In-house</span><span class="pill Cancelled">Out of order</span></div></div>
+    <div class="rack"><table><thead><tr><th class="rm">Room</th>${d.dates.map(x => `<th class="dt${x === S.bizDate ? ' today' : ''}">${esc(x.slice(5))}<br><span class="muted">${new Date(x + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })}</span></th>`).join('')}</tr></thead><tbody>${cells}</tbody></table></div>`);
+}
+
+/* ============================================================
+ * GROUPS
+ * ============================================================ */
+async function pgGroups() {
+  const gs = await api('listGroups');
+  setView(`<h1>Groups</h1>
+    <div class="head-row"><div></div><div class="acts"><button class="btn" onclick="groupModal()">+ New group block</button></div></div>
+    <div class="card">${table(['Group', 'Contact', 'Arrival', 'Departure', 'Type', 'Rooms', 'In-house', 'Departed', ''],
+      gs.map(g => tr([esc(g.name), esc(g.contact), esc(g.arrival), esc(g.departure), esc(g.roomType), g.rooms, g.inHouse, g.departed, lnkTo('group', g.id, 'Open')])))}</div>`);
+}
+async function groupModal() {
+  const [types, plans] = await Promise.all([api('listRoomTypes'), api('listRatePlans')]);
+  openModal('New group block', formHtml('fGp', [
+    { name: 'name', label: 'Group name', required: true, wide: true },
+    { name: 'contact', label: 'Contact person / phone' },
+    { name: 'roomType', label: 'Room type', type: 'select', options: types.map(t => [t.code, t.name]) },
+    { name: 'arrival', label: 'Arrival', type: 'date', required: true, value: S.bizDate },
+    { name: 'departure', label: 'Departure', type: 'date', required: true, value: addDaysIso(S.bizDate, 3) },
+    { name: 'roomCount', label: 'Rooms', type: 'number', min: 1, required: true, value: 10 },
+    { name: 'plan', label: 'Rate plan', type: 'select', options: plans.map(p => [p.code, p.name]), value: 'CORP' },
+    { name: 'rate', label: 'Group rate / night (blank = plan rate)', type: 'number', step: '0.01' },
+    { name: 'adultsPerRoom', label: 'Adults per room', type: 'number', min: 1, value: 2 },
+    { name: 'notes', label: 'Notes', type: 'textarea', wide: true }
+  ], 'Create block'));
+  bindForm('fGp', async d => {
+    const r = await api('createGroup', Object.assign({}, d, { roomCount: Number(d.roomCount), rate: Number(d.rate) || 0, adultsPerRoom: Number(d.adultsPerRoom) || 2 }));
+    toast('Group created: ' + r.reservations.length + ' rooms'); closeModal(); go('group', r.groupId);
+  });
+}
+async function pgGroup() {
+  const d = await api('getGroup', S.param);
+  const g = d.group;
+  const mem = d.members.map(m => tr([lnk(m.resNo), esc(m.guestName), esc(m.roomNo), esc(m.roomType), esc(m.arrival + ' → ' + m.departure), pill(m.status)]));
+  const master = d.master ? d.master.postings.map(p => tr([esc(p.bizDate), esc(p.code), esc(p.description), `<span class="${Number(p.amount) < 0 ? 'neg' : ''}">${num(p.amount)}</span>`,
+    p.voided ? '<span class="pill Cancelled">VOID</span>' : '<span class="pill Clean">OK</span>',
+    p.voided ? '' : `${can('folio.transfer') ? `<button class="btn sm" onclick="groupTransferModal('${esc(p.id)}')">Transfer to room</button>` : ''}`], p.voided ? 'muted' : '')) : [];
+  setView(`<h1>${esc(g.name)} <small>${esc(g.id)}</small></h1>
+    <div class="head-row"><div class="acts">
+      ${can('frontdesk.checkin') ? `<button class="btn ok" onclick="groupCi('${esc(g.id)}')">Check in arrivals</button>` : ''}
+      ${can('folio.post') ? `<button class="btn ghost" onclick="groupChargeModal('${esc(g.id)}')">Post group charge</button>` : ''}
+    </div><div class="acts">${d.master ? `Master balance ${balCell(d.master.balance)}` : ''}</div></div>
+    <div class="grid2">
+      <div class="card"><h3>Block</h3>${kv([['Contact', esc(g.contact) || '—'], ['Arrival', esc(g.arrival)], ['Departure', esc(g.departure)], ['Room type', esc(g.roomType)], ['Rooms', esc(g.roomCount)], ['Notes', esc(g.notes) || '—']])}</div>
+      ${d.master ? `<div class="card"><h3>Group master folio</h3><p class="muted">Charges here are not in revenue reports until transferred to a room.</p>${table(['Date', 'Code', 'Description', 'Amount', 'Status', ''], master)}</div>` : '<div class="card muted">Master folio hidden for your role.</div>'}
+    </div>
+    <div class="card"><h3>Rooms (${d.members.length})</h3>${table(['Res #', 'Guest', 'Room', 'Type', 'Stay', 'Status'], mem)}</div>`);
+  window._members = d.members;
+}
+async function groupCi(gid) {
+  try {
+    const r = await api('groupCheckIn', gid);
+    refresh();
+    if (r.skipped.length) openModal('Group check-in: ' + r.done + ' done, ' + r.skipped.length + ' skipped', '<ul>' + r.skipped.map(s => '<li>' + esc(s) + '</li>').join('') + '</ul>');
+    else toast('Group check-in: ' + r.done + ' rooms');
+  } catch (e) { toast(e.message, true); }
+}
+async function groupChargeModal(gid) {
+  await loadCodes();
+  openModal('Group charge', formHtml('fGc', [
+    { name: 'code', label: 'Charge code', type: 'select', options: codeOptions('Charge'), required: true },
+    { name: 'description', label: 'Description', wide: true },
+    { name: 'amount', label: 'Amount per posting', type: 'number', step: '0.01', required: true },
+    { name: 'target', label: 'Post to', type: 'select', options: [['MASTER', 'Group master folio (once)'], ['EACH', 'Every in-house room']] }
+  ], 'Post'));
+  bindForm('fGc', async d => {
+    const r = await api('postGroupCharge', gid, d.code, d.description, Number(d.amount), d.target);
+    toast('Posted to ' + r.posted + ' posting(s), total ' + money(r.total)); closeModal(); refresh();
+  });
+}
+function groupTransferModal(postingId) {
+  const opts = (window._members || []).filter(m => m.folioId && (m.status === 'Reserved' || m.status === 'In-House'))
+    .map(m => [m.folioId, m.resNo + ' · Room ' + m.roomNo + ' · ' + m.guestName]);
+  if (!opts.length) { toast('No active rooms to transfer to.', true); return; }
+  openModal('Transfer to room', formHtml('fGt', [{ name: 'folioId', label: 'Room folio', type: 'select', options: opts, wide: true }], 'Transfer'));
+  bindForm('fGt', async d => { await api('transferPosting', postingId, d.folioId); toast('Transferred'); closeModal(); refresh(); });
+}
+
+/* ============================================================
+ * HOUSEKEEPING
+ * ============================================================ */
+async function pgHousekeeping() {
+  const [rooms, hks] = await Promise.all([api('housekeepingBoard'), api('housekeeperNames')]);
+  const cards = rooms.map(r => {
+    const cls = r.status !== 'Active' ? 'ooo' : r.guest ? 'occ' : r.housekeeping === 'Dirty' ? 'dirty' : '';
+    const hk = can('housekeeping.update')
+      ? `<select onchange="setHk('${esc(r.roomNo)}',this.value)">${['Clean', 'Dirty', 'Inspected', 'Pickup'].map(s => `<option${s === r.housekeeping ? ' selected' : ''}>${s}</option>`).join('')}</select>`
+      : pill(r.housekeeping);
+    return `<div class="room ${cls}"><h4>${esc(r.roomNo)} <span class="muted">${esc(r.type)}</span></h4>
+      <div style="margin:6px 0">${r.status !== 'Active' ? pill('Out') + ' ' : ''}${r.guest ? pill('In-House') : ''}</div>
+      ${r.guest ? `<div>${esc(r.guest)}</div>` : ''}
+      ${r.departing ? '<div class="muted">Departing today</div>' : ''}
+      ${r.arrivingToday ? `<div class="muted">Arriving: ${esc(r.arrivingToday)}</div>` : ''}
+      ${r.status !== 'Active' ? `<div class="muted">${esc(r.statusReason)}</div>` : ''}
+      <div style="margin-top:8px">${hk}</div>
+      ${can('housekeeping.update') ? `<div style="margin-top:6px"><select onchange="setAssign('${esc(r.roomNo)}',this.value)"><option value="">Unassigned</option>${hks.map(n => `<option${n === r.assignedTo ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>` : (r.assignedTo ? `<div class="muted">${esc(r.assignedTo)}</div>` : '')}
+      ${can('rooms.manage') ? `<div style="margin-top:6px"><button class="btn sm ghost" onclick="roomStatusModal('${esc(r.roomNo)}','${esc(r.status)}')">${r.status === 'Active' ? 'Take out of order' : 'Return to service'}</button></div>` : ''}
+    </div>`;
+  }).join('');
+  const dirty = rooms.filter(r => r.housekeeping === 'Dirty').length;
+  setView(`<h1>Housekeeping <small>${dirty} dirty · ${rooms.length} rooms</small></h1><div class="rooms">${cards || '<p class="muted">No rooms.</p>'}</div>`);
+}
+function setHk(roomNo, status) { act('setHousekeeping', 'Room ' + roomNo + ' → ' + status, roomNo, status); }
+function roomStatusModal(roomNo, status) {
+  if (status !== 'Active') { act('setRoomStatus', 'Room ' + roomNo + ' returned to service', roomNo, 'Active', ''); return; }
+  openModal('Take room ' + roomNo + ' out of order', formHtml('fRs', [
+    { name: 'status', label: 'Status', type: 'select', options: ['Out of Order', 'Out of Service'] },
+    { name: 'reason', label: 'Reason', required: true, wide: true, placeholder: 'e.g. AC repair, water leak' }
+  ], 'Save'));
+  bindForm('fRs', async d => { await api('setRoomStatus', roomNo, d.status, d.reason); toast('Room updated'); closeModal(); refresh(); });
+}
+
+/* ============================================================
+ * CASHIER
+ * ============================================================ */
+async function pgCashier() {
+  const [list, sh] = await Promise.all([api('cashierList'), api('myShift')]);
+  const total = list.reduce((a, f) => a + f.balance, 0);
+  setView(`<h1>Cashier <small>open folios of active stays</small></h1>${shiftBar(sh)}
+    <div class="kpis"><div class="kpi"><span>Open folios</span><b>${list.length}</b></div><div class="kpi"><span>Outstanding balance</span><b>${num(total)}</b></div></div>
+    <div class="card">${table(['Room', 'Guest', 'Res #', 'Folio', 'Status', 'Balance', ''], list.map(f => tr([esc(f.roomNo), esc(f.guest), lnk(f.resNo), esc(f.folioNo + ' · ' + f.name), pill(f.status), balCell(f.balance),
+      `<div class="acts">${can('folio.post') ? `<button class="btn sm ok" onclick="payModal('${esc(f.id)}')">Payment</button>` : ''}${can('folio.post') && f.status === 'In-House' ? `<button class="btn sm" onclick="chargeModal('${esc(f.id)}')">Charge</button>` : ''}</div>`])))}</div>`);
+}
+
+/* ============================================================
+ * NIGHT AUDIT
+ * ============================================================ */
+async function pgNightAudit() {
+  const [info, hist] = await Promise.all([api('businessDateInfo'), api('listBizDates')]);
+  setView(`<h1>Night audit</h1>
+    <div class="kpis">${kpi('Business date', esc(info.bizDate))}${kpi('In-house', info.inHouse)}${kpi('Departures today', info.departuresToday)}
+      ${kpi('Arrivals today', info.arrivalsToday)}${kpi('Past-due arrivals', info.pastDue)}${kpi('Dates closed', info.closedDates)}</div>
+    ${info.warnings.length ? `<div class="card warn"><h3>Before you close the day</h3><ul>${info.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>` : '<div class="card"><p class="muted">No warnings. Ready to close the day.</p></div>'}
+    ${can('reports.export') ? '<div class="acts"><button class="btn ghost" onclick="eodPdf()">End-of-day flash (PDF)</button></div>' : ''}
+    <div class="card"><h3>Run night audit for ${esc(info.bizDate)}</h3>
+      <ol class="muted" style="line-height:1.7">
+        <li>Posts one room charge (and tax) for every guest staying the night.</li>
+        <li>Marks reservations that did not arrive as No-Show (if that setting is on).</li>
+        <li>Closes ${esc(info.bizDate)} and moves the business date to the next day.</li>
+      </ol>
+      <p><b>Check first:</b> departures still in-house and past-due arrivals are shown above.</p>
+      ${can('nightaudit.run') ? '<div class="acts"><button class="btn danger" onclick="naConfirm()">Run night audit…</button></div>' : ''}
+    </div>
+    <div class="card">${table(['Date', 'Status', 'Closed at', 'Closed by', 'Rooms posted', 'No-shows'], hist.map(h => tr([esc(h.date), pill(h.status), esc(h.closedAt), esc(h.closedBy), h.roomsPosted, h.noShows])))}</div>`);
+}
+function naConfirm() {
+  openModal('Confirm night audit', `<p>This closes the business date and cannot be undone. Continue?</p>
+    <div class="acts"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn danger" onclick="naRun()">Yes, run night audit</button></div>`);
+}
+async function naRun() {
+  try {
+    const r = await api('runNightAudit');
+    closeModal();
+    S.bizDate = r.next;
+    buildNav();
+    toast('Closed ' + r.closed + ' · ' + r.roomsPosted + ' rooms posted · ' + r.noShows + ' no-shows · next ' + r.next);
+    refresh();
+  } catch (e) { toast(e.message, true); }
+}
+
+/* ============================================================
+ * RATES & CHARGES
+ * ============================================================ */
+async function pgRates() {
+  const [plans, rates, types, codes] = await Promise.all([api('listRatePlans'), api('listRates'), api('listRoomTypes'), api('listChargeCodes')]);
+  CODES = codes;
+  setView(`<h1>Rates & charges</h1>
+    <div class="grid2">
+      <div class="card"><h3>Rate plans</h3>${table(['Code', 'Name', 'Active'], plans.map(p => tr([esc(p.code), esc(p.name), pill(p.active ? 'Active' : 'Closed')])))}
+        ${can('rates.manage') ? '<div class="acts" style="margin-top:10px"><button class="btn ghost" onclick="planModal()">+ Rate plan</button></div>' : ''}</div>
+      <div class="card"><h3>Quote a stay</h3>
+        <form class="toolbar" onsubmit="quoteSubmit(event)">
+          <label><span>Room type</span><select name="roomType">${types.map(t => `<option value="${esc(t.code)}">${esc(t.name)}</option>`).join('')}</select></label>
+          <label><span>Plan</span><select name="plan">${plans.map(p => `<option value="${esc(p.code)}">${esc(p.code)}</option>`).join('')}</select></label>
+          <label><span>Arrival</span><input type="date" name="a" value="${S.bizDate}" required></label>
+          <label><span>Departure</span><input type="date" name="d" value="${addDaysIso(S.bizDate, 2)}" required></label>
+          <button class="btn" type="submit">Quote</button>
+        </form><div id="quoteOut" class="muted">Pick a room type, plan and dates.</div></div>
+    </div>
+    <div class="card"><div class="head-row"><h3>Seasonal rates</h3>${can('rates.manage') ? '<div class="acts"><button class="btn" onclick="rateModal()">+ Rate</button></div>' : ''}</div>
+      ${table(['Plan', 'Room type', 'From', 'To', 'Rate / night', 'Active', ''], rates.map(r => tr([esc(r.plan), esc(r.roomType), esc(r.startDate), esc(r.endDate), num(r.rate), r.active ? 'Yes' : 'No',
+        can('rates.manage') ? `<button class="btn sm ghost" onclick="rateModal('${esc(r.id)}')">Edit</button>` : ''])))}
+      <p class="muted">A night uses a seasonal rate for its plan and room type if one covers that date; otherwise the BAR rate for the room type; otherwise the room type's base rate.</p></div>
+    <div class="card"><div class="head-row"><h3>Charge codes</h3>${can('rates.manage') ? '<div class="acts"><button class="btn ghost" onclick="codeModal()">+ Charge code</button></div>' : ''}</div>
+      ${table(['Code', 'Description', 'Department', 'Type', 'Taxable', 'Active'], codes.map(c => tr([esc(c.code), esc(c.description), esc(c.department), esc(c.type), c.taxable ? 'Yes' : 'No', c.active ? 'Yes' : 'No'])))}</div>`);
+}
+async function quoteSubmit(e) {
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(e.target));
+  try {
+    const q = await api('quoteRates', d.roomType, d.plan, d.a, d.d);
+    $('quoteOut').innerHTML = table(['Night', 'Rate'], q.nights.map(n => tr([esc(n.date), num(n.rate)]))) +
+      `<p><b>Total ${money(q.total)}</b> · average ${money(q.average)} / night · tax is added per charge at ${(Number(S.settings.taxRate || 0) * 100).toFixed(0)}%</p>`;
+  } catch (err) { toast(err.message, true); }
+}
+function planModal() {
+  openModal('Rate plan', formHtml('fPl', [
+    { name: 'code', label: 'Code', required: true, placeholder: 'e.g. WKND' },
+    { name: 'name', label: 'Name', required: true },
+    { name: 'description', label: 'Description', wide: true }
+  ], 'Save plan'));
+  bindForm('fPl', async d => { await api('saveRatePlan', d); toast('Plan saved'); closeModal(); refresh(); });
+}
+async function rateModal(id) {
+  const [plans, types, rates] = await Promise.all([api('listRatePlans'), api('listRoomTypes'), api('listRates')]);
+  const x = id ? rates.find(r => r.id === id) || {} : { startDate: S.bizDate, endDate: addDaysIso(S.bizDate, 365), active: true, plan: 'BAR' };
+  openModal(id ? 'Edit rate' : 'New rate', formHtml('fRa', [
+    { name: 'plan', label: 'Plan', type: 'select', options: plans.map(p => [p.code, p.code]), value: x.plan },
+    { name: 'roomType', label: 'Room type', type: 'select', options: types.map(t => [t.code, t.name]), value: x.roomType },
+    { name: 'startDate', label: 'From', type: 'date', required: true, value: x.startDate },
+    { name: 'endDate', label: 'To', type: 'date', required: true, value: x.endDate },
+    { name: 'rate', label: 'Rate / night', type: 'number', step: '0.01', required: true, value: x.rate || '' },
+    { name: 'active', label: 'Active', type: 'check', value: x.active !== false }
+  ], 'Save rate'));
+  bindForm('fRa', async d => {
+    await api('saveRate', { id: id || '', plan: d.plan, roomType: d.roomType, startDate: d.startDate, endDate: d.endDate, rate: Number(d.rate), active: d.active === 'true' });
+    toast('Rate saved'); closeModal(); refresh();
+  });
+}
+function codeModal() {
+  openModal('Charge code', formHtml('fCc', [
+    { name: 'code', label: 'Code', required: true, placeholder: 'e.g. GYM' },
+    { name: 'description', label: 'Description', required: true },
+    { name: 'department', label: 'Department', type: 'select', options: ['Rooms', 'F&B', 'Misc', 'Tax', 'Payment'] },
+    { name: 'type', label: 'Type', type: 'select', options: ['Charge', 'Payment'] },
+    { name: 'taxable', label: 'Taxable', type: 'check', value: true },
+    { name: 'active', label: 'Active', type: 'check', value: true }
+  ], 'Save code'));
+  bindForm('fCc', async d => { await api('saveChargeCode', { code: d.code, description: d.description, department: d.department, type: d.type, taxable: d.taxable === 'true', active: d.active === 'true' }); toast('Code saved'); closeModal(); refresh(); });
+}
+
+/* ============================================================
+ * REPORTS
+ * ============================================================ */
+async function pgReports() {
+  const types = await api('reportTypes');
+  const cur = S.param || { type: 'flash', from: S.bizDate, to: S.bizDate };
+  setView(`<h1>Reports</h1>
+  <form class="card toolbar" onsubmit="repRun(event)">
+    <label><span>Report</span><select name="type">${types.map(([k, l]) => `<option value="${k}"${k === cur.type ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+    <label><span>From</span><input type="date" name="from" value="${cur.from}"></label>
+    <label><span>To</span><input type="date" name="to" value="${cur.to}"></label>
+    <button class="btn" type="submit">Run</button>
+    ${can('reports.export') ? '<button class="btn ghost" type="button" onclick="repPdf()">PDF</button><button class="btn ghost" type="button" onclick="repCsv()">CSV / Excel</button>' : ''}
+  </form>
+  <div class="card" id="repOut"><div class="loading">Running…</div></div>`);
+  await repLoad(cur);
+}
+async function repLoad(cur) {
+  const rep = await api('runReport', cur.type, cur.from, cur.to);
+  LAST = Object.assign({}, rep, cur);
+  $('repOut').innerHTML = `<h3>${esc(rep.title)}</h3>` + table(rep.headers, rep.rows.map(r => tr(r.map(c => typeof c === 'number' ? `<span>${num(c)}</span>` : esc(c)), r[0] === 'TOTAL' ? 'sum' : '')));
+}
+function repRun(e) {
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(e.target));
+  if (d.from && d.to && d.to < d.from) { toast('"To" must be on or after "From".', true); return; }
+  repLoad({ type: d.type, from: d.from, to: d.to }).catch(err => toast(err.message, true));
+}
+async function repPdf() {
+  if (!LAST) return;
+  try {
+    const f = await api('exportReportPdf', LAST.type, LAST.from, LAST.to);
+    const a = document.createElement('a');
+    a.href = 'data:application/pdf;base64,' + f.base64; a.download = f.name;
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (e) { toast(e.message, true); }
+}
+function repCsv() {
+  if (!LAST) return;
+  const q = c => '"' + String(c == null ? '' : c).replace(/"/g, '""') + '"';
+  const csv = [LAST.headers].concat(LAST.rows).map(r => r.map(q).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = LAST.type + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ============================================================
+ * AUDIT LOG
+ * ============================================================ */
+async function pgLog() {
+  const rows = await api('listAudit', 300);
+  setView(`<h1>Audit log <small>latest 300</small></h1><div class="card">${table(['Time', 'User', 'Action', 'Entity', 'Reference', 'Details'],
+    rows.map(a => tr([esc(a.time), esc(a.user), `<b>${esc(a.action)}</b>`, esc(a.entity), esc(a.entityId), esc(a.details)])))}</div>`);
+}
+
+/* ============================================================
+ * ADMINISTRATION
+ * ============================================================ */
+const ADM_TABS = [['users', 'Users', 'users.manage'], ['settings', 'Hotel settings', 'settings.manage'], ['types', 'Room types', 'rooms.manage'], ['rooms', 'Rooms', 'rooms.manage'], ['perms', 'Permissions', 'users.manage']];
+async function pgAdmin() {
+  const tabs = ADM_TABS.filter(t => can(t[2]));
+  if (!tabs.find(t => t[0] === ADM)) ADM = tabs[0][0];
+  const bar = `<div class="tabs">${tabs.map(([k, l]) => `<button class="btn ghost${ADM === k ? ' on' : ''}" onclick="admTab('${k}')">${l}</button>`).join('')}</div>`;
+  let body = '';
+  if (ADM === 'users') {
+    const us = await api('listUsers');
+    body = `<div class="head-row"><h3>Users</h3><div class="acts"><button class="btn" onclick="userModal()">+ User</button></div></div>` +
+      table(['Name', 'Username', 'Role', 'Active', 'Last login', ''], us.map(u => tr([esc(u.name), esc(u.username), pill(u.role), u.active ? 'Yes' : 'No', esc(u.lastLogin), `<button class="btn sm ghost" onclick="userModal('${esc(u.id)}')">Edit</button>`])));
+  } else if (ADM === 'settings') {
+    const s = await api('getSettings');
+    body = formHtml('fSt', [
+      { name: 'appName', label: 'App name', value: s.appName, required: true },
+      { name: 'hotelName', label: 'Hotel name', value: s.hotelName, required: true },
+      { name: 'hotelAddress', label: 'Address', value: s.hotelAddress, wide: true },
+      { name: 'logoUrl', label: 'Logo URL (https)', value: s.logoUrl, wide: true },
+      { name: 'currency', label: 'Currency code', value: s.currency },
+      { name: 'taxRate', label: 'Tax rate (0.10 = 10%)', type: 'number', step: '0.0001', min: 0, value: s.taxRate },
+      { name: 'checkInTime', label: 'Check-in time', value: s.checkInTime },
+      { name: 'checkOutTime', label: 'Check-out time', value: s.checkOutTime },
+      { name: 'allowCheckoutWithBalance', label: 'Allow check-out with balance', type: 'select', options: ['false', 'true'], value: String(s.allowCheckoutWithBalance) },
+      { name: 'autoNoShowOnAudit', label: 'Auto no-show on night audit', type: 'select', options: ['true', 'false'], value: String(s.autoNoShowOnAudit) }
+    ], 'Save settings', false) + `<p class="muted">Business date: <b>${esc(s.businessDate)}</b> (changes only through night audit).</p>`;
+  } else if (ADM === 'types') {
+    const ts = await api('listRoomTypes');
+    body = `<div class="head-row"><h3>Room types</h3><div class="acts"><button class="btn" onclick="typeModal()">+ Room type</button></div></div>` +
+      table(['Code', 'Name', 'Base rate', 'Max adults', 'Description', ''], ts.map(t => tr([esc(t.code), esc(t.name), num(t.baseRate), t.maxAdults, esc(t.description), `<button class="btn sm ghost" onclick="typeModal('${esc(t.code)}')">Edit</button>`])));
+  } else if (ADM === 'rooms') {
+    const rs = await api('listRooms');
+    body = `<div class="head-row"><h3>Rooms</h3><div class="acts"><button class="btn" onclick="roomModal()">+ Room</button></div></div>` +
+      table(['Room', 'Type', 'Floor', 'Status', 'Housekeeping', 'Reason'], rs.map(r => tr([esc(r.roomNo), esc(r.type), esc(r.floor), pill(r.status === 'Active' ? 'Active' : 'Out'), pill(r.housekeeping), esc(r.statusReason)])));
+  } else {
+    const ps = await api('listPermissions');
+    body = `<h3>Permissions</h3><p class="muted">Each permission is a TRUE/FALSE per role. Edit the grid on the <b>Permissions</b> tab of the database spreadsheet; changes apply on the next action.</p>` +
+      table(['Permission', 'Description'], ps.map(p => tr([esc(p.permission), esc(p.description)])));
+  }
+  setView(`<h1>Administration</h1>${bar}<div class="card">${body}</div>`);
+  if (ADM === 'settings') bindForm('fSt', async d => {
+    const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, hotelAddress: d.hotelAddress, logoUrl: d.logoUrl, currency: d.currency,
+      taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit });
+    S.settings = Object.assign({}, S.settings, { appName: out.appName, hotelName: out.hotelName, logoUrl: out.logoUrl, currency: out.currency });
+    brand(); toast('Settings saved');
+  });
+}
+function admTab(k) { ADM = k; go('admin'); }
+function userModal(id) {
+  api('listUsers').then(us => {
+    const u = id ? us.find(x => x.id === id) || {} : {};
+    openModal(id ? 'Edit user' : 'New user', formHtml('fUs', [
+      { name: 'username', label: 'Username', required: true, value: u.username || '' },
+      { name: 'name', label: 'Full name', value: u.name || '' },
+      { name: 'role', label: 'Role', type: 'select', options: ['Admin', 'Manager', 'FrontDesk', 'Cashier', 'Housekeeping', 'Sales', 'Accountant'], value: u.role || 'FrontDesk' },
+      { name: 'password', label: id ? 'New password (blank = keep)' : 'Password (min 8)', type: 'password', required: !id },
+      { name: 'active', label: 'Active', type: 'check', value: id ? !!u.active : true }
+    ], 'Save user'));
+    bindForm('fUs', async d => {
+      await api('saveUser', { id: id || '', username: d.username, name: d.name, role: d.role, password: d.password || '', active: d.active === 'true' });
+      toast('User saved'); closeModal(); refresh();
+    });
+  }).catch(e => toast(e.message, true));
+}
+function typeModal(code) {
+  api('listRoomTypes').then(ts => {
+    const t = code ? ts.find(x => x.code === code) || {} : {};
+    openModal(code ? 'Edit room type' : 'New room type', formHtml('fTy', [
+      { name: 'code', label: 'Code', required: true, value: t.code || '', readonly: !!code },
+      { name: 'name', label: 'Name', required: true, value: t.name || '' },
+      { name: 'baseRate', label: 'Base rate / night', type: 'number', step: '0.01', required: true, value: t.baseRate || '' },
+      { name: 'maxAdults', label: 'Max adults', type: 'number', min: 1, value: t.maxAdults || 2 },
+      { name: 'active', label: 'Active', type: 'check', value: code ? t.active : true },
+      { name: 'description', label: 'Description', wide: true, value: t.description || '' }
+    ], 'Save type'));
+    bindForm('fTy', async d => {
+      await api('saveRoomType', { code: d.code, name: d.name, baseRate: Number(d.baseRate), maxAdults: Number(d.maxAdults), active: d.active === 'true', description: d.description });
+      toast('Room type saved'); closeModal(); refresh();
+    });
+  }).catch(e => toast(e.message, true));
+}
+async function roomModal() {
+  const ts = await api('listRoomTypes');
+  openModal('New room', formHtml('fRm', [
+    { name: 'roomNo', label: 'Room number', required: true },
+    { name: 'type', label: 'Room type', type: 'select', options: ts.map(t => [t.code, t.name]) },
+    { name: 'floor', label: 'Floor' },
+    { name: 'notes', label: 'Notes', wide: true }
+  ], 'Save room'));
+  bindForm('fRm', async d => { await api('saveRoom', d); toast('Room saved'); closeModal(); refresh(); });
+}
+
+/* ============================================================
+ * PASSWORD
+ * ============================================================ */
+function pgPassword() {
+  setView(`<h1>Change password</h1><div class="card" style="max-width:520px">${formHtml('fPw', [
+    { name: 'oldPw', label: 'Current password', type: 'password', required: true, wide: true },
+    { name: 'newPw', label: 'New password (min 8)', type: 'password', required: true, wide: true },
+    { name: 'confirm', label: 'Confirm new password', type: 'password', required: true, wide: true }
+  ], 'Change password', false)}</div>`);
+  bindForm('fPw', async d => {
+    if (d.newPw !== d.confirm) throw new Error('New passwords do not match.');
+    await api('changeMyPassword', d.oldPw, d.newPw);
+    toast('Password changed'); go(firstPage());
+  });
+  return Promise.resolve();
+}
+
+/* ============================================================
+ * BOOT
+ * ============================================================ */
+/* ============================================================
+ * COMPANY ACCOUNTS (CITY LEDGER), CASHIER SHIFTS, FORECAST, ALERTS
+ * ============================================================ */
+function alertHtml(g) {
+  if (!g || !g.alert) return '—';
+  return `<span class="pill ${g.alertLevel === 'Block' ? 'Cancelled' : 'Reserved'}">${esc(g.alertLevel || 'Info')}</span> ${esc(g.alert)}`;
+}
+function forecastHtml(fc) {
+  return `<div class="fc">${fc.map(d => `<div class="fc-col" title="${esc(d.date)}: ${d.sold} of ${d.rooms} rooms sold">
+    <div class="fc-bar"><i style="height:${Math.max(d.pct, 2)}%"></i></div>
+    <b>${d.pct}%</b><span>${esc(d.date.slice(5))}</span></div>`).join('')}</div>`;
+}
+function shiftBar(sh) {
+  if (!can('shifts.manage')) return '';
+  return `<div class="card shiftbar">${sh
+    ? `Your shift is open since <b>${esc(sh.shift.openedAt)}</b> · float ${money(sh.shift.openingFloat)} · cash received ${money(sh.cashReceived)} <button class="btn sm ghost" onclick="go('shifts')">Shift &amp; cash count</button>`
+    : `<b>No open shift.</b>&nbsp;You need one to take payments. <button class="btn sm" onclick="go('shifts')">Open shift</button>`}</div>`;
+}
+function printFolio(resNo) {
+  api('exportFolioPdf', resNo).then(f => {
+    const a = document.createElement('a');
+    a.href = 'data:application/pdf;base64,' + f.base64; a.download = f.name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }).catch(e => toast(e.message, true));
+}
+function printRegCard(resNo) {
+  api('registrationCard', resNo).then(f => {
+    const a = document.createElement('a');
+    a.href = 'data:application/pdf;base64,' + f.base64; a.download = f.name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }).catch(e => toast(e.message, true));
+}
+function eodPdf() {
+  const bd = S.bizDate;
+  api('exportReportPdf', 'flash', bd, bd).then(f => {
+    const a = document.createElement('a');
+    a.href = 'data:application/pdf;base64,' + f.base64; a.download = f.name || ('EOD_' + bd + '.pdf');
+    document.body.appendChild(a); a.click(); a.remove();
+  }).catch(e => toast(e.message, true));
+}
+function lateCoModal(resNo) {
+  openModal('Late checkout fee · ' + resNo, formHtml('fLc', [
+    { name: 'amount', label: 'Fee (before tax)', type: 'number', step: '0.01', min: 0.01, required: true }
+  ], 'Post fee'));
+  bindForm('fLc', async d => {
+    const r = await api('lateCheckoutCharge', resNo, Number(d.amount));
+    toast('Late checkout posted · balance ' + money(r.balance)); closeModal(); refresh();
+  });
+}
+function setAssign(roomNo, name) { act('setRoomAssignment', 'Room ' + roomNo + ' → ' + (name || 'unassigned'), roomNo, name); }
+
+async function pgAccounts() {
+  const list = await api('listAccounts');
+  setView(`<h1>City ledger <small>company accounts</small></h1>
+    <div class="head-row"><div class="acts"></div><div class="acts">${can('accounts.manage') ? '<button class="btn" onclick="accountModal()">+ Company account</button>' : ''}</div></div>
+    <div class="card">${table(['Code', 'Company', 'Contact', 'Credit limit', 'Balance owed', 'Status', ''],
+      list.map(a => tr([esc(a.code), esc(a.name), esc(a.contact) || '—', Number(a.creditLimit) ? num(a.creditLimit) : 'No limit', balCell(a.balance),
+        a.active ? pill('Active') : pill('Inactive'), lnkTo('account', a.id, 'Open')])))}</div>`);
+}
+function accountModal(id) {
+  const load = id ? api('getAccount', id).then(d => d.account) : Promise.resolve({});
+  load.then(x => {
+    openModal(id ? 'Edit company account' : 'New company account', formHtml('fAc', [
+      { name: 'name', label: 'Company name', required: true, value: x.name || '', wide: true },
+      { name: 'code', label: 'Short code', value: x.code || '', placeholder: 'e.g. ACME' },
+      { name: 'contact', label: 'Contact person', value: x.contact || '' },
+      { name: 'email', label: 'Billing email', type: 'email', value: x.email || '' },
+      { name: 'creditLimit', label: 'Credit limit (0 = none)', type: 'number', step: '0.01', min: 0, value: x.creditLimit || 0 },
+      { name: 'active', label: 'Active', type: 'check', value: id ? x.active === true : true }
+    ], 'Save account'));
+    bindForm('fAc', async d => {
+      const aid = await api('saveAccount', Object.assign({}, d, { id: id || '', active: d.active === 'true' }));
+      toast('Account saved'); closeModal(); go('account', aid);
+    });
+  }).catch(e => toast(e.message, true));
+}
+async function pgAccount() {
+  const d = await api('getAccount', S.param);
+  const a = d.account;
+  setView(`<h1>${esc(a.name)} ${a.active === true ? '' : pill('Inactive')}<small>${esc(a.code)}</small></h1>
+    <div class="kpis">${kpi('Balance owed', num(d.balance))}${kpi('Credit limit', Number(a.creditLimit) ? num(a.creditLimit) : 'None')}${kpi('Billed folios', d.folios.length)}</div>
+    <div class="grid2">
+      <div class="card"><h3>Details</h3>${kv([['Contact', esc(a.contact) || '—'], ['Email', esc(a.email) || '—']])}
+        <div class="acts" style="margin-top:12px">${can('accounts.manage') ? `<button class="btn ghost" onclick="accountModal('${esc(a.id)}')">Edit</button>` : ''}
+        ${can('folio.post') ? `<button class="btn ok" onclick="accPayModal('${esc(a.id)}')">Record payment</button>` : ''}</div></div>
+      <div class="card"><h3>Billed stays</h3>${table(['Res #', 'Folio', 'Status'], d.folios.map(f => tr([lnk(f.resNo), esc(f.folioNo + ' · ' + f.name), pill(f.status)])))}</div>
+    </div>
+    <div class="card"><h3>Postings</h3>${table(['Date', 'Res #', 'Code', 'Description', 'Amount', 'Posted by'], d.postings.map(p => tr([
+      esc(p.bizDate), String(p.resNo).indexOf('ACC:') === 0 ? 'City ledger' : lnk(p.resNo), esc(p.code), esc(p.description),
+      `<span class="${Number(p.amount) < 0 ? 'neg' : ''}">${num(p.amount)}</span>`, esc(p.postedBy)], p.voided ? 'muted' : '')))}</div>`);
+}
+function accPayModal(id) {
+  openModal('Record payment · city ledger', formHtml('fAp', [
+    { name: 'code', label: 'Method', type: 'select', options: [['BANK', 'Bank transfer'], ['CASH', 'Cash'], ['CARD', 'Card']] },
+    { name: 'amount', label: 'Amount', type: 'number', step: '0.01', min: 0.01, required: true },
+    { name: 'note', label: 'Reference (remittance no.)', wide: true }
+  ], 'Record payment'));
+  bindForm('fAp', async d => {
+    const r = await api('postAccountPayment', id, d.code, Number(d.amount), d.note || '');
+    toast('Payment recorded · balance ' + money(r.balance)); closeModal(); refresh();
+  });
+}
+async function billToModal(folioId, current) {
+  const list = await api('listAccounts');
+  const opts = [['', 'Guest pays (no company)']].concat(list.filter(a => a.active).map(a => [a.id, a.name + ' · ' + a.code]));
+  openModal('Bill folio to a company', formHtml('fBt', [{ name: 'accountId', label: 'Company', type: 'select', options: opts, value: current || '' }], 'Save'));
+  bindForm('fBt', async d => {
+    await api('setFolioAccount', folioId, d.accountId || '');
+    toast('Folio billing updated'); closeModal(); refresh();
+  });
+}
+
+async function pgShifts() {
+  const [sh, list] = await Promise.all([api('myShift'), api('listShifts')]);
+  let mine = '';
+  if (can('shifts.manage') && sh) {
+    mine = `<div class="card"><h3>Your open shift</h3>
+      ${kv([['Opened', esc(sh.shift.openedAt)], ['Opening float', money(sh.shift.openingFloat)], ['Cash received', money(sh.cashReceived)],
+        ['Expected cash in drawer', money(Number(sh.shift.openingFloat) + sh.cashReceived)]])}
+      <h3 style="margin-top:12px">Payments taken this shift</h3>${table(['Method', 'Amount'], sh.summary.map(x => tr([esc(x.code), num(x.amount)])))}
+      <div class="acts" style="margin-top:12px"><button class="btn danger" onclick="closeShiftModal()">Close shift &amp; count cash…</button></div></div>`;
+  } else if (can('shifts.manage')) {
+    mine = `<div class="card"><h3>Open your shift</h3><p class="muted">Count the cash float you received for the drawer.</p>
+      <form id="fOs" class="fgrid">${fieldHtml({ name: 'float', label: 'Opening float', type: 'number', step: '0.01', min: 0, value: 0, required: true })}
+      <div class="actions"><button class="btn" type="submit">Open shift</button></div></form></div>`;
+  }
+  setView(`<h1>Cashier shifts</h1>${mine}
+    <div class="card"><h3>Shift history</h3>${table(['Cashier', 'Opened', 'Closed', 'Float', 'Expected cash', 'Counted cash', 'Variance', 'Status'], list.map(x => tr([
+      esc(x.user), esc(x.openedAt), esc(x.closedAt) || '—', num(x.openingFloat),
+      x.expectedCash === '' ? '—' : num(x.expectedCash), x.countedCash === '' ? '—' : num(x.countedCash),
+      x.status === 'Closed' ? `<span class="${Math.abs(x.variance) > 0.005 ? 'neg' : 'pos'}">${num(x.variance)}</span>` : '—', pill(x.status)])))}</div>`);
+  bindForm('fOs', async d => { await api('openShift', Number(d.float)); toast('Shift opened'); refresh(); });
+}
+function closeShiftModal() {
+  openModal('Close shift', formHtml('fCs', [
+    { name: 'counted', label: 'Cash counted in the drawer', type: 'number', step: '0.01', min: 0, required: true }
+  ], 'Close shift'));
+  bindForm('fCs', async d => {
+    const r = await api('closeShift', Number(d.counted));
+    closeModal();
+    toast('Shift closed · expected ' + money(r.expected) + ' · variance ' + money(r.variance), Math.abs(r.variance) > 0.005);
+    refresh();
+  });
+}
+
+/* Loading screen: stays for at least 1.1 s so the animation is seen, then fades out. */
+const T0 = Date.now();
+function splashMsg(m) { const el = $('splashMsg'); if (el) el.textContent = m; }
+function hideSplash() {
+  const wait = Math.max(0, 1100 - (Date.now() - T0));
+  setTimeout(() => { const s = $('splash'); if (s) s.classList.add('gone'); }, wait);
+}
+
+(async function boot() {
+  try { S.settings = await rpc('getPublicSettings'); }
+  catch (e) { S.settings = { appName: 'Stayline', hotelName: '', currency: '' }; splashMsg('Database not set up yet. Use Stayline → Set up database.'); }
+  brand();
+  const saved = loadSession();
+  if (saved && saved.token) {
+    splashMsg('Welcome back…');
+    S.token = saved.token; S.user = saved.user; S.perms = saved.perms; S.settings = saved.settings || S.settings; S.bizDate = saved.bizDate || '';
+    startApp();
+    hideSplash();
+  } else {
+    $('login').classList.remove('hidden');
+    hideSplash();
+  }
+})();

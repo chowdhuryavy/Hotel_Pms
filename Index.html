@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><?= appName ?></title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='6' y='6' width='52' height='52' rx='14' fill='%230f3d3e'/%3E%3Cpath d='M16 42V24l16-10 16 10v18' fill='none' stroke='%23f2b134' stroke-width='4' stroke-linejoin='round'/%3E%3Crect x='26' y='32' width='12' height='10' fill='%23f2b134'/%3E%3Cpath d='M12 42h40' stroke='%231d7874' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <?!= include('Styles'); ?>
+</head>
+<body>
+
+  <!-- LOADING SCREEN (hidden by the app once it has started) -->
+  <div id="splash" class="splash">
+    <div class="splash-inner">
+      <div class="splash-logo">
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+          <rect x="6" y="6" width="52" height="52" rx="14" fill="#0f3d3e"/>
+          <path d="M16 42V24l16-10 16 10v18" fill="none" stroke="#f2b134" stroke-width="4" stroke-linejoin="round"/>
+          <rect x="26" y="32" width="12" height="10" fill="#f2b134"/>
+          <path d="M12 42h40" stroke="#1d7874" stroke-width="4" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="splash-name"><?= appName ?></div>
+      <div class="splash-bar"><i></i></div>
+      <div class="splash-msg" id="splashMsg">Preparing your hotel…</div>
+      <div class="splash-ver">v<?= appVersion ?></div>
+    </div>
+  </div>
+
+  <!-- SIGN IN -->
+  <div id="login" class="login hidden">
+    <form class="login-box" onsubmit="doLogin(event)">
+      <div id="loginLogo"></div>
+      <h1 id="loginTitle"><?= appName ?></h1>
+      <p class="muted center" id="loginHotel"></p>
+      <label><span>Username</span><input name="u" autocomplete="username" required autofocus></label>
+      <label><span>Password</span><input name="p" type="password" autocomplete="current-password" required></label>
+      <p class="err" id="loginErr"></p>
+      <button class="btn block" type="submit">Sign in</button>
+    </form>
+    <div class="ver">v<?= appVersion ?></div>
+  </div>
+
+  <!-- APP -->
+  <div id="app" class="app hidden">
+    <aside class="sidebar">
+      <div class="brand">
+        <div id="brandLogo"></div>
+        <div class="brand-name" id="brandName"></div>
+        <div class="brand-sub" id="brandHotel"></div>
+      </div>
+      <nav class="nav" id="nav"></nav>
+      <div class="bizbox" id="bizbox"></div>
+      <div class="ver">Stayline v<?= appVersion ?></div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <button class="btn ghost sm menu-btn" onclick="document.body.classList.toggle('menu-open')">Menu</button>
+        <div class="who" id="who"></div>
+      </header>
+      <section class="view" id="view"></section>
+    </main>
+  </div>
+
+  <div id="modal" class="modal hidden" onclick="if(event.target===this)closeModal()">
+    <div class="modal-box">
+      <div class="modal-head"><h3 id="mTitle"></h3><button class="x" onclick="closeModal()">&times;</button></div>
+      <div id="mBody"></div>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script>setTimeout(function () { var s = document.getElementById('splash'); if (s) s.classList.add('gone'); }, 12000);</script>
+
+  <script>
+    (0, eval)(new TextDecoder().decode(Uint8Array.from(atob("<?= include64('App') ?>"), c => c.charCodeAt(0))));
+  </script>
+</body>
+</html>
