@@ -943,7 +943,7 @@ async function pgPost(param) {
         <div><span>Rate code</span><b>${esc(r.plan || '—')}</b></div>
         <div><span>Arrival</span><b>${esc(dmy(r.arrival || ''))}</b></div>
         <div><span>Departure</span><b>${esc(dmy(r.departure || ''))}</b></div>
-        <div><span>Confirmation</span><b>${lnk(r.resNo)}</b></div>
+        <div><span>Confirmation</span><b><button class="linkbtn" type="button" onclick="pwModal()">${esc(r.resNo)}</button></b></div>
       </div>
       <div class="acts"><button class="btn" type="button" onclick="postModal('${esc(room)}')"${openFolios.length ? '' : ' disabled'}>Post to folio</button>
         <button class="btn ghost" onclick="go('res','${esc(r.resNo)}')">Reservation</button>
@@ -1225,6 +1225,7 @@ const ICON_PATHS = {
   departures: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
   inhouse: '<path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><circle cx="6" cy="12" r="2"/>',
   rack: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M3 16h18M9 4v18M15 4v18"/>',
+  roomhistory: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
   lists: '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/>',
   reservations: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
   newres: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M12 12v6M9 15h6"/>',
@@ -1262,6 +1263,7 @@ const NAV = [
   { k: 'inhouse', l: 'In-house guests', p: ['reservations.view'], hidden: true },
   { k: 'rack', l: 'Room rack', p: ['rack.view'] },
   { k: 'lists', l: 'Guest lists', p: ['reservations.view'] },
+  { k: 'roomhistory', l: 'Room history', p: ['reservations.view'] },
   { k: 'reservations', l: 'Reservations', p: ['reservations.view'] },
   { k: 'newres', l: 'New reservation', p: ['reservations.create'] },
   { k: 'guests', l: 'Guests', p: ['guests.view'] },
@@ -1353,8 +1355,8 @@ const PAGES = {
   f: pgFormRoute,
   dashboard: pgDashboard, frontdesk: pgFrontDesk, post: pgPost, arrivals: () => pgFrontList('arrivals'), departures: () => pgFrontList('departures'), inhouse: () => pgFrontList('inhouse'), rack: pgRack, reservations: pgReservations, res: pgRes,
   newres: pgNewRes, guests: pgGuests, guest: pgGuest, groups: pgGroups, group: pgGroup,
-  housekeeping: pgHousekeeping, hkmobile: pgHkTablet, cashier: pgCashier, nightaudit: pgNightAudit, nightrun: pgNightRun, nightreport: pgNightReport, fixed: pgFixed, rates: pgRates,
-  reports: pgReports, eod: pgEod, log: pgLog, admin: () => pgAdmin('prop'), sysadmin: () => pgAdmin('sys'), ar: pgAR, password: pgPassword, search: pgSearch, billing: pgBilling, lists: pgLists,
+  housekeeping: pgHousekeeping, hkmobile: pgHkTablet, cashier: pgCashier, nightaudit: pgNightAudit, roomhistory: pgRoomHistory, nightrun: pgNightRun, nightreport: pgNightReport, fixed: pgFixed, rates: pgRates,
+  reports: pgReports, eod: pgEod, log: pgLog, admin: () => pgAdmin('prop'), sysadmin: () => pgAdmin('sys'), ar: pgAR, password: pgPassword, search: pgSearch, billing: pgBilling, lists: pgLists, roomhistory: pgRoomHistory,
   accounts: pgAccounts, account: pgAccount, shifts: pgShifts
 };
 /* ---------- Routing: every page has its own address (#/reservations, #/res?"RES1") ---------- */
@@ -2226,6 +2228,32 @@ async function pgCashier() {
  * NIGHT AUDIT
  * ============================================================ */
 /* Night audit: two choices, the report and the night run */
+/* Room history: rooms that checked out, by checkout date */
+async function pgRoomHistory() {
+  const bd = S.bizDate;
+  const from = addDaysIso(bd, -30);
+  setView(`<h1>Room history <small>rooms checked out by date</small></h1>
+    <form class="card toolbar" onsubmit="rhRun(event)">
+      <label><span>Checked out from</span><input type="date" name="from" value="${from}"></label>
+      <label><span>to</span><input type="date" name="to" value="${bd}"></label>
+      <label><span>Room number</span><input name="roomNo" placeholder="e.g. 204" style="min-width:110px"></label>
+      <label><span>Guest, reservation, phone or company</span><input name="q" placeholder="Search" style="min-width:220px"></label>
+      <button class="btn" type="submit">Show</button>
+    </form>
+    <div class="card" id="rhOut"><div class="loading">Loading…</div></div>`);
+  await rhLoad({ from: from, to: bd });
+}
+function rhRun(e) {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  rhLoad(f).catch(err => toast(err.message, true));
+}
+async function rhLoad(f) {
+  const rows = await api('roomHistory', f);
+  $('rhOut').innerHTML = table(['Checked out', 'Room', 'Guest', 'Reservation', 'Arrival', 'Departure', 'Rate code', 'Company'],
+    rows.map(x => tr([esc(dmy(x.checkedOut)), esc(x.roomNo), esc(x.guestName), lnk(x.resNo), esc(dmy(x.arrival)), esc(dmy(x.departure)), esc(x.plan), esc(x.company)])))
+    + `<p class="muted">${rows.length} stay(s). Latest checkout first.</p>`;
+}
 async function pgNightAudit() {
   setView(`<h1>Night audit</h1>
     <div class="na-menu">

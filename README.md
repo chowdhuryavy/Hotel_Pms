@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.89**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.90**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.90: New Room history page in the sidebar. It lists rooms that checked out, by checkout date (last 30 days by default), with filters for room number and guest, reservation, phone or company. In the posting window, clicking the confirmation number opens the password change dialog.
 
 Release notes for 1.2.89: New reservation has a Room choice in Stay & rate. It lists only the rooms free for the chosen dates and room type, and a filter narrows the list by room number. Auto keeps the first free room.
 
