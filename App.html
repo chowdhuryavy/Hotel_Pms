@@ -27,6 +27,7 @@ function table(headers, rows) {
 function setView(html) {
   if (ACTIVE_TAB !== 'page') { if (RUN_PAGE && RUN_PANE && RUN_PANE.isConnected) RUN_PANE.innerHTML = html; return; }
   $('view').innerHTML = html;
+  $('view').classList.remove('stale');
 }
 /* Content of the open form tab */
 function tabSetView_(html) { (RUN_PANE && RUN_PANE.isConnected ? RUN_PANE : $('view')).innerHTML = html; }
@@ -1617,7 +1618,12 @@ function renderPage_(page, param) {
   document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('on', a.dataset.p === page));
   const label = (NAV.find(n => n.k === page) || {}).l || 'Change password';
   document.title = label + ' · ' + ((S.settings && S.settings.appName) || '');
-  setView(`<h1>${esc(page === 'f' ? '' : label)}</h1>` + skeleton_());   // title and layout show at once; data fills in
+  // The last page stays on screen, dimmed and not clickable, until the new page's data arrives; the first page draws empty
+  const vw = $('view');
+  if (ACTIVE_TAB === 'page' && vw && vw.querySelector('h1') && vw.innerHTML.trim()) {
+    const h = vw.querySelector('h1'); if (h) h.textContent = page === 'f' ? '' : label;
+    vw.classList.add('stale');
+  } else setView(`<h1>${esc(page === 'f' ? '' : label)}</h1>` + skeleton_());
   VIEW_PENDING = true;
   RENDER_RID = ++PAGE_SEQ;
   PAGES[page]().catch(e => {

@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.202**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.203**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.203: Faster-feeling navigation. When you open another page, the last page stays on screen, dimmed and not clickable, until the new page's data arrives, instead of going blank. The title changes at once.
 
 Release notes for 1.2.202: The app code is sent Base64-encoded again, as in 1.2.197. Inlining it directly in the page made Apps Script cut the script short (SyntaxError: Unexpected EOF), so the app did not start. The Vercel page now uses the new web app link.
 
