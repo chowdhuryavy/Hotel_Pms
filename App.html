@@ -63,7 +63,8 @@ document.addEventListener('click', e => {
   const el = e.target && e.target.closest ? e.target.closest('button,a,[role="button"]') : null;
   const ex = el ? el.getAttribute('onclick') : null;
   CLICK_LABEL = el ? el.textContent.trim().replace(/\s+/g, ' ').slice(0, 40) : '';
-  CLICK_EXPR = ex || null; CLICK_AT = Date.now(); CLICK_WROTE = false;
+  // A navigation click (go(...)) or a click without a form action never leaves an older action pending
+  CLICK_EXPR = ex && !/^\s*go\(/.test(ex) ? ex : null; CLICK_AT = Date.now(); CLICK_WROTE = false;
 }, true);
 /* Each page draw has a number. A read that comes back after the user has moved on to another page is stale: it stops there, so it cannot draw over the newer page. */
 let PAGE_SEQ = 0, RENDER_RID = 0;
@@ -562,7 +563,7 @@ const chk = v => v === 'true';
 const TAB_OPEN_OK = ['admSection', 'userModal', 'typeModal', 'roomModal', 'roleModal', 'permModal', 'paymentMethodModal', 'packageModal', 'planModal', 'rateModal', 'codeModal'];
 /** Opens a form in a new browser tab, signed in through a one-time link. The tab opens at once so the browser allows it. */
 /* A form action is a call to one page function, e.g. userModal("U1"). Navigation and saving functions are excluded. */
-const TAB_EXPR_OK_RE = /^(?!(?:closeModal|act|appConfirm|appAlert|logout|refresh|go|tabRun_|tabOpen_|postModal|postKind)\b)[A-Za-z_$][\w$]*\([^]*\)\s*;?$/;
+const TAB_EXPR_OK_RE = /^(?!(?:closeModal|act|appConfirm|appAlert|logout|refresh|go|tabRun_|tabOpen_|postModal|postKind|pwModal|logout)\b)[A-Za-z_$][\w$]*\([^]*\)\s*;?$/;
 async function tabOpen_(fn, args) { openAppTab_(fn + '(' + (args || []).map(a => JSON.stringify(a == null ? null : a)).join(',') + ')', CLICK_LABEL || fn); }
 
 /** In a tab opened by tabOpen_: runs the dialog named in the address, once. */

@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.99**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.100**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.100: Fixed a stale click: after a Confirmation number click, the next navigation click could still open the Change password dialog. Navigation clicks now clear the pending action, and Change password always opens as a popup.
 
 Release notes for 1.2.99: Every report has PDF, Print, Excel and CSV. Print prints the report on the page without opening a new window. Excel downloads a spreadsheet file that opens in Excel or LibreOffice; CSV is kept for other tools.
 
