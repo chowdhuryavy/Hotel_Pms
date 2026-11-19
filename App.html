@@ -176,9 +176,14 @@ let VIEW_PENDING = false;          // true while a page is loading its data from
 function waitSplash_() {
   VIEW_PENDING = true;               // the first page has not drawn yet
   const t0 = Date.now();
+  let slowNote = 0;
+  // Stays up until the first page has its data. Google can take a while, so the message says so.
   const tick = () => {
-    if ((!VIEW_PENDING && PROGRESS_N === 0) || Date.now() - t0 > 20000) hideSplash();
-    else setTimeout(tick, 120);
+    const el = Date.now() - t0;
+    if (slowNote < 1 && el > 6000) { slowNote = 1; splashMsg('Still loading from Google. The first load can take a little longer…'); }
+    if (slowNote < 2 && el > 15000) { slowNote = 2; splashMsg('Slow connection. Still loading your hotel…'); }
+    if ((!VIEW_PENDING && PROGRESS_N === 0) || el > 60000) hideSplash();
+    else setTimeout(tick, 150);
   };
   tick();
 }

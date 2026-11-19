@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.30**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.31**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.31: The loading screen stays up until the first page has its data (up to 60 seconds, previously 20). After 6 and 15 seconds it says the load is still going, so a slow connection no longer shows a half-loaded page.
 
 Release notes for 1.2.30: Buttons spin only while a server call started from them is running. Buttons that just open a dialog, such as Check in, no longer show a loading spinner.
 
