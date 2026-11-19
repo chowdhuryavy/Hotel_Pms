@@ -166,6 +166,8 @@ function permMap_(who) {
   rows_(TBL.PERMS).forEach(r => { m[r.permission] = r[role] === true; });
   // The system administrator has every permission defined in the code, even before the sheet is updated
   if (role === ADMIN_ROLE) PERMISSIONS.forEach(p => { m[p[0]] = true; });
+  // A Property Admin never has the system permission, whatever the grid says
+  if (role === PROPERTY_ROLE) m['system.manage'] = false;
   // Extra configuration access the system administrator gave this user, on top of the role
   if (who && typeof who === 'object' && Array.isArray(who.extra)) who.extra.forEach(p => { m[p] = true; });
   return m;
@@ -369,7 +371,7 @@ function changeMyPassword(token, oldPw, newPw) {
 /* ============================ ADMIN: USERS, PERMISSIONS, SETTINGS, AUDIT ============================ */
 function listUsers(token) {
   const s = auth_(token, 'users.manage');
-  const isSys = permMap_(s)['system.manage'] === true;
+  const isSys = s.role === ADMIN_ROLE;   // the system administrator is decided by the role, never by a grant
   // property admins manage staff only; admin and property admin accounts belong to the system administrator
   return rows_(TBL.USERS).filter(u => isSys || [ADMIN_ROLE, PROPERTY_ROLE].indexOf(u.role) < 0).map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, active: u.active === true, extra: userExtra_(u), locked: u.locked === true, lastLogin: u.lastLogin || '', email: u.email || '' }));
 }
@@ -380,7 +382,7 @@ function extraPermOptions(token) {
 }
 function saveUser(token, d) {
   const s = auth_(token, 'users.manage');
-  const isSys = permMap_(s)['system.manage'] === true;
+  const isSys = s.role === ADMIN_ROLE;   // the system administrator is decided by the role, never by a grant
   // Extra configuration access: only the system administrator sets it
   const extraStr = (isSys && d.permExtra !== undefined) ? cleanExtra_(d.permExtra).join(',') : null;
   if (roleNames_().indexOf(d.role) < 0) throw new Error('Invalid role.');
@@ -435,7 +437,7 @@ function getSettings(token) {
 }
 function saveSettings(token, d, rid) {
   const s = auth_(token, 'cfg.settings.edit');
-  const isSys = permMap_(s)['system.manage'] === true;
+  const isSys = s.role === ADMIN_ROLE;   // the system administrator is decided by the role, never by a grant
   // 1) Check every value first, so a rejected save changes nothing
   const plan = [];
   Object.keys(SETTINGS_DEFAULT).forEach(k => {
