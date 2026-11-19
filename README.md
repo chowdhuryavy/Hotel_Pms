@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.41**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.42**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.42: The reset code email puts the code in its own block after "Your verification code is", so mail apps can recognise it and offer a copy button.
 
 Release notes for 1.2.41: "Send code" and "Resend code" on the forgot-password screen show a spinner while the email is sent.
 

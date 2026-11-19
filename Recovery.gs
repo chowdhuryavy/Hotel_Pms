@@ -34,14 +34,18 @@ function tplText_(key, vars) {
   const tpl = settings_()[key] || SETTINGS_DEFAULT[key];
   return String(tpl).replace(/\{\{(\w+)\}\}/g, (m, k) => vars[k] != null ? String(vars[k]) : '');
 }
-/** Turns the plain text into HTML. The verification code, if present, is shown in a box. */
+/** Turns the plain text into HTML. The verification code gets its own block, so mail apps (Gmail's copy-code button) can find it. */
 function htmlFromText_(text, code) {
-  const box = code ? '<span style="display:inline-block;font-family:Menlo,Consolas,monospace;font-size:28px;letter-spacing:6px;font-weight:700;color:#0f3d3e;background:#eef6f5;border:1px solid #cfe3e0;border-radius:12px;padding:10px 18px">' + escHtml_(code) + '</span>' : '';
+  const P = s => '<p style="margin:0 0 14px;font-size:15px;line-height:1.6">' + s + '</p>';
+  const box = '<div style="margin:6px 0 20px"><span style="display:inline-block;font-family:Menlo,Consolas,monospace;font-size:28px;letter-spacing:6px;font-weight:700;color:#0f3d3e;background:#eef6f5;border:1px solid #cfe3e0;border-radius:12px;padding:10px 18px">' + escHtml_(code || '') + '</span></div>';
   return String(text).split(/\r?\n/).map(line => {
     if (!line.trim()) return '';
-    let h = escHtml_(line);
-    if (code) h = h.split(escHtml_(code)).join(box);
-    return '<p style="margin:0 0 14px;font-size:15px;line-height:1.6">' + h + '</p>';
+    if (code && line.indexOf(code) >= 0) {
+      const parts = line.split(code);
+      const before = parts[0].trim(), after = parts.slice(1).join(code).trim();
+      return (before ? P(escHtml_(before)) : '') + box + (after ? P(escHtml_(after)) : '');
+    }
+    return P(escHtml_(line));
   }).join('');
 }
 /** Hotel logo for emails: the logo link or image from Settings, or the hotel's initial in a badge when none is set. */
