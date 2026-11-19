@@ -110,13 +110,31 @@ function brand() {
 }
 async function doLogin(e) {
   e.preventDefault();
-  const f = e.target;
+  const f = e.target, btn = f.querySelector('.login-btn');
   $('loginErr').textContent = '';
+  btn.classList.add('busy'); btn.disabled = true;
   try {
     const r = await rpc('login', f.u.value, f.p.value);
+    try { localStorage.setItem('stayline_user', f.u.value); } catch (x) { /* private mode: nothing to remember */ }
     S.token = r.token; S.user = r.user; S.perms = r.perms; S.settings = r.settings; S.bizDate = r.bizDate;
     saveSession(); brand(); startApp();
-  } catch (err) { $('loginErr').textContent = err.message; }
+  } catch (err) {
+    $('loginErr').textContent = err.message;
+    f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake');
+    f.p.select();
+  } finally { btn.classList.remove('busy'); btn.disabled = false; }
+}
+/** Show or hide the password while typing. */
+function togglePw() {
+  const i = $('loginPw'), show = i.type === 'password';
+  i.type = show ? 'text' : 'password';
+  document.querySelector('.pw-toggle').textContent = show ? 'Hide' : 'Show';
+  i.focus();
+}
+/** Warns when Caps Lock is on while typing the password. */
+function capsCheck(e) {
+  const on = e.getModifierState && e.getModifierState('CapsLock');
+  $('capsWarn').classList.toggle('hidden', !on);
 }
 function sessionEnd(msg) {
   S.token = null; S.user = null; S.perms = {};
@@ -1146,6 +1164,7 @@ function hideSplash() {
     hideSplash();
   } else {
     $('login').classList.remove('hidden');
+    try { const u = localStorage.getItem('stayline_user'); if (u) document.querySelector('#login input[name=u]').value = u; } catch (x) { /* ignore */ }
     hideSplash();
   }
 })();
