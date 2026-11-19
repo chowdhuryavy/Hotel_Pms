@@ -683,7 +683,6 @@ function enterApp_(r, username) {
   try { localStorage.setItem('stayline_user', username); } catch (x) { /* private mode: nothing to remember */ }
   S.token = r.token; S.user = r.user; S.perms = r.perms; S.settings = r.settings; S.bizDate = r.bizDate;
   saveSession(); brand();
-  const sp = $('splash'); if (sp) sp.classList.remove('gone');
   splashTheme_();                                   // the saved loading style and message, as set by the system admin
   if (!(S.settings && S.settings.loadingMessage)) splashMsg('Loading your hotel…');
   startApp();
@@ -3957,6 +3956,8 @@ function splashTheme_() {
   if (S.settings && S.settings.loadingMessage) splashMsg(S.settings.loadingMessage);
 }
 function splashMsg(m) { const el = $('splashMsg'); if (el) el.textContent = m; }
+/* Shows the screen with a message only for a real problem (not for normal loading) */
+function showProblem_(m) { splashMsg(m); const sp = $('splash'); if (sp) sp.classList.remove('gone'); }
 function hideSplash() {
   const wait = Math.max(0, 400 - (Date.now() - T0));
   setTimeout(() => { const s = $('splash'); if (s) s.classList.add('gone'); }, wait);
@@ -4020,11 +4021,11 @@ function settingsFailed_(e, hasCache) {
   const last = Number(sessionStorage.getItem('st_retry') || 0);
   if (isNetErr_(e.message) && Date.now() - last > 30000) {
     try { sessionStorage.setItem('st_retry', String(Date.now())); } catch (x) { /* ignore */ }
-    splashMsg('Connection problem. Reconnecting…');
+    showProblem_('Connection problem. Reconnecting…');
     setTimeout(() => location.reload(), 2500);
     return true;
   }
-  splashMsg(isNetErr_(e.message) ? 'Connection problem. Please refresh the page.' : 'Database not set up yet. Use the spreadsheet menu → Set up database.');
+  showProblem_(isNetErr_(e.message) ? 'Connection problem. Please refresh the page.' : 'Database not set up yet. Use the spreadsheet menu → Set up database.');
   return false;
 }
 function showLogin_() {
