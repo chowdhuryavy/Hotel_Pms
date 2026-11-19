@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.77**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.78**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.78: While a form saves, its button shows a spinner with Saving… in place of the label, instead of going blank. The label comes back when the save finishes.
 
 Release notes for 1.2.77: Fixed the sidebar showing System admin while the dashboard stayed on screen. A page that was still loading when you chose another page no longer draws over the newer one.
 

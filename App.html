@@ -508,12 +508,13 @@ function bindForm(id, fn) {
   f.addEventListener('submit', async e => {
     e.preventDefault();
     const btn = f.querySelector('button[type=submit]');
-    if (btn) { btn.disabled = true; btn.classList.add('spin-on'); }
+    const label = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.classList.add('spin-on'); btn.innerHTML = '<span class="btn-spin" aria-hidden="true"></span><span>Saving…</span>'; }
     try { await fn(Object.fromEntries(new FormData(f))); }
     catch (err) { toast(err.message, true); }
     finally {
       // Always release the button, whether the save worked or not, so its label comes back
-      if (btn) { btn.disabled = false; btn.classList.remove('spin-on'); }
+      if (btn) { btn.disabled = false; btn.classList.remove('spin-on'); btn.innerHTML = label; }
     }
   });
 }
