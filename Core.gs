@@ -145,6 +145,14 @@ function bizDate_() { return setting_('businessDate') || calToday_(); }
 function flag_(k) { return String(setting_(k)) === 'true'; }
 
 /* ============================ AUTH ============================ */
+/* Passwords are stored as "h1:" plus the hash. The prefix stops the sheet reading a hash that starts
+   with + or - as a formula, which would change it. Older hashes without the prefix still work. */
+function storeHash_(salt, pw) { return 'h1:' + hash_(salt, pw); }
+function hashMatches_(u, pw) {
+  const stored = String((u && u.passHash) || '');
+  const want = stored.indexOf('h1:') === 0 ? 'h1:' + hash_(u.salt, pw) : hash_(u.salt, pw);
+  return stored !== '' && stored === want;
+}
 function hash_(salt, pw) {
   let h = salt + ':' + pw;
   for (let i = 0; i < 1000; i++) {
@@ -242,7 +250,7 @@ function login(username, password) {
   if (user && user.locked === true) throw new Error('This account is locked after too many wrong passwords. Ask the system administrator to unlock it.');
   const failKey = 'fail:' + u;
   if (Number(cache.get(failKey) || 0) >= max) throw new Error('Too many failed attempts from this name. Try again in 15 minutes.');
-  const ok = !!user && user.active === true && hash_(user.salt, String(password || '')) === user.passHash;
+  const ok = !!user && user.active === true && hashMatches_(user, String(password || ''));
   if (!ok) {
     cache.put(failKey, String(Number(cache.get(failKey) || 0) + 1), 900);
     let left = max;
@@ -335,9 +343,9 @@ function changeMyPassword(token, oldPw, newPw) {
   checkNewPassword_(newPw);
   return withLock_(() => {
     const u = rows_(TBL.USERS).find(x => x.id === s.id);
-    if (hash_(u.salt, String(oldPw || '')) !== u.passHash) throw new Error('Current password is incorrect.');
+    if (!hashMatches_(u, String(oldPw || ''))) throw new Error('Current password is incorrect.');
     const salt = Utilities.getUuid();
-    patch_(TBL.USERS, u._row, { salt: salt, passHash: hash_(salt, newPw), mustChange: false });
+    patch_(TBL.USERS, u._row, { salt: salt, passHash: storeHash_(salt, newPw), mustChange: false });
     // The session kept at sign-in still says a change is due: clear it, or the prompt returns on every load
     const cache = CacheService.getScriptCache(), raw = cache.get('s:' + token);
     if (raw) cache.put('s:' + token, JSON.stringify(Object.assign({}, JSON.parse(raw), { mustChange: false })), SESSION_SECONDS);
@@ -377,7 +385,7 @@ function saveUser(token, d) {
       if (d.password) {
         checkNewPassword_(d.password);
         ch.salt = Utilities.getUuid();
-        ch.passHash = hash_(ch.salt, d.password);
+        ch.passHash = storeHash_(ch.salt, d.password);
         ch.mustChange = true;
       }
       patch_(TBL.USERS, u._row, ch);
@@ -388,7 +396,7 @@ function saveUser(token, d) {
     const pw = d.password || genTempPassword_();
     checkNewPassword_(pw);
     const id = id_('U'), salt = Utilities.getUuid();
-    const user = { id: id, username: uname, name: d.name || uname, role: d.role, salt: salt, passHash: hash_(salt, pw),
+    const user = { id: id, username: uname, name: d.name || uname, role: d.role, salt: salt, passHash: storeHash_(salt, pw),
       active: active, lastLogin: '', createdAt: fmtTs_(new Date()), email: email, mustChange: true };
     append_(TBL.USERS, user);
     let mailed = false;
@@ -493,7 +501,7 @@ function resetUserPassword(token, id) {
     if (!u) throw new Error('User not found.');
     if ([ADMIN_ROLE, PROPERTY_ROLE].indexOf(u.role) >= 0 && permMap_(s.role)['system.manage'] !== true) throw new Error('Only a system administrator can reset this account.');
     const pw = genTempPassword_(), salt = Utilities.getUuid();
-    patch_(TBL.USERS, u._row, { salt: salt, passHash: hash_(salt, pw), mustChange: true, failCount: 0, locked: false });
+    patch_(TBL.USERS, u._row, { salt: salt, passHash: storeHash_(salt, pw), mustChange: true, failCount: 0, locked: false });
     let mailed = false;
     if (u.email) { try { sendWelcome_({ id: u.id, username: u.username, name: u.name, role: u.role, email: u.email }, pw); mailed = true; } catch (e) { Logger.log('Reset email: ' + e.message); } }
     audit_(s.username, 'PASSWORD_RESET_BY_ADMIN', 'User', id, u.username + (mailed ? ' (email sent)' : ''));

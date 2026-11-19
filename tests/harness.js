@@ -599,5 +599,10 @@ if (require.main === module) {
   // A test from a form goes through that sender, even when it is switched off in the normal order
   ok(run("(function(){ relayCalls.length = 0; sendEmailTest(TOK, 't@x.org', 'smtp'); return relayCalls[0].u === 'https://r.example.com'; })()"), 'SMTP test goes through the relay');
   ok(run("(function(){ relayCalls.length = 0; sendEmailTest(TOK, 't@x.org', 'resend'); return relayCalls[0].u === 'https://api.resend.com/emails'; })()"), 'Resend test goes through the Resend API');
+  // Password hashes: new ones carry the h1: prefix; accounts with an older unprefixed hash still sign in
+  ok(run("(function(){ const u = rows_(TBL.USERS).find(x => x.username === 'lockme'); return String(u.passHash).indexOf('h1:') === 0; })()"), 'a reset stores the password hash with the h1: prefix');
+  run("(function(){ const u = rows_(TBL.USERS).find(x => x.username === 'newbie'); patch_(TBL.USERS, u._row, { passHash: hash_(u.salt, 'Legacy-pass1') }); return true; })()");
+  ok(!tryRun("login('newbie', 'Legacy-pass1')").e, 'an older unprefixed hash still signs in');
+  ok(!!tryRun("login('newbie', 'Wrong-pass1')").e, 'a wrong password is still refused for an older hash');
   console.log('done');
 }

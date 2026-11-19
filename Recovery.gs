@@ -187,7 +187,7 @@ function forgotReset(resetToken, newPassword) {
     if (!u) throw new Error('This account is no longer active.');
     const salt = Utilities.getUuid();
     // A reset proves who the person is, so it also clears a lock and the wrong-password count
-    patch_(TBL.USERS, u._row, { salt: salt, passHash: hash_(salt, newPassword), failCount: 0, locked: false });
+    patch_(TBL.USERS, u._row, { salt: salt, passHash: storeHash_(salt, newPassword), failCount: 0, locked: false });
     cache.remove(key);
     cache.remove('fail:' + String(u.username).toLowerCase());
     cache.remove('fail:' + String(u.email || '').toLowerCase());
@@ -206,7 +206,7 @@ function resetAdminPassword() {
   const pw = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSWORD') || '';
   checkNewPassword_(pw);
   const salt = Utilities.getUuid();
-  const passHash = hash_(salt, pw);
+  const passHash = storeHash_(salt, pw);
   withLock_(() => {
     const admin = rows_(TBL.USERS).find(x => String(x.username).toLowerCase() === 'admin');
     if (admin) {

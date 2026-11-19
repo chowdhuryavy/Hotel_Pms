@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.137**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.138**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.138: Password hashes are stored with an "h1:" prefix, so the sheet can't turn a hash into a formula or change it. Accounts with older hashes still sign in, and a password change or reset writes the new format.
 
 Release notes for 1.2.137: Added a Vercel page (public/index.html, configured by vercel.json) that shows the Stayline web app in a full-screen frame, with a link to open it in a new tab.
 

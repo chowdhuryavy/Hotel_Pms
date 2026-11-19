@@ -60,7 +60,7 @@ function setupDatabase() {
     let generated = '';
     if (!pw || pw.length < 8) { pw = Utilities.getUuid().replace(/-/g, '').slice(0, 12); generated = pw; }
     const salt = Utilities.getUuid();
-    append_(TBL.USERS, { id: id_('U'), username: 'admin', name: 'Administrator', role: 'Admin', salt: salt, passHash: hash_(salt, pw), active: true, lastLogin: '', createdAt: fmtTs_(new Date()) });
+    append_(TBL.USERS, { id: id_('U'), username: 'admin', name: 'Administrator', role: 'Admin', salt: salt, passHash: storeHash_(salt, pw), active: true, lastLogin: '', createdAt: fmtTs_(new Date()) });
     if (generated) {
       Logger.log('First admin: username "admin", password "' + generated + '". Change it after first sign-in.');
       firstAdminNote = '\n\nFirst admin: username admin, password ' + generated + '\n(Change it after your first sign-in.)';
