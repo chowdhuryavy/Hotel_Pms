@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.130**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.131**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.131: The sidebar menu no longer shows a scrollbar on desktop. The menu still scrolls with the mouse wheel, and rows are tighter on shorter screens so most laptops fit the whole menu.
 
 Release notes for 1.2.130: Licence dates are read from the Settings sheet correctly, whether typed as yyyy-mm-dd, dd/mm/yyyy or a date cell. The sidebar licence box, including the days left, now refreshes at startup instead of showing the old values.
 
