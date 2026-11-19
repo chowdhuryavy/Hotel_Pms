@@ -369,8 +369,9 @@ function brand() {
   const s = S.settings, logo = s.logoUrl ? `<img src="${esc(s.logoUrl)}" alt="">` : BRAND_ICON;
   if ($('splashLogo')) $('splashLogo').innerHTML = logo;
   $('brandLogo').innerHTML = logo; $('loginLogo').innerHTML = logo; $('sbLogo').innerHTML = logo;
-  $('brandName').textContent = s.appName || 'Stayline';
-  $('brandHotel').textContent = s.hotelName || '';
+  // Sidebar header: the full hotel name on top, the app name under it
+  $('brandName').textContent = s.hotelName || s.appName || 'Stayline';
+  $('brandHotel').textContent = s.appName || 'Stayline';
   $('loginTitle').textContent = s.appName || 'Stayline';
   $('loginHotel').textContent = s.hotelName || '';
   document.title = s.appName || 'Stayline';
@@ -1031,6 +1032,25 @@ function bizPill() { return `<span class="pill Reserved">Business date ${esc(S.b
 /* ============================================================
  * DASHBOARD
  * ============================================================ */
+/* Greeting by the device's time of day, and a live clock that runs while the dashboard is open. */
+function greetingWord_() {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
+let CLOCK_TIMER = null;
+function clockStart_() {
+  const tick = () => {
+    const el = document.getElementById('liveClock');
+    if (!el) { clearInterval(CLOCK_TIMER); CLOCK_TIMER = null; return; }
+    const d = new Date();
+    el.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const day = document.getElementById('liveDay');
+    if (day) day.textContent = d.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
+  };
+  tick();
+  if (!CLOCK_TIMER) CLOCK_TIMER = setInterval(tick, 1000);
+}
+
 async function pgDashboard() {
   // Each widget loads only when the role allows it, and a failing widget shows its own message.
   const canBoard = can('frontdesk.checkin') || can('frontdesk.checkout');
@@ -1071,12 +1091,23 @@ async function pgDashboard() {
     qa(can('reports.view'), 'Reports', 'End-of-day and more', 'reports', 'ghost')
   ].join('');
   const forecast = !fc ? '' : fc.error ? note(fc) : `<div class="card"><h3>Next 14 nights · occupancy</h3>${forecastHtml(fc)}</div>`;
-  setView(`<h1>Dashboard<small>${esc(dmy(S.bizDate))}</small></h1>
+  const mixCount = {};
+  if (b && !b.error) b.inHouse.forEach(r => { const k = r.roomType || '—'; mixCount[k] = (mixCount[k] || 0) + 1; });
+  const mix = !b || b.error ? '' : `<div class="card"><h3>In-house by room type</h3>${donutChart_(Object.keys(mixCount).map(k => ({ label: k, value: mixCount[k] })))}</div>`;
+  const move = !b || b.error ? '' : `<div class="card"><h3>Today's movement</h3>${barChart_(['Arrivals', 'Departures', 'In-house', 'Past due', 'Dirty rooms'], [b.arrivals.length, b.departures.length, b.inHouse.length, b.pastDue.length, b.dirtyRooms])}</div>`;
+  const who = (S.user && (S.user.name || S.user.username)) || '';
+  setView(`<div class="welcome card">
+      <div><div class="wl-hi">${esc(greetingWord_())}${who ? ', ' + esc(who) : ''}</div>
+        <div class="wl-sub">Business date <b>${esc(dmy(S.bizDate))}</b> · ${esc((S.settings && S.settings.hotelName) || '')}</div></div>
+      <div class="wl-clock"><div class="wl-time" id="liveClock">--:--:--</div><div class="wl-day" id="liveDay"></div></div>
+    </div>
     ${kpis}
     <div class="grid2">${revenue}
       <div class="card"><h3>Quick actions</h3><div class="quick">${actions || '<p class="muted">No quick actions for your role.</p>'}</div></div>
     </div>
+    <div class="grid2">${mix}${move}</div>
     ${forecast}`);
+  clockStart_();
 }
 
 /* ============================================================
@@ -2605,6 +2636,21 @@ function toggleTheme() {
 function savedTheme_() { try { return localStorage.getItem('st_theme') || 'dark'; } catch (e) { return 'dark'; } }
 
 /* Bar chart in SVG. labels and values are arrays of the same length. */
+/* Donut chart with a legend. items: [{ label, value }]. */
+function donutChart_(items) {
+  const total = items.reduce((a, i) => a + (Number(i.value) || 0), 0);
+  if (!total) return '<p class="muted">No guests in house.</p>';
+  const R = 52, C = 2 * Math.PI * R, pal = ['#2a9d96', '#f2b134', '#5b8def', '#e76f51', '#9b72cf', '#8ab17d', '#d4a373'];
+  let off = 0;
+  const arcs = items.map((it, i) => {
+    const len = C * ((Number(it.value) || 0) / total);
+    const s = `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${pal[i % pal.length]}" stroke-width="22" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 70 70)"><title>${esc(it.label)}: ${it.value}</title></circle>`;
+    off += len;
+    return s;
+  }).join('');
+  const legend = items.map((it, i) => `<li><i style="background:${pal[i % pal.length]}"></i>${esc(it.label)} <b>${it.value}</b> <span class="muted">${Math.round(it.value / total * 100)}%</span></li>`).join('');
+  return `<div class="donut"><svg viewBox="0 0 140 140" class="donut-svg" role="img" aria-label="Donut chart"><circle r="${R}" cx="70" cy="70" fill="none" stroke="var(--line)" stroke-width="22"/>${arcs}<text x="70" y="76" text-anchor="middle" class="donut-n">${total}</text></svg><ul class="donut-legend">${legend}</ul></div>`;
+}
 function barChart_(labels, values, fmt) {
   const W = 600, H = 230, P = 34;
   const max = Math.max(1, ...values.map(v => Number(v) || 0));

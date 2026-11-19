@@ -89,6 +89,7 @@ function voidPosting(token, id, reason) {
     const p = rows_(TBL.POSTINGS).find(x => x.id === id);
     if (!p) throw new Error('Posting not found.');
     if (p.voided === true) throw new Error('Posting is already voided.');
+    if (closedDate_(p.bizDate)) throw new Error('Business date ' + String(p.bizDate).slice(0, 10) + ' is closed by the night audit. Its postings are frozen.');
     const tag = reason + ' (by ' + s.username + ')';
     patch_(TBL.POSTINGS, p._row, { voided: true, voidReason: tag });
     rows_(TBL.POSTINGS).filter(c => c.parentId === id && c.voided !== true).forEach(c => patch_(TBL.POSTINGS, c._row, { voided: true, voidReason: tag }));
@@ -106,6 +107,7 @@ function transferPosting(token, id, toFolioId) {
     if (p.parentId) throw new Error('Tax lines move with their charge. Move the charge instead.');
     if (!isCharge_(p.code)) throw new Error('Only charges can be moved. Payments stay on their folio.');
     if (folioRow_(p.folioId).status !== 'Open') throw new Error('The folio this charge is on is closed.');
+    if (closedDate_(p.bizDate)) throw new Error('Business date ' + String(p.bizDate).slice(0, 10) + ' is closed by the night audit. Its postings are frozen.');
     const target = folioRow_(toFolioId);
     if (target.status !== 'Open') throw new Error('Target folio is closed.');
     if (target.id === p.folioId) throw new Error('Posting is already on that folio.');

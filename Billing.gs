@@ -316,6 +316,7 @@ function splitPosting(token, postingId, parts, reason) {
     const rate = settings_().taxRate;
     const hasTax = taxLinesOf_(postingId).length > 0;
     targets.forEach((t, i) => { if (t.f.accountId) assertCredit_(t.f.accountId, clean[i].amount * (hasTax ? 1 + rate : 1)); });
+    if (closedDate_(p.bizDate)) throw new Error('Business date ' + String(p.bizDate).slice(0, 10) + ' is closed by the night audit. Its postings are frozen.');
     const bd = p.bizDate || bizDate_();
     const newIds = clean.map((x, i) => {
       const t = targets[i];

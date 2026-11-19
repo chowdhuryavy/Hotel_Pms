@@ -5,7 +5,13 @@
  *   2. marks un-arrived reservations as No-Show (if enabled),
  *   3. records the closed date and advances the business date by one day.
  * It runs once per business date. A second run for the same date is refused.
+ * Once a date is closed its postings are frozen: voids, transfers and splits on that date are refused.
  */
+/** True when the night audit has closed this business date. Dates may be stored with a time; compare the day only. */
+function closedDate_(bd) {
+  const d = String(bd || '').slice(0, 10);
+  return !!d && rows_(TBL.BIZDATES).some(b => String(b.date).slice(0, 10) === d && b.status === 'Closed');
+}
 function businessDateInfo(token) {
   const s0 = auth_(token);
   if (!anyPerm_(s0, ['nightaudit.run'])) throw new Error('Permission denied: nightaudit.run');
