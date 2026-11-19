@@ -13,7 +13,7 @@ const PAY_TYPE = 'Payment';
 const CHARGE_TYPE = 'Charge';
 
 const TBL = {
-  USERS:     ['Users', ['id','username','name','role','salt','passHash','active','lastLogin','createdAt','email','mustChange']],
+  USERS:     ['Users', ['id','username','name','role','salt','passHash','active','lastLogin','createdAt','email','mustChange','failCount','locked']],
   PERMS:     ['Permissions', ['permission','description'].concat(ROLES)],
   SETTINGS:  ['Settings', ['key','value']],
   ROOMTYPES: ['RoomTypes', ['code','name','baseRate','maxAdults','active','description']],
@@ -32,7 +32,8 @@ const TBL = {
   BIZDATES:  ['BusinessDates', ['date','status','openedAt','closedAt','closedBy','roomsPosted','noShows']],
   PAYMETHODS: ['PaymentMethods', ['code','name','kind','chargeCode','accountId','active']],
   PACKAGES:  ['Packages', ['code','name','description','chargeCode','amount','perNight','active']],
-  AUDIT:     ['AuditLog', ['time','user','action','entity','entityId','details']]
+  AUDIT:     ['AuditLog', ['time','user','action','entity','entityId','details']],
+  RESLOG:    ['ResLog', ['id','resNo','at','user','action','details']]
 };
 
 /** [permission, description, Admin, Manager, FrontDesk, Cashier, Housekeeping, Sales, Accountant] */
@@ -67,6 +68,8 @@ const PERMISSIONS = [
   ['settings.manage',       'Hotel settings & branding',                 true,  false, false, false, false, false, false],
   ['accounts.view',         'View company accounts (city ledger)',       true,  true,  true,  false, false, true,  true ],
   ['accounts.manage',       'Create accounts, bill folios to companies', true,  true,  false, false, false, false, false],
+  ['ar.view',               'View accounts receivable (AR)',             true,  true,  false, false, false, false, true ],
+  ['ar.post',               'AR receipts and routing to the city ledger', true, true,  false, false, false, false, true ],
   ['shifts.view',           'View all cashier shifts & variances',       true,  true,  false, false, false, false, true ],
   ['shifts.manage',         'Open / close own cashier shift',            true,  true,  true,  true,  false, false, false],
   ['system.manage',         'System administration: roles, email templates, app link', true,  false, false, false, false, false, false],
@@ -74,8 +77,10 @@ const PERMISSIONS = [
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.5';
+const APP_VERSION = '1.2.6';
 const SETTINGS_DEFAULT = {
+  maxLoginAttempts: 5,      // wrong passwords before the account is locked (system admin, minimum 5)
+  inactivityMinutes: 30,    // idle minutes before sign-out (system admin)
   appName: 'Stayline',
   hotelName: 'Stayline Hotel',
   hotelAddress: '',
@@ -102,7 +107,7 @@ const SETTINGS_DEFAULT = {
   welcomeBody: 'Hello {{name}},\n\nAn account has been created for you at {{hotelName}}.\n\nApp link: {{appUrl}}\nUsername: {{username}}\nTemporary password: {{tempPassword}}\nRole: {{role}}\n\nYou will be asked to choose a new password the first time you sign in.'
 };
 /** Settings only the system administrator can change (email templates and the app link). */
-const SYSTEM_SETTINGS = ['defaultLanguage', 'defaultCurrency', 'auditorEmail', 'auditorAutoSend', 'intPosUrl', 'intTvUrl', 'intPhoneUrl', 'intCardUrl', 'appUrl', 'welcomeSubject', 'welcomeBody', 'otpSubject', 'otpBody', 'doneSubject', 'doneBody'];
+const SYSTEM_SETTINGS = ['maxLoginAttempts', 'inactivityMinutes', 'defaultLanguage', 'defaultCurrency', 'auditorEmail', 'auditorAutoSend', 'intPosUrl', 'intTvUrl', 'intPhoneUrl', 'intCardUrl', 'appUrl', 'welcomeSubject', 'welcomeBody', 'otpSubject', 'otpBody', 'doneSubject', 'doneBody'];
 
 const CHARGE_CODES_DEFAULT = [
   // [code, description, department, type, taxable]

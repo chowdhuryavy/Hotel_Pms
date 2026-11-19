@@ -68,6 +68,8 @@ function audit_(user, action, entity, entityId, details) {
     time: fmtTs_(new Date()), user: user, action: action, entity: entity,
     entityId: String(entityId || ''), details: String(details || '').slice(0, 500)
   });
+  const resNo = resNoFor_(entity, entityId);   // every change to a reservation, folio or posting is also logged on it
+  if (resNo) resLogWrite_(resNo, user, action, details);
 }
 
 /* ============================ SETTINGS ============================ */
@@ -99,28 +101,41 @@ function permMap_(role) {
 }
 function publicSettings_() {
   const s = settings_();
-  return { appName: s.appName, hotelName: s.hotelName, logoUrl: s.logoUrl, currency: s.currency || s.defaultCurrency, defaultLanguage: s.defaultLanguage };
+  return { appName: s.appName, hotelName: s.hotelName, logoUrl: s.logoUrl, currency: s.currency || s.defaultCurrency, defaultLanguage: s.defaultLanguage, inactivityMinutes: inactivityMinutes_() };
 }
 function getPublicSettings() { return publicSettings_(); }
 
+function maxAttempts_() { return Math.max(5, Number(settings_().maxLoginAttempts) || 5); }
+function inactivityMinutes_() { return Math.max(1, Number(settings_().inactivityMinutes) || 30); }
 function login(username, password) {
   const cache = CacheService.getScriptCache();
   const u = String(username || '').trim().toLowerCase();
-  const failKey = 'fail:' + u;
-  if (Number(cache.get(failKey) || 0) >= 5) throw new Error('Too many failed attempts. Try again in 15 minutes.');
+  const max = maxAttempts_();
   const user = rows_(TBL.USERS).find(x => String(x.username).toLowerCase() === u || String(x.email || '').toLowerCase() === u);
+  if (user && user.locked === true) throw new Error('This account is locked after too many wrong passwords. Ask the system administrator to unlock it.');
+  const failKey = 'fail:' + u;
+  if (Number(cache.get(failKey) || 0) >= max) throw new Error('Too many failed attempts from this name. Try again in 15 minutes.');
   const ok = !!user && user.active === true && hash_(user.salt, String(password || '')) === user.passHash;
   if (!ok) {
     cache.put(failKey, String(Number(cache.get(failKey) || 0) + 1), 900);
-    withLock_(() => audit_(u || '?', 'LOGIN_FAILED', 'User', u, ''));
-    throw new Error('Invalid username or password.');
+    let left = max;
+    withLock_(() => {
+      if (user) {
+        const n = num_(user.failCount) + 1;
+        left = Math.max(0, max - n);
+        patch_(TBL.USERS, user._row, { failCount: n, locked: n >= max });
+      }
+      audit_(u || '?', 'LOGIN_FAILED', 'User', u, user && left === 0 ? 'account locked' : '');
+    });
+    if (user && left === 0) throw new Error('Wrong password. This account is now locked after ' + max + ' attempts. Ask the system administrator to unlock it.');
+    throw new Error('Invalid username or password.' + (user && left <= 2 ? ' ' + left + ' attempt(s) left before the account is locked.' : ''));
   }
   const sess = { id: user.id, username: user.username, name: user.name, role: user.role, mustChange: user.mustChange === true };
   const token = Utilities.getUuid();
-  cache.put('s:' + token, JSON.stringify(sess), SESSION_SECONDS);
+  cache.put('s:' + token, JSON.stringify(Object.assign({}, sess, { seen: Date.now() })), SESSION_SECONDS);
   cache.remove(failKey);
   withLock_(() => {
-    patch_(TBL.USERS, user._row, { lastLogin: fmtTs_(new Date()) });
+    patch_(TBL.USERS, user._row, { lastLogin: fmtTs_(new Date()), failCount: 0, locked: false });
     audit_(sess.username, 'LOGIN', 'User', sess.id, '');
   });
   return { token: token, user: sess, perms: permMap_(sess.role), settings: publicSettings_(), bizDate: bizDate_() };
@@ -131,9 +146,16 @@ function logout(token) {
 }
 /** Validates the session (re-reading the user, so deactivation and role changes apply at once) and checks a permission. */
 function auth_(token, perm) {
-  const raw = token ? CacheService.getScriptCache().get('s:' + token) : null;
+  const cache = CacheService.getScriptCache();
+  const raw = token ? cache.get('s:' + token) : null;
   if (!raw) throw new Error('SESSION_EXPIRED');
   const cached = JSON.parse(raw);
+  // Inactivity: a session idle longer than the system administrator's limit ends
+  if (cached.seen && Date.now() - Number(cached.seen) > inactivityMinutes_() * 60000) {
+    cache.remove('s:' + token);
+    throw new Error('SESSION_EXPIRED');
+  }
+  cache.put('s:' + token, JSON.stringify(Object.assign({}, cached, { seen: Date.now() })), SESSION_SECONDS);
   const u = rows_(TBL.USERS).find(x => x.id === cached.id);
   if (!u || u.active !== true) throw new Error('SESSION_EXPIRED');
   const s = { id: u.id, username: u.username, name: u.name, role: u.role };
@@ -162,14 +184,17 @@ function changeMyPassword(token, oldPw, newPw) {
 
 /* ============================ ADMIN: USERS, PERMISSIONS, SETTINGS, AUDIT ============================ */
 function listUsers(token) {
-  auth_(token, 'users.manage');
-  return rows_(TBL.USERS).map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, active: u.active === true, lastLogin: u.lastLogin || '', email: u.email || '' }));
+  const s = auth_(token, 'users.manage');
+  const isSys = permMap_(s.role)['system.manage'] === true;
+  // property admins manage staff only; admin and property admin accounts belong to the system administrator
+  return rows_(TBL.USERS).filter(u => isSys || [ADMIN_ROLE, PROPERTY_ROLE].indexOf(u.role) < 0).map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, active: u.active === true, locked: u.locked === true, lastLogin: u.lastLogin || '', email: u.email || '' }));
 }
 function saveUser(token, d) {
   const s = auth_(token, 'users.manage');
   const isSys = permMap_(s.role)['system.manage'] === true;
   if (roleNames_().indexOf(d.role) < 0) throw new Error('Invalid role.');
   if (d.role === ADMIN_ROLE && !isSys) throw new Error('Only a system administrator can give the Admin role.');
+  if (d.role === PROPERTY_ROLE && !isSys) throw new Error('Only a system administrator can create or change Property Admin accounts.');
   const uname = String(d.username || '').trim().toLowerCase();
   if (!uname) throw new Error('Username is required.');
   const active = d.active !== false && d.active !== 'false';
@@ -182,6 +207,7 @@ function saveUser(token, d) {
       const u = users.find(x => x.id === d.id);
       if (!u) throw new Error('User not found.');
       if (u.role === ADMIN_ROLE && !isSys) throw new Error('Only a system administrator can change an Admin user.');
+      if (u.role === PROPERTY_ROLE && !isSys) throw new Error('Only a system administrator can change a Property Admin account.');
       if (u.id === s.id && (!active || d.role !== u.role)) throw new Error('You cannot deactivate or demote your own account.');
       const ch = { username: uname, name: d.name || uname, role: d.role, active: active, email: email };
       if (d.password) {
@@ -221,6 +247,7 @@ function saveSettings(token, d) {
     Object.keys(SETTINGS_DEFAULT).forEach(k => {
       if (k === 'businessDate' || d[k] === undefined) return;
       if (SYSTEM_SETTINGS.indexOf(k) >= 0 && !isSys) return;   // only the system administrator   // business date only changes via night audit
+      if (k === 'maxLoginAttempts' && Number(d[k]) < 5) throw new Error('Wrong-password limit must be at least 5.');
       if (k === 'logoUrl') {
         const v = String(d[k] || '').trim();
         if (v && !/^(https:\/\/|data:image\/(png|jpeg|webp|svg\+xml);base64,)/i.test(v)) throw new Error('Logo must be an https link or an uploaded image.');
@@ -257,4 +284,33 @@ function include(name) {
 /** App code is sent Base64-encoded so Apps Script never validates the JavaScript as HTML. The browser decodes and runs it. */
 function include64(name) {
   return Utilities.base64Encode(Utilities.newBlob(HtmlService.createTemplateFromFile(name).getRawContent()).getBytes());
+}
+
+/** Unlocks an account locked after too many wrong passwords. */
+function unlockUser(token, id) {
+  const s = auth_(token, 'users.manage');
+  return withLock_(() => {
+    const u = rows_(TBL.USERS).find(x => x.id === id);
+    if (!u) throw new Error('User not found.');
+    if ([ADMIN_ROLE, PROPERTY_ROLE].indexOf(u.role) >= 0 && permMap_(s.role)['system.manage'] !== true) throw new Error('Only a system administrator can unlock this account.');
+    patch_(TBL.USERS, u._row, { locked: false, failCount: 0 });
+    CacheService.getScriptCache().remove('fail:' + String(u.username).toLowerCase());   // clear the short-term throttle too
+    audit_(s.username, 'USER_UNLOCKED', 'User', id, u.username);
+    return true;
+  });
+}
+/** Admin resets a user's password to a temporary one. The user must change it at the next sign-in. */
+function resetUserPassword(token, id) {
+  const s = auth_(token, 'users.manage');
+  return withLock_(() => {
+    const u = rows_(TBL.USERS).find(x => x.id === id);
+    if (!u) throw new Error('User not found.');
+    if ([ADMIN_ROLE, PROPERTY_ROLE].indexOf(u.role) >= 0 && permMap_(s.role)['system.manage'] !== true) throw new Error('Only a system administrator can reset this account.');
+    const pw = genTempPassword_(), salt = Utilities.getUuid();
+    patch_(TBL.USERS, u._row, { salt: salt, passHash: hash_(salt, pw), mustChange: true, failCount: 0, locked: false });
+    let mailed = false;
+    if (u.email) { try { sendWelcome_({ id: u.id, username: u.username, name: u.name, role: u.role, email: u.email }, pw); mailed = true; } catch (e) { Logger.log('Reset email: ' + e.message); } }
+    audit_(s.username, 'PASSWORD_RESET_BY_ADMIN', 'User', id, u.username + (mailed ? ' (email sent)' : ''));
+    return { tempPassword: mailed ? '' : pw };
+  });
 }

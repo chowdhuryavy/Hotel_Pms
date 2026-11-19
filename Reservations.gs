@@ -165,7 +165,12 @@ function modifyReservation(token, resNo, d) {
       adults: Number(d.adults) || r.adults, rate: override || num_(nightly.reduce((a, n) => a + n.rate, 0) / nightly.length),
       notes: d.notes !== undefined ? d.notes : r.notes, updatedAt: fmtTs_(new Date())
     });
-    audit_(s.username, 'RES_MODIFIED', 'Reservation', resNo, arrival + ' > ' + departure + ' ' + roomType + ' ' + roomNo);
+    const newAdults = Number(d.adults) || r.adults, newNotes = d.notes !== undefined ? d.notes : r.notes;
+    const changes = [['arrival', r.arrival, arrival], ['departure', r.departure, departure], ['room type', r.roomType, roomType],
+      ['room', r.roomNo, roomNo], ['rate plan', r.plan, plan], ['adults', r.adults, newAdults], ['notes', r.notes || '', newNotes || '']];
+    if (override) changes.push(['fixed rate', '', override]);
+    const detail = changes.filter(c => String(c[1]) !== String(c[2])).map(c => c[0] + ' ' + c[1] + ' > ' + c[2]).join('; ') || 'no field changed';
+    audit_(s.username, 'RES_MODIFIED', 'Reservation', resNo, detail);
     return { resNo: resNo, roomNo: roomNo };
   });
 }

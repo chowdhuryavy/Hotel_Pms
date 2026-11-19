@@ -1,6 +1,6 @@
 const fs = require('fs'), vm = require('vm'), crypto = require('crypto');
 const SRC = '../';
-const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','Recovery','Roles','Billing','Menu','Updater'];
+const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','Recovery','Roles','Billing','Ledger','Menu','Updater'];
 const code = files.map(f => fs.readFileSync(SRC + f + '.gs', 'utf8')).join('\n;\n');
 
 // ---- in-memory Spreadsheet ----
@@ -198,10 +198,10 @@ if (require.main === module) {
   const rack = run("rackData(TOK, bizDate_(), 7)");
   ok(rack.rooms.length === 16 + 0 || rack.rooms.length > 10, 'rack returns ' + rack.rooms.length + ' rooms');
   // ---- advanced: migration, company accounts, guest alerts, shifts, late checkout, forecast, reports, housekeeping ----
-  ok(run('rows_(TBL.PERMS).length') === 34, 'permission matrix has 34 rows');
+  ok(run('rows_(TBL.PERMS).length') === 36, 'permission matrix has 36 rows');
   ok(run("rows_(TBL.CHARGES).some(c => c.code === 'LCO')"), 'late checkout charge code LCO present');
   run('migrateSchema_()'); run('migrateSchema_()');
-  ok(run('rows_(TBL.PERMS).length') === 34 && run("rows_(TBL.CHARGES).filter(c => c.code === 'LCO').length") === 1, 'migration is idempotent');
+  ok(run('rows_(TBL.PERMS).length') === 36 && run("rows_(TBL.CHARGES).filter(c => c.code === 'LCO').length") === 1, 'migration is idempotent');
   run("rows_(TBL.ROOMS).forEach(r => patch_(TBL.ROOMS, r._row, { housekeeping: 'Clean' }))");
 
   const acc = tryRun("saveAccount(TOK, { name: 'Acme Corp', code: 'ACME', creditLimit: 500 })");
@@ -377,6 +377,56 @@ if (require.main === module) {
   ok(!!tryRun("transferPosting(TOK,'" + spC2Tax + "','" + spPmF + "')").e, 'a tax line cannot be moved on its own');
   ok(!tryRun("transferPosting(TOK,'" + spC2Id + "','" + spPmF + "')").e, 'a charge moves to the PM folio with its tax');
   ok(run("rows_(TBL.POSTINGS).filter(p => p.folioId === '" + spPmF + "' && p.voided !== true && p.parentId).length") === 2, 'moved charge brings its tax line');
+  // reservation change log, copy reservation, city ledger routing and AR
+  const lg = tryRun("createReservation(TOK, {firstName:'Log', lastName:'Test', roomType:'STD', arrival: bizDate_(), departure: addDays_(bizDate_(),2), adults:1, plan:'BAR'})");
+  const lgRes = lg.v.resNo;
+  run("checkIn(TOK,'" + lgRes + "','',0,'DEP')");
+  const lgF = run("getReservation(TOK,'" + lgRes + "').folios[0].id");
+  run("postCharge(TOK,'" + lgF + "','MB','Water',40)");
+  const lgActs = run("getResLog(TOK,'" + lgRes + "').map(l => l.action)");
+  ok(lgActs.indexOf('RES_CREATED') >= 0 && lgActs.indexOf('CHECK_IN') >= 0 && lgActs.indexOf('CHARGE') >= 0, 'change log records create, check-in and charge');
+  ok(run("getResLog(TOK,'" + lgRes + "')[0].user") === 'admin' && !!run("getResLog(TOK,'" + lgRes + "')[0].at"), 'every log line has user and time');
+  ok(!tryRun("modifyReservation(TOK,'" + mv.v.resNo + "',{adults:1, notes:'late arrival'})").e, 'reservation modified for the log');
+  ok(run("getResLog(TOK,'" + mv.v.resNo + "').some(l => l.action === 'RES_MODIFIED' && /notes .* > late arrival/.test(l.details))"), 'modify log shows the changed field');
+  const cp = tryRun("copyReservation(TOK,'" + lgRes + "',{arrival: addDays_(bizDate_(),5), departure: addDays_(bizDate_(),7)})");
+  ok(!cp.e, 'reservation copied with new dates');
+  ok(run("getReservation(TOK,'" + cp.v.resNo + "').guestName") === 'Log Test' && run("getReservation(TOK,'" + cp.v.resNo + "').res.roomType") === 'STD', 'copy keeps guest and room type');
+  ok(run("getResLog(TOK,'" + lgRes + "').some(l => l.action === 'RES_COPIED')"), 'source reservation logs the copy');
+  ok(!!tryRun("closeFolioToCityLedger(CTOK,'" + lgF + "','" + accId + "','x')").e, 'cashier cannot route folios to the city ledger');
+  ok(!!tryRun("closeFolioToCityLedger(TOK,'" + lgF + "','" + accId + "','')").e, 'city ledger routing needs a reason');
+  const arBefore = run("getAccount(TOK,'" + accId + "').balance");
+  const lgBal = run("getReservation(TOK,'" + lgRes + "').balance");
+  ok(!tryRun("closeFolioToCityLedger(TOK,'" + lgF + "','" + accId + "','Company pays the room')").e, 'folio routed to the company city ledger');
+  ok(run("getReservation(TOK,'" + lgRes + "').balance") === 0, 'guest folio balance is cleared by the routing');
+  ok(Math.abs(run("getAccount(TOK,'" + accId + "').balance") - (arBefore + lgBal)) < 0.01, 'company receivable increases by the routed balance');
+  ok(!tryRun("arReceipt(TOK,'" + accId + "','BANK',20,'part payment')").e, 'AR receipt posted');
+  ok(Math.abs(run("arStatement(TOK,'" + accId + "').balance") - run("getAccount(TOK,'" + accId + "').balance")) < 0.01, 'AR statement agrees with the account balance');
+  ok(run("arStatement(TOK,'" + accId + "').open.length") > 0, 'AR shows open items after a partial receipt');
+  ok(!!tryRun("arReceipt(CTOK,'" + accId + "','BANK',5,'x')").e, 'cashier cannot post AR receipts');
+  ok(!!tryRun("saveUser(TOK, {username:'padmin', name:'Property Admin Test', role:'Property Admin', password:'Padmin12345', active:true, email:''})").e === false, 'system admin creates a Property Admin');
+  run("globalThis.PT2 = login('propadmin','Prop12345').token");
+  ok(!!tryRun("saveUser(PT2, {username:'padmin2', name:'X', role:'Property Admin', password:'Xpass12345', active:true, email:''})").e, 'property admin cannot create Property Admin accounts');
+  ok(run("listUsers(PT2).some(u => u.role === 'Admin' || u.role === 'Property Admin')") === false, 'property admin does not see system or property admin accounts');
+  ok(run("listUsers(TOK).some(u => u.role === 'Property Admin')") === true, 'system admin sees Property Admin accounts');
+  // account security: property admin cannot touch the system admin; lockout, unlock and reset
+  const secAdminId = run("rows_(TBL.USERS).find(u => u.username === 'admin').id");
+  ok(!!tryRun("saveUser(PT2, {id:'" + secAdminId + "', username:'admin', name:'Admin', role:'Admin', active:true, email:''})").e, 'property admin cannot edit the system admin');
+  ok(!!tryRun("saveUser(PT2, {id:'" + secAdminId + "', username:'admin', name:'Admin', role:'Admin', active:false, email:''})").e, 'property admin cannot deactivate the system admin');
+  ok(!!tryRun("unlockUser(PT2,'" + secAdminId + "')").e, 'property admin cannot unlock the system admin');
+  ok(!!tryRun("resetUserPassword(PT2,'" + secAdminId + "')").e, 'property admin cannot reset the system admin password');
+  ok(run("listUsers(PT2).some(u => u.id === '" + secAdminId + "')") === false, 'system admin is hidden from property admin');
+  ok(!!tryRun("saveSettings(TOK, {maxLoginAttempts: 3})").e, 'wrong-password limit cannot go below 5');
+  ok(!tryRun("saveUser(TOK, {username:'lockme', name:'Lock Me', role:'FrontDesk', password:'Lock12345', active:true, email:''})").e, 'staff user created');
+  const secLkId = run("rows_(TBL.USERS).find(u => u.username === 'lockme').id");
+  let secFails = 0;
+  for (let i = 0; i < 5; i++) { if (tryRun("login('lockme','wrong-pass-1')").e) secFails++; }
+  ok(secFails === 5, 'five wrong passwords are refused');
+  ok(run("rows_(TBL.USERS).find(u => u.username === 'lockme').locked") === true, 'account is locked after the fifth wrong password');
+  ok(!!tryRun("login('lockme','Lock12345')").e, 'locked account refuses the correct password');
+  ok(!tryRun("unlockUser(TOK,'" + secLkId + "')").e, 'system admin unlocks the account');
+  ok(!tryRun("login('lockme','Lock12345')").e, 'unlocked account signs in again');
+  ok(!tryRun("resetUserPassword(TOK,'" + secLkId + "')").e, 'admin resets a password');
+  ok(run("rows_(TBL.USERS).find(u => u.username === 'lockme').mustChange") === true, 'reset password must be changed at next sign-in');
   ok(!!tryRun("saveSettings(TOK, {logoUrl: 'http://insecure.example/logo.png'})").e, 'logo must be an https link or an uploaded image');
   ok(!tryRun("saveSettings(TOK, {logoUrl: 'https://example.com/logo.png'})").e, 'https logo link is saved');
   ok(!tryRun("saveSettings(TOK, {logoUrl: 'data:image/png;base64,iVBORw0KGgo='})").e, 'uploaded logo is saved');

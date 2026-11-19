@@ -165,8 +165,9 @@ function startApp() {
   $('app').classList.remove('hidden');
   brand();
   buildNav();
-  $('who').innerHTML = `<form class="qs" onsubmit="searchGo(event)"><input name="q" placeholder="Search room, guest, res #, group…" aria-label="Search"></form><span class="bizline">Business date <b>${esc(S.bizDate)}</b></span><div class="avatar-wrap top">${avatarHtml_('top')}</div>`;
-  $('account').innerHTML = `<div class="avatar-wrap side">${avatarHtml_('side')}<div class="who-txt"><b>${esc(S.user.name)}</b><span>${esc(S.user.role)}</span></div></div>`;
+  $('who').innerHTML = `<form class="qs" onsubmit="searchGo(event)"><input name="q" placeholder="Search room, guest, res #, group…" aria-label="Search"></form><span class="bizline">Business date <b>${esc(S.bizDate)}</b></span>`;
+  $('account').innerHTML = acctHtml_();
+  idleReset_();
   if (S.user.mustChange) toast('Please choose a new password to continue.');
   const want = parseHash_();
   go(want.page && pageAllowed_(want.page) ? want.page : firstPage(), want.page && pageAllowed_(want.page) ? want.param : null);
@@ -235,9 +236,10 @@ async function pgBillingRoom(roomNo) {
       const desc = p.voided ? '<s>' + esc(p.description) + '</s> <span class="pill">void</span>' : (p.parentId ? '<span class="muted">&nbsp;&nbsp;↳ ' + esc(p.description) + '</span>' : esc(p.description));
       return tr([esc(p.bizDate), esc(p.code), desc, num(p.amount), refund + voidBtn, edit + split + move], p.voided ? 'muted' : '');
     });
+    const city = can('ar.post') && f.status === 'Open' && f.balance > 0 ? `<button class="btn sm ghost" onclick="closeCityModal('${esc(f.id)}', ${Number(f.balance)})">Close to city ledger</button>` : '';
     const acts = d.canPost && f.status === 'Open' ? `<div class="acts"><button class="btn sm" onclick="chargeModal('${esc(f.id)}')">Charge</button>
       <button class="btn sm ok" onclick="billPayModal('${esc(f.id)}')">Payment</button><button class="btn sm" onclick="billPackageModal('${esc(r.resNo)}','${esc(f.id)}')">Package</button></div>` : '';
-    return `<div class="card"><div class="head-row"><h3>Folio ${f.folioNo} · ${esc(f.name)} ${pill(f.status)}</h3><div>${acts}</div></div>` +
+    return `<div class="card"><div class="head-row"><h3>Folio ${f.folioNo} · ${esc(f.name)} ${pill(f.status)}</h3><div>${acts}${city}</div></div>` +
       table(['Date', 'Code', 'Description', 'Amount', '', ''], rows) + `<p><b>Folio balance:</b> ${balCell(f.balance)}</p></div>`;
   }).join('');
   setView(`${head}<div class="card"><div class="head-row"><div><h2>${esc(d.res.guestName)}</h2>
@@ -352,12 +354,14 @@ function toggleUserMenu(e, id) {
 }
 function closeUserMenu() { document.querySelectorAll('.user-menu.open').forEach(m => m.classList.remove('open')); }
 document.addEventListener('click', e => { if (!e.target.closest('.avatar-wrap')) closeUserMenu(); });
-function avatarHtml_(where) {
+/* Sidebar account block: the whole block is the button. It opens the menu with change password and sign out. */
+function acctHtml_() {
   const who = S.user || {};
-  const menuId = where === 'top' ? 'userMenuTop' : 'userMenuSide';
-  return `<button class="avatar" onclick="toggleUserMenu(event,'${menuId}')" title="${esc(who.name || '')}" aria-label="Account menu">${esc(initials_(who.name || who.username))}</button>` +
-    `<div class="user-menu ${where}" id="${menuId}"><div class="um-head"><b>${esc(who.name || '')}</b><span>${esc(who.role || '')}</span></div>` +
-    `<button onclick="closeUserMenu();pwModal()">Change password</button><button onclick="logout()">Sign out</button></div>`;
+  return `<div class="avatar-wrap side"><button class="acct-btn" onclick="toggleUserMenu(event,'userMenuSide')" aria-haspopup="true" aria-label="Account menu">` +
+    `<span class="avatar" aria-hidden="true">${esc(initials_(who.name || who.username))}</span>` +
+    `<span class="who-txt"><b>${esc(who.name || '')}</b><span>${esc(who.role || '')}</span></span></button>` +
+    `<div class="user-menu side" id="userMenuSide"><div class="um-head"><b>${esc(who.name || '')}</b><span>${esc(who.role || '')}</span></div>` +
+    `<button onclick="closeUserMenu();pwModal()">Change password</button><button onclick="logout()">Sign out</button></div></div>`;
 }
 function pwModal() {
   openModal('Change password', `<form id="fPwM" class="fgrid">
@@ -410,12 +414,14 @@ const NAV = [
   { k: 'billing', l: 'Billing (rooms)', p: ['folio.view'] },
   { k: 'shifts', l: 'Cashier shifts', p: ['shifts.manage', 'shifts.view'] },
   { k: 'accounts', l: 'City ledger', p: ['accounts.view'] },
+  { k: 'ar', l: 'Accounts receivable', p: ['ar.view'] },
   { k: 'nightaudit', l: 'Night audit', p: ['nightaudit.run'] },
   { h: 'Management' },
   { k: 'rates', l: 'Rates & charges', p: ['rates.view'] },
   { k: 'reports', l: 'Reports', p: ['reports.view'] },
   { k: 'log', l: 'Audit log', p: ['audit.view'] },
-  { k: 'admin', l: 'Administration', p: ['users.manage', 'settings.manage', 'rooms.manage', 'rates.manage'] }
+  { k: 'admin', l: 'Property admin', p: ['users.manage', 'settings.manage', 'rooms.manage', 'rates.manage'] },
+  { k: 'sysadmin', l: 'System admin', p: ['system.manage'] }
 ];
 function firstPage() { const f = NAV.find(n => n.k && canAny(n.p)); return f ? f.k : 'password'; }
 function grpState_() { try { return JSON.parse(localStorage.getItem('st_grp') || '{}'); } catch (e) { return {}; } }
@@ -444,7 +450,7 @@ const PAGES = {
   dashboard: pgDashboard, frontdesk: pgFrontDesk, rack: pgRack, reservations: pgReservations, res: pgRes,
   newres: pgNewRes, guests: pgGuests, guest: pgGuest, groups: pgGroups, group: pgGroup,
   housekeeping: pgHousekeeping, cashier: pgCashier, nightaudit: pgNightAudit, rates: pgRates,
-  reports: pgReports, log: pgLog, admin: pgAdmin, password: pgPassword, search: pgSearch, billing: pgBilling, lists: pgLists,
+  reports: pgReports, log: pgLog, admin: () => pgAdmin('prop'), sysadmin: () => pgAdmin('sys'), ar: pgAR, password: pgPassword, search: pgSearch, billing: pgBilling, lists: pgLists,
   accounts: pgAccounts, account: pgAccount, shifts: pgShifts
 };
 /* ---------- Routing: every page has its own address (#/reservations, #/res?"RES1") ---------- */
@@ -613,11 +619,12 @@ function resFilter(e) {
 }
 
 async function pgRes() {
-  const d = await api('getReservation', S.param);
+  const [d, resLog] = await Promise.all([api('getReservation', S.param), api('getResLog', S.param).catch(() => [])]);
   RES = d;
   const r = d.res, st = r.status;
   const btn = [];
   btn.push(`<button class="btn ghost" onclick="guestHistoryModal('${esc(r.guestId)}')">Guest history</button>`);
+  if (can('reservations.create')) btn.push(`<button class="btn ghost" onclick="copyModal('${esc(r.resNo)}')">Copy reservation</button>`);
   if (st === 'Reserved' && can('frontdesk.checkin')) btn.push(`<button class="btn ok" onclick="ciModal('${esc(r.resNo)}')">Check in</button>`);
   if (st === 'In-House' && can('frontdesk.checkout')) btn.push(`<button class="btn ok" onclick="coAct('${esc(r.resNo)}')">Check out</button>`);
   if (st === 'Reserved' && can('reservations.modify')) btn.push(`<button class="btn ghost" onclick="modifyModal('${esc(r.resNo)}')">Modify</button>`);
@@ -639,6 +646,7 @@ async function pgRes() {
         <div class="acts">Balance ${balCell(f.balance)}
           ${canPost && st === 'In-House' ? `<button class="btn sm" onclick="chargeModal('${esc(f.id)}')">Post charge</button>` : ''}
           ${canPost ? `<button class="btn sm ok" onclick="payModal('${esc(f.id)}')">Payment</button>` : ''}
+          ${can('ar.post') && f.status === 'Open' && f.balance > 0 ? `<button class="btn sm ghost" onclick="closeCityModal('${esc(f.id)}', ${Number(f.balance)})">Close to city ledger</button>` : ''}
           ${can('accounts.manage') && f.status === 'Open' ? `<button class="btn sm ghost" onclick="billToModal('${esc(f.id)}','${esc(f.accountId || '')}')">Bill to company</button>` : ''}
         </div></div>${table(['Date', 'Code', 'Description', 'Amount', 'Status', ''], rows)}</div>`;
     }).join('') + (can('folio.post') && st !== 'Departed' && st !== 'Cancelled' && st !== 'No-Show' ? `<div class="acts"><button class="btn ghost" onclick="addFolioModal('${esc(r.resNo)}')">+ Add folio</button></div>` : '');
@@ -661,7 +669,9 @@ async function pgRes() {
       <h3 style="margin-top:14px">Nightly rates</h3>${table(['Night', 'Rate'], d.rates.map(x => tr([esc(x.date), num(x.rate)])))}
       </div>
       <div>${folios}</div>
-    </div>`);
+    </div>
+    <div class="card"><h3>Change log</h3><p class="muted" style="margin:0 0 8px">Every change to this reservation, its folios and postings, with date, time and user.</p>${table(['Date', 'Time', 'User', 'Action', 'Details'],
+      resLog.map(l => tr([esc(String(l.at).slice(0, 10)), esc(String(l.at).slice(11)), esc(l.user), esc(l.action), esc(l.details)])))}</div>`);
 }
 async function modifyModal(resNo) {
   const d = RES.res.resNo === resNo ? RES : await api('getReservation', resNo);
@@ -1227,16 +1237,23 @@ async function pgLog() {
 /* ============================================================
  * ADMINISTRATION
  * ============================================================ */
-const ADM_TABS = [['users', 'Users', 'users.manage'], ['settings', 'Hotel settings', 'settings.manage'], ['types', 'Room types', 'rooms.manage'], ['rooms', 'Rooms', 'rooms.manage'], ['roles', 'Roles & permissions', 'system.manage'], ['system', 'System', 'system.manage'], ['packages', 'Packages', 'rates.manage'], ['payments', 'Payment methods', 'settings.manage']];
-async function pgAdmin() {
-  const tabs = ADM_TABS.filter(t => can(t[2]));
+// [key, label, permission, scope]. 'prop' = property admin (hotel operations); 'sys' = system administrator only.
+const ADM_TABS = [['users', 'Staff users', 'users.manage', 'prop'], ['settings', 'Hotel settings', 'settings.manage', 'prop'], ['types', 'Room types', 'rooms.manage', 'prop'], ['rooms', 'Rooms', 'rooms.manage', 'prop'], ['packages', 'Packages', 'rates.manage', 'prop'], ['payments', 'Payment methods', 'settings.manage', 'prop'],
+  ['padmins', 'Property admins', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys']];
+async function pgAdmin(scope) {
+  const tabs = ADM_TABS.filter(t => t[3] === scope && can(t[2]));
+  if (!tabs.length) { setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1><div class="card">You do not have access to this area.</div>`); return; }
   if (!tabs.find(t => t[0] === ADM)) ADM = tabs[0][0];
   const bar = `<div class="tabs">${tabs.map(([k, l]) => `<button class="btn ghost${ADM === k ? ' on' : ''}" onclick="admTab('${k}')">${l}</button>`).join('')}</div>`;
   let body = '';
   if (ADM === 'users') {
     const us = await api('listUsers');
     body = `<div class="head-row"><h3>Users</h3><div class="acts"><button class="btn" onclick="userModal()">+ User</button></div></div>` +
-      table(['Name', 'Username', 'Role', 'Active', 'Last login', ''], us.map(u => tr([esc(u.name), esc(u.username), pill(u.role), u.active ? 'Yes' : 'No', esc(u.lastLogin), `<button class="btn sm ghost" onclick="userModal('${esc(u.id)}')">Edit</button>`])));
+      table(['Name', 'Username', 'Role', 'Active', 'Last login', ''], us.map(u => tr([esc(u.name), esc(u.username), pill(u.role), u.locked ? pill('Locked') : (u.active ? 'Yes' : 'No'), esc(u.lastLogin), `${u.locked ? `<button class="btn sm ok" onclick="unlockUserAct('${esc(u.id)}')">Unlock</button> ` : ''}<button class="btn sm ghost" onclick="userModal('${esc(u.id)}')">Edit</button> <button class="btn sm ghost" onclick="resetPwAct('${esc(u.id)}')">Reset password</button>`])));
+  } else if (ADM === 'padmins') {
+    const us = (await api('listUsers')).filter(u => u.role === 'Property Admin');
+    body = `<div class="head-row"><h3>Property admins</h3><div class="acts"><button class="btn" onclick="userModal(null,'Property Admin')">+ Property admin</button></div></div>` +
+      table(['Name', 'Username', 'Email', 'Active', 'Last login', ''], us.map(u => tr([esc(u.name), esc(u.username), esc(u.email), u.active ? 'Yes' : 'No', esc(u.lastLogin), `<button class="btn sm ghost" onclick="userModal('${esc(u.id)}')">Edit</button>`])));
   } else if (ADM === 'settings') {
     const s = await api('getSettings');
     body = formHtml('fSt', [
@@ -1271,6 +1288,8 @@ async function pgAdmin() {
       { name: 'auditorEmail', label: 'Auditor email (night audit and AR reports)', value: s.auditorEmail, wide: true },
       { name: 'auditorAutoSend', label: 'Email the auditor after each night audit', type: 'select', options: ['false', 'true'], value: String(s.auditorAutoSend) },
       { name: 'appUrl', label: 'App link (sent to new users)', value: s.appUrl, wide: true },
+      { name: 'maxLoginAttempts', label: 'Wrong passwords before the account is locked (minimum 5)', type: 'number', min: 5, value: s.maxLoginAttempts || 5 },
+      { name: 'inactivityMinutes', label: 'Sign out after this many idle minutes', type: 'number', min: 1, value: s.inactivityMinutes || 30 },
       { name: 'welcomeSubject', label: 'Welcome email: subject', value: s.welcomeSubject, wide: true },
       { name: 'welcomeBody', label: 'Welcome email: message', type: 'textarea', value: s.welcomeBody, wide: true },
       { name: 'otpSubject', label: 'Reset code email: subject', value: s.otpSubject, wide: true },
@@ -1300,7 +1319,7 @@ async function pgAdmin() {
       table(['Role', 'Users', 'Permissions', ''], rl.map(r => tr([esc(r.name) + (r.builtIn ? ' <span class="pill">built-in</span>' : ''), r.users, r.permissions + ' of ' + r.total,
         `<div class="acts"><button class="btn sm ghost" onclick="permModal('${esc(r.name)}')">${r.builtIn ? 'View' : 'Permissions'}</button>${r.builtIn || r.users ? '' : `<button class="btn sm danger" onclick="removeRole('${esc(r.name)}')">Delete</button>`}</div>`])));
   }
-  setView(`<h1>Administration</h1>${bar}<div class="card">${body}</div>`);
+  setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1><p class="muted">${scope === 'sys' ? 'System administrator only: property admin accounts, roles and permissions, system settings and email templates.' : 'Hotel operations: staff users, hotel settings, rooms, packages and payment methods.'}</p>${bar}<div class="card">${body}</div>`);
   if (ADM === 'settings') bindForm('fSt', async d => {
     const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, hotelAddress: d.hotelAddress, logoUrl: d.logoUrl, currency: d.currency,
       taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit });
@@ -1322,7 +1341,7 @@ async function pgAdmin() {
     await api('saveSettings', { appUrl: d.appUrl, welcomeSubject: d.welcomeSubject, welcomeBody: d.welcomeBody, otpSubject: d.otpSubject,
       otpBody: d.otpBody, doneSubject: d.doneSubject, doneBody: d.doneBody, intPosUrl: d.intPosUrl, intTvUrl: d.intTvUrl,
       intPhoneUrl: d.intPhoneUrl, intCardUrl: d.intCardUrl, defaultLanguage: d.defaultLanguage, defaultCurrency: d.defaultCurrency,
-      auditorEmail: d.auditorEmail, auditorAutoSend: d.auditorAutoSend });
+      auditorEmail: d.auditorEmail, auditorAutoSend: d.auditorAutoSend, maxLoginAttempts: Number(d.maxLoginAttempts) || 5, inactivityMinutes: Number(d.inactivityMinutes) || 30 });
     toast('System settings saved');
     if (d.defaultLanguage) applyLanguage_(d.defaultLanguage);
   });
@@ -1331,7 +1350,7 @@ async function testEmail() {
   try { const r = await api('sendEmailTest'); toast('Test emails sent to ' + r.sentTo); }
   catch (e) { toast(e.message, true); }
 }
-function admTab(k) { ADM = k; go('admin'); }
+function admTab(k) { ADM = k; const t = ADM_TABS.find(x => x[0] === k); go(t && t[3] === 'sys' ? 'sysadmin' : 'admin'); }
 /* Menu group for each permission prefix, used to group the permission checkboxes. */
 const PERM_GROUPS = { dashboard: 'Front office', rack: 'Front office', frontdesk: 'Front office', reservations: 'Front office', guests: 'Front office', groups: 'Front office',
   housekeeping: 'Housekeeping', rooms: 'Housekeeping', folio: 'Cashier & billing', shifts: 'Cashier & billing', accounts: 'Cashier & billing',
@@ -1372,14 +1391,14 @@ function removeRole(name) {
   if (!confirm('Delete the role "' + name + '"? Its permissions are removed.')) return;
   api('deleteRole', name).then(() => { go('admin'); toast('Role deleted'); }).catch(e => toast(e.message, true));
 }
-function userModal(id) {
+function userModal(id, presetRole) {
   Promise.all([api('listUsers'), api('roleOptions')]).then(([us, roles]) => {
     const u = id ? us.find(x => x.id === id) || {} : {};
     openModal(id ? 'Edit user' : 'New user', formHtml('fUs', [
       { name: 'username', label: 'Username', required: true, value: u.username || '' },
       { name: 'name', label: 'Full name', value: u.name || '' },
       { name: 'email', label: 'Email (used for password reset)', value: u.email || '' },
-      { name: 'role', label: 'Role', type: 'select', options: roles, value: u.role || 'FrontDesk' },
+      { name: 'role', label: 'Role', type: 'select', options: roles, value: u.role || presetRole || 'FrontDesk' },
       { name: 'password', label: id ? 'New password (blank = keep)' : 'Password (min 8)', type: 'password', required: !id },
       { name: 'active', label: 'Active', type: 'check', value: id ? !!u.active : true }
     ], 'Save user'));
@@ -1392,6 +1411,113 @@ function userModal(id) {
     });
   }).catch(e => toast(e.message, true));
 }
+/* ---------- Copy reservation: same guest, room type, plan and details; new dates ---------- */
+async function copyModal(resNo) {
+  const d = RES && RES.res && RES.res.resNo === resNo ? RES : await api('getReservation', resNo);
+  const r = d.res, g = d.guest || {};
+  const nights = Math.max(1, Math.round((new Date(r.departure) - new Date(r.arrival)) / 86400000));
+  const start = S.bizDate || r.arrival;
+  const dep = new Date(start + 'T00:00:00'); dep.setDate(dep.getDate() + nights);
+  const ymd = x => x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
+  openModal('Copy reservation ' + resNo, formHtml('fCp', [
+    { name: 'arrival', label: 'New arrival', type: 'date', required: true, value: start },
+    { name: 'departure', label: 'New departure', type: 'date', required: true, value: ymd(dep) },
+    { name: 'newGuest', label: 'Different guest (leave unticked to keep the same guest)', type: 'check', value: false, wide: true },
+    { name: 'firstName', label: 'First name (different guest)', value: g.firstName || '' },
+    { name: 'lastName', label: 'Last name (different guest)', value: g.lastName || '' },
+    { name: 'email', label: 'Email', type: 'email', value: g.email || '' },
+    { name: 'phone', label: 'Phone', value: g.phone || '' }
+  ], 'Create copy'));
+  bindForm('fCp', async f => {
+    const out = await api('copyReservation', resNo, { arrival: f.arrival, departure: f.departure, newGuest: f.newGuest === 'true', firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone });
+    toast('Copy created: ' + out.resNo);
+    closeModal(); go('res', out.resNo);
+  });
+}
+
+/* ---------- Routing a folio to the city ledger (company pays) ---------- */
+async function closeCityModal(folioId, balance) {
+  const list = (await api('listAccounts')).filter(a => a.active);
+  if (!list.length) { toast('Create a company account first (City ledger page).', true); return; }
+  openModal('Close folio to city ledger · ' + num(balance), formHtml('fCl', [
+    { name: 'accountId', label: 'Company that pays (AR)', type: 'select', options: list.map(a => [a.id, a.name + ' · ' + a.code]), wide: true },
+    { name: 'reason', label: 'Reason (required)', type: 'textarea', required: true, wide: true }
+  ], 'Close to city ledger'));
+  bindForm('fCl', async d => {
+    const out = await api('closeFolioToCityLedger', folioId, d.accountId, d.reason);
+    toast('Folio closed. ' + num(out.balance) + ' moved to the city ledger.');
+    closeModal(); refresh();
+  });
+}
+
+/* ---------- Accounts receivable (AR) ---------- */
+const arResCell_ = x => (x && String(x).indexOf('ACC:') === 0) ? '<span class="muted">city ledger</span>' : lnk(x);
+async function pgAR() {
+  if (S.param) return pgARStatement(S.param);
+  const list = await api('arOverview');
+  const sumOf = k => list.reduce((a, x) => a + Number(x.buckets[k] || 0), 0);
+  const total = list.reduce((a, x) => a + Number(x.balance || 0), 0);
+  setView(`<h1>Accounts receivable <small>AR</small></h1>
+    <div class="card"><h3>Total owed by companies ${balCell(total)}</h3>
+      <p class="muted">Current (0–30 days) ${num(sumOf('current'))} · 31–60 ${num(sumOf('d31'))} · 61–90 ${num(sumOf('d61'))} · over 90 ${num(sumOf('d90'))}</p>
+      <p class="muted" style="margin:0">Route a guest folio with <b>Close to city ledger</b> when the company pays. Record company payments with <b>Receive payment</b>. Companies are managed on the City ledger page.</p></div>
+    <div class="card">${table(['Company', 'Code', 'Balance', 'Current', '31–60', '61–90', 'Over 90', 'Credit limit', ''],
+      list.map(a => tr([esc(a.name), esc(a.code), balCell(a.balance), num(a.buckets.current), num(a.buckets.d31), num(a.buckets.d61), num(a.buckets.d90),
+        a.creditLimit ? num(a.creditLimit) : 'No limit', `<button class="btn sm ghost" onclick="go('ar','${esc(a.id)}')">Statement</button>`])))}</div>`);
+}
+async function pgARStatement(accId) {
+  const d = await api('arStatement', accId);
+  const a = d.account, b = d.buckets;
+  setView(`<h1>${esc(a.name)} <small>${esc(a.code)} · receivable</small></h1>
+    <p><button class="btn ghost sm" onclick="go('ar')">&larr; All companies</button> <button class="btn ghost sm" onclick="go('account','${esc(a.id)}')">Company account</button></p>
+    <div class="grid2">
+      <div class="card"><h3>Balance owed ${balCell(d.balance)}</h3>
+        ${kv([['Current (0–30 days)', num(b.current)], ['31–60 days', num(b.d31)], ['61–90 days', num(b.d61)], ['Over 90 days', num(b.d90)], ['Credit limit', a.creditLimit ? num(a.creditLimit) : 'No limit']])}
+        ${can('ar.post') ? `<div class="acts"><button class="btn ok" onclick="arReceiptModal('${esc(a.id)}')">Receive payment</button></div>` : ''}</div>
+      <div class="card"><h3>Open items</h3>${table(['Date', 'Res', 'Room', 'Description', 'Open', 'Age (days)'],
+        d.open.map(o => tr([esc(o.date), arResCell_(o.resNo), esc(o.roomNo), esc(o.description), num(o.open), esc(o.age)])))}</div>
+    </div>
+    <div class="card"><h3>Statement</h3>${table(['Date', 'Res', 'Room', 'Code', 'Description', 'Amount', 'Balance'],
+      d.lines.map(l => tr([esc(l.date), arResCell_(l.resNo), esc(l.roomNo), esc(l.code), esc(l.description), num(l.amount), num(l.balance)])))}</div>`);
+}
+async function arReceiptModal(accId) {
+  const codes = (await api('listChargeCodes')).filter(c => c.type === 'Payment' && c.active);
+  if (!codes.length) { toast('No payment codes yet. Add them under Property admin → Payment methods.', true); return; }
+  openModal('Receive payment from company', formHtml('fAr', [
+    { name: 'code', label: 'Payment method', type: 'select', options: codes.map(c => [c.code, c.code + ' · ' + c.description]), wide: true },
+    { name: 'amount', label: 'Amount', type: 'number', step: '0.01', min: 0.01, required: true },
+    { name: 'note', label: 'Reference / note', wide: true }
+  ], 'Post receipt'));
+  bindForm('fAr', async d => {
+    await api('arReceipt', accId, d.code, d.amount, d.note);
+    toast('Receipt posted'); closeModal(); refresh();
+  });
+}
+
+/* ---------- Account security: unlock, admin password reset, inactivity sign-out ---------- */
+async function unlockUserAct(id) {
+  try { await api('unlockUser', id); toast('Account unlocked'); refresh(); } catch (e) { toast(e.message, true); }
+}
+function resetPwAct(id) {
+  openModal('Reset password', `<p>The password is replaced with a temporary one. The user must change it at the next sign-in.</p>
+    <div class="actions"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn danger" id="rpGo">Reset password</button></div>`);
+  $('rpGo').addEventListener('click', async () => {
+    try {
+      const r = await api('resetUserPassword', id);
+      if (r.tempPassword) openModal('Temporary password', `<p>No email was sent, so share this temporary password with the user. It is shown once, and the user must change it at sign-in.</p><p class="code-box">${esc(r.tempPassword)}</p><div class="actions"><button class="btn" onclick="closeModal();refresh()">Done</button></div>`);
+      else { toast('Password reset. The user was emailed a temporary password.'); closeModal(); refresh(); }
+    } catch (e) { toast(e.message, true); }
+  });
+}
+/* Signs out after the idle limit set by the system administrator (the server enforces the same limit). */
+let IDLE_T = null;
+function idleReset_() {
+  if (!S.token) return;
+  clearTimeout(IDLE_T);
+  const mins = Math.max(1, Number((S.settings && S.settings.inactivityMinutes) || 30));
+  IDLE_T = setTimeout(() => { if (S.token) sessionEnd('You were signed out after ' + mins + ' minutes of inactivity.'); }, mins * 60000);
+}
+['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach(ev => document.addEventListener(ev, idleReset_, { passive: true }));
 function typeModal(code) {
   api('listRoomTypes').then(ts => {
     const t = code ? ts.find(x => x.code === code) || {} : {};
