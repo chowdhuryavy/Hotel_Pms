@@ -4,9 +4,11 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.198**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.199**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
 
-Release notes for 1.2.198: Performance. Saving a row reads and writes it once instead of once per field (`patch_`). The dashboard widgets draw as each one's data arrives, so the board no longer waits for the flash report and night report. The start-up script is inline instead of base64 and eval, so the page loads without decoding. The 15-second change check no longer redraws a screen while a field in it is being typed in; it shows a notice instead.
+Release notes for 1.2.199: Sign-in and start-up are restored. The single-write change to `patch_` in 1.2.198 is reverted to the per-field write; the other 1.2.198 changes stay.
+
+Release notes for 1.2.198: Performance. Saving a row reads and writes it once instead of once per field (reverted in 1.2.199). The dashboard widgets draw as each one's data arrives, so the board no longer waits for the flash report and night report. The start-up script is inline instead of base64 and eval, so the page loads without decoding. The 15-second change check no longer redraws a screen while a field in it is being typed in; it shows a notice instead.
 
 Release notes for 1.2.197: The password fields on Change password and the forced password change show an eye icon to show or hide the password, like the sign-in page, instead of a Show text button.
 
