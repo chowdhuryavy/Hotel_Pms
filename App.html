@@ -673,7 +673,11 @@ function sessionEnd(msg) {
   $('app').classList.add('hidden');
   $('login').classList.remove('hidden');
   $('loginErr').textContent = msg || '';
-  closeModal();
+  // Clear every dialog and the form dialog left open, so no blurred layer stays over the sign-in page
+  document.querySelectorAll('.dlg-bg').forEach(n => n.remove());
+  DLG_OPEN = null;
+  $('modal').classList.add('hidden'); $('mBody').innerHTML = '';
+  ACTIVE_TAB = 'page';
 }
 async function logout() {
   // A cashier with an open shift is reminded to close it (cash count and cashier report) before signing out

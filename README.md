@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.113**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.114**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.114: Signing out clears every open dialog and form tab. The sign-in page no longer shows a blurred layer after sign-out until the screen is touched.
 
 Release notes for 1.2.113: The sign-in page's bottom line shows the version number after the rights line.
 
