@@ -57,6 +57,7 @@
     window.addEventListener('message', function (e) {
       var f = document.querySelector('iframe');
       if (!f || !e.data || e.data.type !== 'stayline-reload') return;
+      if (e.source) e.source.postMessage({ type: 'stayline-ack' }, '*');   // tells the app this page handles the reload
       var base = f.getAttribute('src').replace(/[?&]v=\d+/, '');
       f.src = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'v=' + Date.now();
     });

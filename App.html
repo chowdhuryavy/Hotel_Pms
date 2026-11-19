@@ -123,23 +123,27 @@ function updateShow_(v) {
    frame itself, so the top window is sent to the web app's own address with a new version number. That address
    comes from the server (meta exec-url). The route cannot be carried across, so the main page opens. */
 function updateRefresh_() {
-  // Inside another site's page (for example your own domain), the top page must not leave that site: ask it to reload this app
-  // The top page is the last ancestor: Google's own page means the app was opened directly on Google
-  const anc = location.ancestorOrigins ? Array.from(location.ancestorOrigins) : [];
-  const ourSite = anc.length ? anc[anc.length - 1].indexOf('google') < 0
-    : (window.top !== window.self && !!document.referrer && document.referrer.indexOf('google') < 0);
-  if (ourSite) { try { window.top.postMessage({ type: 'stayline-reload' }, '*'); return; } catch (e) { /* fall through */ } }
   const base = ((document.querySelector('meta[name="exec-url"]') || {}).content || '').trim();
   try { sessionStorage.setItem('st_resume', location.hash); } catch (e) { /* private mode */ }
-  const dest = base ? base + (base.indexOf('?') >= 0 ? '&' : '?') + 'v=' + Date.now() : '';
-  if (dest) {
-    try { window.top.location.href = dest; return; } catch (e) { /* the frame cannot navigate the top window */ }
-    try { window.open(dest, '_top'); return; } catch (e) { /* fall through */ }
-  }
-  const u = new URL(location.href);
-  u.searchParams.set('v', String(Date.now()));
-  try { location.replace(u.href); } catch (e) { /* fall back to the reload below */ }
-  setTimeout(() => { try { location.reload(); } catch (e) { location.href = u.href; } }, 700);
+  // First ask the page this app is inside (your own domain) to reload it. That page answers; Google's own page does not.
+  let answered = false;
+  const onAnswer = e => { if (e.data && e.data.type === 'stayline-ack') answered = true; };
+  window.addEventListener('message', onAnswer);
+  try { window.top.postMessage({ type: 'stayline-reload' }, '*'); } catch (e) { /* not framed */ }
+  setTimeout(() => {
+    window.removeEventListener('message', onAnswer);
+    if (answered) return;
+    // No answer: the app is on Google's own page, so the top window goes to the web app's address with a new version number
+    const dest = base ? base + (base.indexOf('?') >= 0 ? '&' : '?') + 'v=' + Date.now() : '';
+    if (dest) {
+      try { window.top.location.href = dest; return; } catch (e) { /* the frame cannot navigate the top window */ }
+      try { window.open(dest, '_top'); return; } catch (e) { /* fall through */ }
+    }
+    const u = new URL(location.href);
+    u.searchParams.set('v', String(Date.now()));
+    try { location.replace(u.href); } catch (e) { /* fall back to the reload below */ }
+    setTimeout(() => { try { location.reload(); } catch (e) { location.href = u.href; } }, 700);
+  }, 700);
 }
 /** Reads and clears the route saved by the refresh button. */
 function takeResume_() {

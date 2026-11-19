@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.172**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.173**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.173: The update Refresh asks the page it is in to reload the app. Only if that page does not answer does it go to the Apps Script address. Redeploy the Vercel page with this version.
 
 Release notes for 1.2.172: The update Refresh checks the top page's address, so on your own domain it no longer goes back to the Apps Script address.
 
