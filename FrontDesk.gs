@@ -9,6 +9,11 @@ function anyPerm_(s, list) {
 }
 
 function frontDeskBoard(token) {
+  const s0 = auth_(token);
+  if (!anyPerm_(s0, ['frontdesk.checkin', 'frontdesk.checkout'])) throw new Error('Permission denied: frontdesk');
+  return cachedRead_('frontdesk', () => frontDeskBoardRaw_(token));
+}
+function frontDeskBoardRaw_(token) {
   const s = auth_(token);
   if (!anyPerm_(s, ['frontdesk.checkin', 'frontdesk.checkout'])) throw new Error('Permission denied: frontdesk');
   const bd = bizDate_();
@@ -87,10 +92,12 @@ function checkIn(token, resNo, roomNo, deposit, depositCode, force) {
   return withLock_(() => checkIn_(resNo, roomNo, deposit, depositCode, s.username, canOverride));
 }
 
-function checkOut(token, resNo, force) {
+function checkOut(token, resNo, force, rid) {
   const s = auth_(token, 'frontdesk.checkout');
   const canOverride = permMap_(s.role)['frontdesk.override'] === true && (force === true || force === 'true');
   return withLock_(() => {
+    const dup = idemGet_(s, rid);
+    if (dup) return dup;
     const r = findRes_(resNo);
     if (r.status !== 'In-House') throw new Error(resNo + ' is ' + r.status + ', cannot check out.');
     const balance = guestBalance_(resNo);
@@ -106,8 +113,37 @@ function checkOut(token, resNo, force) {
     const g = rows_(TBL.GUESTS).find(x => x.id === r.guestId);
     if (g) patch_(TBL.GUESTS, g._row, { stays: (Number(g.stays) || 0) + 1, lastStay: bd });
     audit_(s.username, 'CHECK_OUT', 'Reservation', resNo, 'Room ' + r.roomNo + ' balance ' + balance.toFixed(2));
-    return { balance: balance };
+    const out = { balance: balance };
+    idemPut_(s, rid, out);
+    return out;
   });
+}
+
+/** Check-out screen: the balance due, each open folio's balance, and the methods the guest can settle with. */
+function checkoutStatus(token, resNo) {
+  const s = auth_(token, 'frontdesk.checkout');
+  const r = findRes_(resNo);
+  if (r.status !== 'In-House') throw new Error(resNo + ' is ' + r.status + ', cannot check out.');
+  const posts = rows_(TBL.POSTINGS).filter(p => p.voided !== true && p.resNo === resNo);
+  const folios = rows_(TBL.FOLIOS).filter(f => f.resNo === resNo && f.status === 'Open').map(f => ({
+    id: f.id, name: f.name || ('Folio ' + f.folioNo), folioNo: Number(f.folioNo) || 1,
+    balance: num_(posts.filter(p => p.folioId === f.id).reduce((a, p) => a + (Number(p.amount) || 0), 0))
+  }));
+  const methods = rows_(TBL.PAYMETHODS).filter(m => m.active === true && m.kind !== 'City ledger')
+    .map(m => ({ code: m.code, name: m.name, kind: m.kind }));
+  return { resNo: resNo, guestName: r.guestName || '', roomNo: String(r.roomNo || ''), balance: num_(guestBalance_(resNo)),
+    folios: folios, methods: methods, canOverride: permMap_(s.role)['frontdesk.override'] === true };
+}
+
+/** Luhn check for a card number (digits only). */
+function luhnOk_(d) {
+  let sum = 0, alt = false;
+  for (let i = d.length - 1; i >= 0; i--) {
+    let n = Number(d.charAt(i));
+    if (alt) { n *= 2; if (n > 9) n -= 9; }
+    sum += n; alt = !alt;
+  }
+  return sum % 10 === 0;
 }
 
 /** Walk-in: creates a reservation for today and checks the guest in at once. */

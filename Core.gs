@@ -75,6 +75,26 @@ function withLock_(fn) {
 function dataChanged_() {
   try { PropertiesService.getScriptProperties().setProperty('CHANGE_STAMP', String(Date.now())); } catch (e) { Logger.log('Change stamp: ' + e.message); }
 }
+/* Money-moving calls carry a request id. If the connection drops and the page retries, a repeat with the same id
+   gets the saved result back instead of posting a second time. */
+function idemGet_(s, rid) {
+  if (!rid) return null;
+  try { const v = CacheService.getScriptCache().get('idem:' + s.username + ':' + rid); return v ? JSON.parse(v) : null; } catch (e) { return null; }
+}
+function idemPut_(s, rid, out) {
+  if (!rid) return;
+  try { CacheService.getScriptCache().put('idem:' + s.username + ':' + rid, JSON.stringify(out), 600); } catch (e) { Logger.log('Request id: ' + e.message); }
+}
+/* Speed: a read result is kept for up to 60 seconds. The key includes the change stamp, so any saved change
+   makes the next read compute fresh data. Permissions are checked by the caller before this runs. */
+function cachedRead_(name, fn) {
+  const cache = CacheService.getScriptCache();
+  const key = 'rd:' + name + ':' + (PropertiesService.getScriptProperties().getProperty('CHANGE_STAMP') || '0');
+  try { const hit = cache.get(key); if (hit) return JSON.parse(hit); } catch (e) { /* cache unavailable: compute */ }
+  const out = fn();
+  try { const txt = JSON.stringify(out); if (txt.length < 95000) cache.put(key, txt, 60); } catch (e) { /* too large or unavailable */ }
+  return out;
+}
 /** Cheap check the open app makes every few seconds: the stamp moves when anything is saved. */
 function changeStamp(token) {
   auth_(token);

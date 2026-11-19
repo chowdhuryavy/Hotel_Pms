@@ -719,6 +719,21 @@
   .donut-legend{list-style:none;padding:0;margin:0;flex:1;min-width:150px;display:grid;gap:6px;font-size:13px}
   .donut-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:8px}
   @media (max-width:700px){ .donut{justify-content:center} }
+  /* Header bell and notifications */
+  .bell-wrap{position:relative;flex:none}
+  .bell-btn{position:relative;width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+  .bell-btn svg{width:20px;height:20px}
+  .bell-btn:hover{border-color:var(--brand-2)}
+  .bell-n{position:absolute;top:-5px;right:-5px;min-width:19px;height:19px;border-radius:10px;background:var(--bad);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 5px}
+  .bell-n[hidden],.bell-panel[hidden]{display:none}
+  .bell-panel{position:absolute;right:0;top:calc(100% + 10px);width:min(360px,calc(100vw - 24px));max-height:70vh;overflow:auto;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);z-index:30;padding:10px}
+  .bell-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 8px 10px;border-bottom:1px solid var(--line);margin-bottom:6px;font-size:14px}
+  .bell-item{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:10px;border-radius:10px;cursor:pointer;font-size:14px}
+  .bell-item:hover{background:var(--hover)}
+  .bell-item.unread{font-weight:700}
+  .bell-item .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);margin-top:6px;flex:none}
+  .bell-txt{font-size:12.5px;font-weight:400;margin-top:2px}
+  .bell-empty{padding:14px 10px;margin:0}
   /* Dashboard icons, gauge and meter */
   .kpi-ico{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:var(--hover);color:var(--p1);margin-bottom:10px}
   .kpi-ico svg{width:18px;height:18px}

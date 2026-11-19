@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.49**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.50**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.50: Check-out settles any balance first: the settlement screen lists each folio's balance and takes a payment by method and amount. Card payments ask for the card number (checked by Luhn) and expiry date; only the last four digits and the expiry are kept. Payments and check-outs keep retrying for up to 60 seconds if the connection drops, with a request id so a retry cannot post twice. A bell in the header lists arrivals, past-due arrivals, departures with a balance and dirty rooms; Mark all read and Clear are saved per user. Reads for the front-desk board and reports are cached for up to 60 seconds, and any saved change clears the cache. The login logo shows from the copy saved on the device, and the placeholder logo is gone.
 
 Release notes for 1.2.49: Every saved change moves a server change stamp (dataChanged_, called from withLock_). Open apps check the stamp every 15 seconds while visible. When another user has changed data, the current page reloads and a notice shows; open forms are not replaced.
 

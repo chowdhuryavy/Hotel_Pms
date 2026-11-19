@@ -48,13 +48,27 @@ function rpc(fn, ...args) {
 const NET_ERR_RE = /network error|server error|failed to fetch|timed out|connection|service invoked too many/i;
 const READ_FN_RE = /^(get|list|run|front|billing|occupancy|availability|search|my|report|ar[A-Z]|account|guest|folio|audit|dashboard|rack|export|reportTypes|frontDesk|cashier|housekeeping|night|group)/;
 const isNetErr_ = m => NET_ERR_RE.test(String(m || ''));
+/* Money-moving calls: kept and retried for up to 60 seconds if the connection drops. Each has a request id, so a retry
+   cannot post twice (the server returns the saved result). */
+const RETRY_WRITE_FN = { checkoutPay: true, checkOut: true };
 const api = (fn, ...a) => {
   progressStart_();
   const limit = READ_FN_RE.test(fn) ? 30000 : 60000;   // a stalled request must not leave the screen waiting forever
   const spinBtn = spinStart_();
-  const attempt = n => withTimeout_(rpc(fn, S.token, ...a), limit).catch(e => {
-    if (isNetErr_(e.message) && READ_FN_RE.test(fn) && n < 2) return new Promise(r => setTimeout(r, 700 * (n + 1))).then(() => attempt(n + 1));
+  const rid = RETRY_WRITE_FN[fn] ? Math.random().toString(36).slice(2) + Date.now().toString(36) : '';
+  const args = rid ? [...a, rid] : a;
+  const t0 = Date.now();
+  let warned = false;
+  const attempt = n => withTimeout_(rpc(fn, S.token, ...args), limit).then(v => {
+    if (warned) toast('Connection restored. The request was completed once.');
+    return v;
+  }, e => {
     if (isNetErr_(e.message)) {
+      const keep = READ_FN_RE.test(fn) ? n < 2 : (!!RETRY_WRITE_FN[fn] && Date.now() - t0 < 60000);
+      if (keep) {
+        if (!warned) { warned = true; toast('Connection lost. Reconnecting and keeping your request (up to 60 seconds)…', true); }
+        return new Promise(r => setTimeout(r, Math.min(1000 + n * 1000, 4000))).then(() => attempt(n + 1));
+      }
       netFailed_();
       throw new Error(READ_FN_RE.test(fn)
         ? 'The connection to Google was interrupted. The app will reconnect automatically.'
@@ -375,6 +389,10 @@ function loadSession() { try { return JSON.parse(sessionStorage.getItem('st_sess
 function clearSession() { try { sessionStorage.removeItem('st_session'); } catch (e) {} }
 /* Default brand mark, used when no logo is set in Settings. */
 const BRAND_ICON = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="6" y="6" width="52" height="52" rx="14" fill="#0f3d3e"/><path d="M16 42V24l16-10 16 10v18" fill="none" stroke="#f2b134" stroke-width="4" stroke-linejoin="round"/><rect x="26" y="32" width="12" height="10" fill="#f2b134"/><path d="M12 42h40" stroke="#1d7874" stroke-width="4" stroke-linecap="round"/></svg>';
+/** Starts loading the logo image early, so it is ready when the login or splash screen shows it. */
+function preloadLogo_(url) {
+  if (url && /^https?:\/\//i.test(url)) { const i = new Image(); i.src = url; }
+}
 function brand() {
   const s = S.settings, logo = s.logoUrl ? `<img src="${esc(s.logoUrl)}" alt="">` : BRAND_ICON;
   if ($('splashLogo')) $('splashLogo').innerHTML = logo;
@@ -448,6 +466,7 @@ function startApp() {
   history.replaceState(null, '', routeHash_(page, param));
   renderPage_(page, param);
   watchChanges_();
+  loadBell_();
 }
 
 /* Real-time: every save moves the server's change stamp. This checks it every 15 seconds while the app is
@@ -461,11 +480,47 @@ function watchChanges_() {
     try {
       const r = await rpc('changeStamp', S.token);
       if (STAMP_LAST !== null && r.stamp !== STAMP_LAST) onDataChanged_();
+      if (r.stamp !== STAMP_LAST) loadBell_();   // the bell follows every change, including this user's own
       STAMP_LAST = r.stamp;
     } catch (e) { /* offline or session ended: try again on the next tick */ }
     finally { STAMP_BUSY = false; }
   }, 15000);
 }
+/* Bell: the alerts for this user. Marking read or clearing is saved on the server, so it stays that way on refresh. */
+let BELL_OPEN = false, BELL_ITEMS = [];
+async function loadBell_() {
+  if (!S.token || !$('bellN')) return;
+  try { const r = await rpc('notificationsList', S.token); BELL_ITEMS = r.items; drawBell_(r.unread); }
+  catch (e) { /* try again on the next change */ }
+}
+function drawBell_(unread) {
+  const n = $('bellN'); if (!n) return;
+  n.hidden = !unread; n.textContent = unread > 9 ? '9+' : String(unread);
+  $('bellBtn').setAttribute('aria-label', 'Notifications, ' + unread + ' unread');
+  if (BELL_OPEN) drawBellPanel_();
+}
+function drawBellPanel_() {
+  const list = BELL_ITEMS.length ? BELL_ITEMS.map(i => `<div class="bell-item${i.unread ? ' unread' : ''}" onclick="bellGo_('${esc(i.page)}')">
+      <div><div>${esc(i.title)}</div><div class="muted bell-txt">${esc(i.text)}</div></div>${i.unread ? '<span class="dot"></span>' : ''}</div>`).join('')
+    : '<p class="muted bell-empty">No notifications.</p>';
+  $('bellPanel').innerHTML = `<div class="bell-head"><b>Notifications</b><span><button type="button" class="linkbtn" onclick="bellAct_('read')">Mark all read</button> · <button type="button" class="linkbtn" onclick="bellAct_('clear')">Clear</button></span></div>${list}`;
+}
+function toggleBell_(e) {
+  if (e) e.stopPropagation();
+  BELL_OPEN = !BELL_OPEN;
+  $('bellPanel').hidden = !BELL_OPEN;
+  $('bellBtn').setAttribute('aria-expanded', String(BELL_OPEN));
+  if (BELL_OPEN) { drawBellPanel_(); loadBell_(); }
+}
+function bellGo_(page) { BELL_OPEN = false; $('bellPanel').hidden = true; go(page); }
+async function bellAct_(kind) {
+  try {
+    const r = await api(kind === 'read' ? 'notificationsMarkRead' : 'notificationsClear');
+    BELL_ITEMS = r.items; drawBell_(r.unread);
+  } catch (e) { toast(e.message, true); }
+}
+document.addEventListener('click', e => { if (BELL_OPEN && !(e.target.closest && e.target.closest('.bell-wrap'))) toggleBell_(); });
+
 function onDataChanged_() {
   const modalOpen = !$('modal').classList.contains('hidden');
   if (modalOpen) { toast('Updated by another user. Close this window to see the latest data.'); return; }   // never replace a form being filled
@@ -1224,14 +1279,83 @@ function ciModal(resNo) {
     toast('Checked in ' + resNo + ' to room ' + r.roomNo + (r.warnings && r.warnings.length ? ' · ' + r.warnings.join(' · ') : '')); closeModal(); refresh();
   });
 }
-function coAct(resNo) {
+/* Check out: with no balance, the usual confirmation. With a balance due, the settlement screen comes first. */
+async function coAct(resNo) {
+  let st;
+  try { st = await api('checkoutStatus', resNo); } catch (e) { toast(e.message, true); return; }
+  if (st.balance <= 0.005) { checkoutConfirm_(resNo); return; }
+  settleModal_(resNo, st);
+}
+function checkoutConfirm_(resNo) {
   openModal('Check out · ' + resNo, formHtml('fCo', [
-    { name: 'note', label: 'Check-out confirmation', type: 'select', options: ['Settled in full', 'Keys returned'] },
-    ...(can('frontdesk.override') ? [{ name: 'force', label: 'Override open balance (manager only)', type: 'check', value: false, wide: true }] : [])
+    { name: 'note', label: 'Check-out confirmation', type: 'select', options: ['Settled in full', 'Keys returned'] }
   ], 'Check out'));
-  bindForm('fCo', async d => {
-    const r = await api('checkOut', resNo, d.force === 'true');
+  bindForm('fCo', async () => {
+    const r = await api('checkOut', resNo, false);
     toast('Checked out. Balance ' + money(r.balance)); closeModal(); refresh();
+  });
+}
+function luhnJs_(d) {
+  let sum = 0, alt = false;
+  for (let i = d.length - 1; i >= 0; i--) { let n = Number(d.charAt(i)); if (alt) { n *= 2; if (n > 9) n -= 9; } sum += n; alt = !alt; }
+  return sum % 10 === 0;
+}
+/** Shows or hides the card fields for the chosen payment method. */
+function settleKind_(sel) {
+  const o = sel && sel.selectedOptions && sel.selectedOptions[0];
+  const box = $('cardBox');
+  if (box) box.style.display = o && o.dataset.kind === 'Card' ? 'block' : 'none';
+}
+function settleModal_(resNo, st) {
+  const folioRows = st.folios.map(f => `<tr><td>${esc(f.name)}</td><td style="text-align:right">${money(f.balance)}</td></tr>`).join('');
+  const folioOpts = st.folios.map(f => `<option value="${esc(f.id)}">${esc(f.name)} · ${money(f.balance)}</option>`).join('');
+  const methodOpts = st.methods.map(m => `<option value="${esc(m.code)}" data-kind="${esc(m.kind)}">${esc(m.name)}</option>`).join('');
+  const override = st.canOverride ? `<button type="button" class="btn ghost" id="coOverride">Check out with balance (manager)</button>` : '';
+  openModal('Settle and check out · ' + resNo, `<div class="settle">
+    <p class="muted" style="margin:0 0 10px">${esc(st.guestName)} · Room ${esc(st.roomNo)}</p>
+    <p style="margin:0 0 12px;font-size:18px"><b>Balance due: ${money(st.balance)}</b></p>
+    <table class="tbl"><thead><tr><th>Folio</th><th style="text-align:right">Balance</th></tr></thead><tbody>${folioRows}</tbody></table>
+    <form id="fSettle" class="fgrid" autocomplete="off" style="margin-top:14px">
+      <label class="field"><span>Folio</span><select name="folio">${folioOpts}</select></label>
+      <label class="field"><span>Payment method</span><select name="method" onchange="settleKind_(this)">${methodOpts}</select></label>
+      <label class="field"><span>Amount</span><input name="amount" type="number" step="0.01" min="0.01" max="${st.balance.toFixed(2)}" value="${st.balance.toFixed(2)}" required></label>
+      <div id="cardBox" class="wide" style="display:none">
+        <label class="field"><span>Card number</span><input name="cardNo" inputmode="numeric" autocomplete="off" placeholder="0000 0000 0000 0000" maxlength="23"></label>
+        <label class="field"><span>Expiry date (MM/YY)</span><input name="expiry" inputmode="numeric" autocomplete="off" placeholder="MM/YY" maxlength="5"></label>
+      </div>
+      <p class="err" id="fSetErr" role="alert"></p>
+      <div class="actions">${override}<button class="btn ghost" type="button" onclick="closeModal()">Cancel</button><button class="btn" type="submit">Post payment</button></div>
+    </form></div>`);
+  const f = $('fSettle');
+  settleKind_(f.method);
+  const err = msg => { $('fSetErr').textContent = msg; };
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = f.querySelector('button[type=submit]');
+    const kind = f.method.selectedOptions[0].dataset.kind;
+    const amount = Number(f.amount.value);
+    const cardNo = kind === 'Card' ? String(f.cardNo.value || '').replace(/\s|-/g, '') : '';
+    const expiry = kind === 'Card' ? String(f.expiry.value || '').trim() : '';
+    err('');
+    if (!(amount > 0) || amount > st.balance + 0.005) return err('Enter an amount between 0.01 and ' + st.balance.toFixed(2) + '.');
+    if (kind === 'Card') {
+      if (!/^\d{13,19}$/.test(cardNo) || !luhnJs_(cardNo)) return err('Enter a valid card number.');
+      if (!/^\d{2}\/\d{2}$/.test(expiry)) return err('Expiry date must be MM/YY.');
+    }
+    btn.disabled = true; btn.classList.add('spin-on');
+    try {
+      const r = await api('checkoutPay', resNo, f.folio.value, f.method.value, amount, cardNo, expiry);
+      toast('Payment posted. Balance ' + money(r.balance));
+      closeModal();
+      coAct(resNo);   // shows the check-out confirmation when the balance is clear, or the settlement screen for what remains
+    } catch (x) {
+      err(x.message);
+    } finally { btn.disabled = false; btn.classList.remove('spin-on'); }
+  });
+  const ov = $('coOverride');
+  if (ov) ov.addEventListener('click', async () => {
+    try { const r = await api('checkOut', resNo, true); toast('Checked out with balance ' + money(r.balance)); closeModal(); refresh(); }
+    catch (x) { err(x.message); }
   });
 }
 async function walkInModal() {
@@ -2748,7 +2872,12 @@ function barChart_(labels, values, fmt) {
   applyTheme_(savedTheme_());
   const pg = document.createElement('div'); pg.id = 'progress'; document.body.appendChild(pg);
   try { if (localStorage.getItem('st_sb') === '0') document.body.classList.add('sb-collapsed'); } catch (e) { /* ignore */ }
-  try { S.settings = await rpc('getPublicSettings'); }
+  // Show the last known logo and names at once (saved on this device), then refresh them from the server
+  try {
+    const cached = JSON.parse(localStorage.getItem('st_pub') || 'null');
+    if (cached && cached.appName) { S.settings = cached; brand(); preloadLogo_(cached.logoUrl); }
+  } catch (e) { /* no cache */ }
+  try { S.settings = await rpc('getPublicSettings'); preloadLogo_(S.settings.logoUrl); try { localStorage.setItem('st_pub', JSON.stringify(S.settings)); } catch (x) { /* private mode */ } }
   catch (e) {
     S.settings = { appName: 'Stayline', hotelName: '', currency: '' };
     // A dropped connection is not a missing database: retry the page once, after a short wait

@@ -82,6 +82,45 @@ function postPayment(token, folioId, code, amount) {
   });
 }
 
+/** A payment taken on the check-out screen. Card payments are checked (number by Luhn, expiry in the future).
+ *  Only the last four digits and the expiry date are kept, on the posting and in the audit log. The full number is not stored. */
+function checkoutPay(token, resNo, folioId, methodCode, amount, cardNo, expiry, rid) {
+  const s = auth_(token, 'folio.post');
+  requireShift_(s);
+  const amt = num_(amount);
+  if (!(amt > 0)) throw new Error('Amount must be greater than zero.');
+  return withLock_(() => {
+    const dup = idemGet_(s, rid);
+    if (dup) return dup;
+    const f = folioRow_(folioId);
+    if (f.status !== 'Open') throw new Error('Folio is closed.');
+    if (f.resNo !== resNo) throw new Error('That folio belongs to another stay.');
+    const r = findRes_(resNo);
+    if (r.status !== 'In-House') throw new Error('Payments at check-out are only for In-House stays.');
+    const m = rows_(TBL.PAYMETHODS).find(x => x.code === methodCode && x.active === true);
+    if (!m || m.kind === 'City ledger') throw new Error('Choose a payment method.');
+    const due = num_(guestBalance_(resNo));
+    if (amt > due + 0.005) throw new Error('Amount is more than the balance due of ' + due.toFixed(2) + '.');
+    let note = '';
+    if (m.kind === 'Card') {
+      const digits = String(cardNo || '').replace(/\D/g, '');
+      if (digits.length < 13 || digits.length > 19 || !luhnOk_(digits)) throw new Error('Enter a valid card number.');
+      const ex = String(expiry || '').trim().match(/^(\d{2})\/(\d{2})$/);
+      if (!ex) throw new Error('Expiry date must be MM/YY.');
+      const mm = Number(ex[1]), yy = 2000 + Number(ex[2]);
+      if (mm < 1 || mm > 12) throw new Error('Expiry month must be 01 to 12.');
+      if (new Date(yy, mm, 0) < new Date()) throw new Error('This card has expired.');
+      note = ' · card ending ' + digits.slice(-4) + ' exp ' + ex[1] + '/' + ex[2];
+    }
+    const c = chargeCode_(m.chargeCode, PAY_TYPE);
+    postEntry_(r.resNo, r.roomNo, folioId, c.code, 'Payment: ' + c.description + note, -amt, s.username, bizDate_(), '');
+    audit_(s.username, 'PAYMENT', 'Reservation', r.resNo, c.code + ' ' + amt + note);
+    const out = { balance: num_(guestBalance_(resNo)) };
+    idemPut_(s, rid, out);
+    return out;
+  });
+}
+
 function voidPosting(token, id, reason) {
   const s = auth_(token, 'folio.void');
   if (!String(reason || '').trim()) throw new Error('A reason is required to void a posting.');

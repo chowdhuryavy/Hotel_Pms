@@ -167,7 +167,7 @@ function buildReport_(type, from, to) {
 
 function runReport(token, type, from, to) {
   auth_(token, 'reports.view');
-  return buildReport_(type, from, to);
+  return cachedRead_('report:' + type + ':' + from + ':' + to, () => buildReport_(type, from, to));
 }
 function reportTypes(token) {
   auth_(token, 'reports.view');
