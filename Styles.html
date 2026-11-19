@@ -319,6 +319,16 @@
   /* account: avatar at the bottom of the sidebar; on mobile also in the top corner */
   .account{display:flex;align-items:center;gap:12px}
   .avatar-wrap.side{position:relative;display:flex;align-items:center;gap:10px;width:100%}
+  .acct-btn{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;margin:0;border:1px solid rgba(255,255,255,.16);border-radius:14px;background:rgba(255,255,255,.08);color:#fff;cursor:pointer;text-align:left;font:inherit;transition:background .2s ease,border-color .2s ease,transform .2s ease,box-shadow .2s ease}
+  .acct-btn:hover{background:rgba(255,255,255,.16);border-color:rgba(242,177,52,.6);transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.2)}
+  .acct-btn:active{transform:translateY(0)}
+  .acct-btn:focus-visible{outline:2px solid #f2b134;outline-offset:2px}
+  .acct-btn .avatar{width:40px;height:40px;flex:none;display:grid;place-items:center;letter-spacing:.5px;background:linear-gradient(135deg,#f2b134,#1d7874);box-shadow:0 0 0 2px rgba(255,255,255,.2)}
+  .acct-btn .who-txt{flex:1;min-width:0;display:flex;flex-direction:column}
+  .acct-btn .who-txt b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .acct-btn .who-txt span{display:block;font-size:11px;letter-spacing:.4px;opacity:.75}
+  .acct-btn::after{content:'';flex:none;width:8px;height:8px;border-right:2px solid rgba(255,255,255,.8);border-bottom:2px solid rgba(255,255,255,.8);transform:rotate(-135deg);margin-left:2px;transition:transform .2s ease}
+  .acct-btn[aria-expanded="true"]::after{transform:rotate(45deg)}
   .who-txt b{display:block;color:#fff;font-size:14px}
   .who-txt span{text-transform:capitalize;opacity:.8;font-size:12px}
   .avatar-wrap.side .user-menu{top:auto;bottom:56px;left:0;right:auto}

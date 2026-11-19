@@ -354,6 +354,7 @@ function toggleUserMenu(e, id) {
   e.stopPropagation();
   document.querySelectorAll('.user-menu.open').forEach(m => { if (m.id !== id) m.classList.remove('open'); });
   const m = document.getElementById(id); if (m) m.classList.toggle('open');
+  if (e.currentTarget) e.currentTarget.setAttribute('aria-expanded', m && m.classList.contains('open') ? 'true' : 'false');
 }
 function closeUserMenu() { document.querySelectorAll('.user-menu.open').forEach(m => m.classList.remove('open')); }
 document.addEventListener('click', e => { if (!e.target.closest('.avatar-wrap')) closeUserMenu(); });
@@ -1293,6 +1294,7 @@ async function pgAdmin(scope) {
       { name: 'defaultCurrency', label: 'Default currency code (used when the hotel has none)', value: s.defaultCurrency },
       { name: 'auditorEmail', label: 'Auditor email (night audit and AR reports)', value: s.auditorEmail, wide: true },
       { name: 'auditorAutoSend', label: 'Email the auditor after each night audit', type: 'select', options: ['false', 'true'], value: String(s.auditorAutoSend) },
+      { name: 'loadingScreen', label: 'Loading screen style (default for all users)', type: 'select', options: [opt('random', 'Random each time'), opt('classic', 'Classic'), opt('orbit', 'Orbit'), opt('flip', 'Flip'), opt('pulse', 'Pulse')], value: s.loadingScreen || 'random' },
       { name: 'appUrl', label: 'App link (sent to new users)', value: s.appUrl, wide: true },
       { name: 'maxLoginAttempts', label: 'Wrong passwords before the account is locked (minimum 5)', type: 'number', min: 5, value: s.maxLoginAttempts || 5 },
       { name: 'inactivityMinutes', label: 'Sign out after this many idle minutes', type: 'number', min: 1, value: s.inactivityMinutes || 30 },
@@ -1347,7 +1349,7 @@ async function pgAdmin(scope) {
     await api('saveSettings', { appUrl: d.appUrl, welcomeSubject: d.welcomeSubject, welcomeBody: d.welcomeBody, otpSubject: d.otpSubject,
       otpBody: d.otpBody, doneSubject: d.doneSubject, doneBody: d.doneBody, intPosUrl: d.intPosUrl, intTvUrl: d.intTvUrl,
       intPhoneUrl: d.intPhoneUrl, intCardUrl: d.intCardUrl, defaultLanguage: d.defaultLanguage, defaultCurrency: d.defaultCurrency,
-      auditorEmail: d.auditorEmail, auditorAutoSend: d.auditorAutoSend, maxLoginAttempts: Number(d.maxLoginAttempts) || 5, inactivityMinutes: Number(d.inactivityMinutes) || 30 });
+      auditorEmail: d.auditorEmail, auditorAutoSend: d.auditorAutoSend, loadingScreen: d.loadingScreen, maxLoginAttempts: Number(d.maxLoginAttempts) || 5, inactivityMinutes: Number(d.inactivityMinutes) || 30 });
     toast('System settings saved');
     if (d.defaultLanguage) applyLanguage_(d.defaultLanguage);
   });
@@ -1902,6 +1904,13 @@ function readLogo_(file) {
     fr.readAsDataURL(file);
   });
 }
+/* Loading screen look: the system admin's default, or a random one when set to random */
+function splashTheme_() {
+  const sp = document.getElementById('splash'); if (!sp) return;
+  const map = { classic: 1, orbit: 2, flip: 3, pulse: 4 };
+  const n = map[(S.settings && S.settings.loadingScreen) || 'random'] || (1 + Math.floor(Math.random() * 4));
+  sp.className = sp.className.replace(/\btheme-\d\b/g, '').trim() + ' theme-' + n;
+}
 function splashMsg(m) { const el = $('splashMsg'); if (el) el.textContent = m; }
 function hideSplash() {
   const wait = Math.max(0, 1100 - (Date.now() - T0));
@@ -1910,11 +1919,11 @@ function hideSplash() {
 
 (async function boot() {
   const pg = document.createElement('div'); pg.id = 'progress'; document.body.appendChild(pg);
-  const sp = document.getElementById('splash'); if (sp) sp.classList.add('theme-' + (1 + Math.floor(Math.random() * 4)));
   try { if (localStorage.getItem('st_sb') === '0') document.body.classList.add('sb-collapsed'); } catch (e) { /* ignore */ }
   try { S.settings = await rpc('getPublicSettings'); }
   catch (e) { S.settings = { appName: 'Stayline', hotelName: '', currency: '' }; splashMsg('Database not set up yet. Use Stayline → Set up database.'); }
   brand();
+  splashTheme_();
   if (S.settings && S.settings.loadingMessage) splashMsg(S.settings.loadingMessage);
   applyLanguage_((S.settings && S.settings.defaultLanguage) || 'en');
   const saved = loadSession();

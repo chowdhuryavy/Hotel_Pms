@@ -450,5 +450,8 @@ if (require.main === module) {
   ok(!tryRun("saveSettings(TOK, {logoUrl: ''})").e, 'logo can be removed');
   ok(run("frontLists(TOK).inHouse.length") >= 1 && run("Array.isArray(frontLists(TOK).arrivals) && Array.isArray(frontLists(TOK).departures)"), 'guest lists: in-house, arrivals and departures');
   ok(run("publicSettings_().defaultLanguage") === 'en' && run("settings_().auditorAutoSend") === 'false', 'system defaults: language and auditor email are off');
+  ok(!!tryRun("saveSettings(TOK, {loadingScreen: 'neon'})").e, 'loading screen rejects unknown styles');
+  ok(!tryRun("saveSettings(TOK, {loadingScreen: 'pulse'})").e && run("publicSettings_().loadingScreen") === 'pulse', 'system admin sets the default loading screen');
+  ok(run("publicSettings_().loadingScreen") === 'pulse' && !tryRun("saveSettings(TOK, {loadingScreen: 'random'})").e, 'loading screen can be reset to random');
   console.log('done');
 }

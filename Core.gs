@@ -101,7 +101,7 @@ function permMap_(role) {
 }
 function publicSettings_() {
   const s = settings_();
-  return { appName: s.appName, hotelName: s.hotelName, logoUrl: s.logoUrl, loadingMessage: s.loadingMessage || '', currency: s.currency || s.defaultCurrency, defaultLanguage: s.defaultLanguage, inactivityMinutes: inactivityMinutes_() };
+  return { appName: s.appName, hotelName: s.hotelName, logoUrl: s.logoUrl, loadingMessage: s.loadingMessage || '', loadingScreen: s.loadingScreen || 'random', currency: s.currency || s.defaultCurrency, defaultLanguage: s.defaultLanguage, inactivityMinutes: inactivityMinutes_() };
 }
 function getPublicSettings() { return publicSettings_(); }
 
@@ -249,6 +249,7 @@ function saveSettings(token, d) {
       if (k === 'businessDate' || d[k] === undefined) return;
       if (SYSTEM_SETTINGS.indexOf(k) >= 0 && !isSys) return;   // only the system administrator   // business date only changes via night audit
       if (k === 'maxLoginAttempts' && Number(d[k]) < 5) throw new Error('Wrong-password limit must be at least 5.');
+      if (k === 'loadingScreen' && ['random', 'classic', 'orbit', 'flip', 'pulse'].indexOf(d[k]) < 0) throw new Error('Choose a loading screen style.');
       if (k === 'logoUrl') {
         const v = String(d[k] || '').trim();
         if (v && !/^(https:\/\/|data:image\/(png|jpeg|webp|svg\+xml);base64,)/i.test(v)) throw new Error('Logo must be an https link or an uploaded image.');

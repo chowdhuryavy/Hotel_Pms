@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.7**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.8**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.8: the sidebar account button is a full card (avatar, name, role, hover and focus states). The loading screen style is a system admin setting (System settings): random, classic, orbit, flip or pulse. 
 
 Release notes for 1.2.7: the header shows the hotel name and the business date; the loading screen message is set in Hotel settings. Delete: system admin adds and deletes users; configuration items (room types, rooms, rate plans, rates, charge codes, packages, payment methods, company accounts) can be edited and deleted by whoever holds the matching permission. An item already used in a reservation or posting is deactivated instead, so its history stays intact.
 
