@@ -166,17 +166,23 @@ function permMap_(who) {
   rows_(TBL.PERMS).forEach(r => { m[r.permission] = r[role] === true; });
   // The system administrator has every permission defined in the code, even before the sheet is updated
   if (role === ADMIN_ROLE) PERMISSIONS.forEach(p => { m[p[0]] = true; });
-  // A Property Admin never has the system permission, whatever the grid says
-  if (role === PROPERTY_ROLE) m['system.manage'] = false;
+  // A Property Admin has every hotel operation, not the system settings. The configuration screens and staff-user access
+  // are ticked in Property admin screens, so those keep the grid's value.
+  if (role === PROPERTY_ROLE) { PERMISSIONS.forEach(p => { if (!isPadGridPerm_(p[0])) m[p[0]] = true; }); m['system.manage'] = false; }
   // Extra configuration access the system administrator gave this user, on top of the role
   if (who && typeof who === 'object' && Array.isArray(who.extra)) who.extra.forEach(p => { m[p] = true; });
   return m;
 }
 /* The permissions a system administrator can give one user on top of the role: configuration screens and user management */
 function cfgPermKeys_() { return PERMISSIONS.map(p => p[0]).filter(k => k === 'users.manage' || k.indexOf('cfg.') === 0); }
-function cleanExtra_(v) {
+/* The permissions ticked in Property admin screens */
+function isPadGridPerm_(k) { return k === 'users.manage' || k === 'fixed.manage' || k.indexOf('cfg.') === 0; }
+/* The extra access that can be set. A Property Admin can only give what he holds himself. */
+function cleanExtra_(v, who) {
   const want = (Array.isArray(v) ? v : String(v || '').split(',')).map(x => String(x).trim());
-  return cfgPermKeys_().filter(k => want.indexOf(k) >= 0);
+  let ok = cfgPermKeys_();
+  if (who && who.role !== ADMIN_ROLE) { const pm = permMap_(who); ok = ok.filter(k => pm[k] === true); }
+  return ok.filter(k => want.indexOf(k) >= 0);
 }
 function userExtra_(u) { return cleanExtra_(String((u && u.permExtra) || '')); }
 /* Sidebar layout: { groups: [{ name, items: [page keys] }] }. The page keys are checked against the menu on the client. */
@@ -377,14 +383,14 @@ function listUsers(token) {
 }
 /** The options for the extra configuration access, for the user form (system administrator only) */
 function extraPermOptions(token) {
-  auth_(token, 'system.manage');
-  return PERMISSIONS.filter(p => cleanExtra_([p[0]]).length).map(p => [p[0], p[1]]);
+  const s = auth_(token, 'users.manage');
+  return PERMISSIONS.filter(p => cleanExtra_([p[0]], s).length).map(p => [p[0], p[1]]);
 }
 function saveUser(token, d) {
   const s = auth_(token, 'users.manage');
   const isSys = s.role === ADMIN_ROLE;   // the system administrator is decided by the role, never by a grant
   // Extra configuration access: only the system administrator sets it
-  const extraStr = (isSys && d.permExtra !== undefined) ? cleanExtra_(d.permExtra).join(',') : null;
+  const extraStr = (d.permExtra !== undefined && (isSys || s.role === PROPERTY_ROLE)) ? cleanExtra_(d.permExtra, s).join(',') : null;
   if (roleNames_().indexOf(d.role) < 0) throw new Error('Invalid role.');
   if (d.role === ADMIN_ROLE && !isSys) throw new Error('Only a system administrator can give the Admin role.');
   if (d.role === PROPERTY_ROLE && !isSys) throw new Error('Only a system administrator can create or change Property Admin accounts.');

@@ -3347,7 +3347,7 @@ async function removeRole(name) {
   api('deleteRole', name).then(() => { go('admin'); toast('Role deleted'); }).catch(e => toast(e.message, true));
 }
 function userModal(id, presetRole) {
-  Promise.all([api('listUsers'), api('roleOptions'), can('system.manage') ? api('extraPermOptions') : Promise.resolve([])]).then(([us, roles, extraOpts]) => {
+  Promise.all([api('listUsers'), api('roleOptions'), can('users.manage') ? api('extraPermOptions') : Promise.resolve([])]).then(([us, roles, extraOpts]) => {
     const u = id ? us.find(x => x.id === id) || {} : {};
     const have = u.extra || [];
     // Extra configuration access for this user, on top of the role (system administrator only)
