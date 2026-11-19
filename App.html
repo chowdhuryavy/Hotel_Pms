@@ -64,6 +64,32 @@ const api = (fn, ...a) => {
   });
   return attempt(0).finally(() => { progressEnd_(); spinEnd_(spinBtn); });
 };
+/* ---------- New version: the open app checks the server now and then; a small pop-up offers Refresh ---------- */
+const PAGE_VERSION_ = (document.querySelector('meta[name="app-version"]') || {}).content || '';
+let UPD_SNOOZE = 0, UPD_SHOWING = '';
+async function updateCheck_() {
+  if (!PAGE_VERSION_ || Date.now() < UPD_SNOOZE) return;
+  try {
+    const s = await withTimeout_(rpc('getPublicSettings'), 15000);
+    if (s && s.appVersion && s.appVersion !== PAGE_VERSION_ && UPD_SHOWING !== s.appVersion) updateShow_(s.appVersion);
+  } catch (e) { /* offline or busy: the next check tries again */ }
+}
+function updateShow_(v) {
+  UPD_SHOWING = v;
+  let box = document.getElementById('updbox');
+  if (!box) { box = document.createElement('div'); box.id = 'updbox'; box.className = 'updbox'; box.setAttribute('role', 'status'); document.body.appendChild(box); }
+  box.innerHTML = `<span class="upd-ico" aria-hidden="true">↻</span><span class="upd-txt"><b>New version available</b><span>Version ${esc(v)} is ready. Refresh to use it.</span></span>
+    <span class="upd-acts"><button type="button" class="btn sm" onclick="location.reload()">Refresh</button><button type="button" class="btn ghost sm" onclick="updateLater_()">Later</button></span>`;
+  requestAnimationFrame(() => box.classList.add('show'));
+}
+function updateLater_() {
+  UPD_SNOOZE = Date.now() + 30 * 60 * 1000;   // ask again in 30 minutes
+  const box = document.getElementById('updbox'); if (box) box.classList.remove('show');
+}
+setInterval(updateCheck_, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) updateCheck_(); });
+setTimeout(updateCheck_, 4000);
+
 /* ---------- Connection indicator (system administrator): is the app really talking to the server and the database? ---------- */
 let CONN = { state: 'checking' }, CONN_TIMER = null;
 const CONN_LABEL_ = { ok: 'Connected', slow: 'Slow', db: 'Database error', down: 'No server', offline: 'Offline', checking: 'Checking…' };

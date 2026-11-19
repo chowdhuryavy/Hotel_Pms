@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.32**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.33**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.33: When a new version of the app is published, an open app shows a small pop-up with Refresh and Later buttons. It checks shortly after opening, every five minutes and when you return to the tab.
 
 Release notes for 1.2.32: The app fits every screen: phones from 320 px, tablets, laptops and large monitors. KPI tiles reflow to 6, 3 or 2 per row, dialogs and forms adjust to the width, the bottom action bar fits small phones, and landscape phones get a shorter header. Tested at 320, 360, 390, 768, 1024, 1366 and 1920 px with no sideways scrolling.
 

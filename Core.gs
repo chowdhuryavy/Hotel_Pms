@@ -140,7 +140,7 @@ function licenseGuard_(role) {
 }
 function publicSettings_() {
   const s = settings_();
-  return { appName: s.appName, hotelName: s.hotelName, ownerName: s.ownerName || '', logoUrl: s.logoUrl, loadingMessage: s.loadingMessage || '', loadingScreen: s.loadingScreen || 'random', menuLayout: String(s.menuLayout || ''), licenseStart: String(s.licenseStart || ''), licenseExpiry: String(s.licenseExpiry || ''), licenseStatus: licenseStatus_().status, currency: s.currency || s.defaultCurrency, defaultLanguage: s.defaultLanguage, inactivityMinutes: inactivityMinutes_() };
+  return { appName: s.appName, hotelName: s.hotelName, ownerName: s.ownerName || '', appVersion: APP_VERSION, logoUrl: s.logoUrl, loadingMessage: s.loadingMessage || '', loadingScreen: s.loadingScreen || 'random', menuLayout: String(s.menuLayout || ''), licenseStart: String(s.licenseStart || ''), licenseExpiry: String(s.licenseExpiry || ''), licenseStatus: licenseStatus_().status, currency: s.currency || s.defaultCurrency, defaultLanguage: s.defaultLanguage, inactivityMinutes: inactivityMinutes_() };
 }
 function getPublicSettings() { return publicSettings_(); }
 
