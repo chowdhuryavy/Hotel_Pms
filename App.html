@@ -199,9 +199,13 @@ function bindForm(id, fn) {
   f.addEventListener('submit', async e => {
     e.preventDefault();
     const btn = f.querySelector('button[type=submit]');
-    if (btn) btn.disabled = true;
+    if (btn) { btn.disabled = true; btn.classList.add('spin-on'); }
     try { await fn(Object.fromEntries(new FormData(f))); }
-    catch (err) { toast(err.message, true); if (btn) btn.disabled = false; }
+    catch (err) { toast(err.message, true); }
+    finally {
+      // Always release the button, whether the save worked or not, so its label comes back
+      if (btn) { btn.disabled = false; btn.classList.remove('spin-on'); }
+    }
   });
 }
 const chk = v => v === 'true';

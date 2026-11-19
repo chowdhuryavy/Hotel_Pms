@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.27**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.28**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.28: Fixed: the Save button on forms (Settings, Integrations and others) stayed disabled with a blank label after a successful save. It now returns to normal whether the save worked or not.
 
 Release notes for 1.2.27: The hotel name shows in full in the header and wraps on phones. A new setting, Owner or designer, appears under the hotel name (it falls back to the app name when empty).
 
