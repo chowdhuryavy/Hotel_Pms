@@ -152,8 +152,7 @@ function updateFromGitHub(auto) {
 }
 
 /**
- * GitHub webhook endpoint. GitHub calls this web app on every push, so an update starts
- * as soon as code is pushed to the branch. No timer is needed.
+ * GitHub webhook endpoint (optional, faster than the timer). GitHub calls this web app on every push.
  * The web app URL must end with ?key=... where the key is the WEBHOOK_KEY script property.
  * Pushes to other branches, and GitHub's test ping, are ignored.
  */
@@ -202,4 +201,32 @@ function posInbound_(e, out) {
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.message })).setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+/* ---------- Automatic updates ----------
+ * A timer checks GitHub every 5 minutes. It does real work only when the branch has a new commit,
+ * so the app is published when code is pushed, not on a fixed schedule. It is installed the first
+ * time the web app is opened, or by Stayline → Turn on automatic updates. */
+const AUTO_UPDATE_HANDLER = 'autoUpdateCheck';
+function autoUpdateCheck() {
+  let cfg;
+  try { cfg = updaterConfig_(); } catch (e) { return 'Updater is not configured yet (GITHUB_TOKEN / GITHUB_REPO).'; }
+  const p = PropertiesService.getScriptProperties();
+  const sha = headSha_(cfg);
+  if (sha === p.getProperty('LAST_SHA') && !p.getProperty('PENDING_SHA')) return 'No new commit.';
+  return updateFromGitHub(true);
+}
+function autoUpdateTriggers_() {
+  return ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === AUTO_UPDATE_HANDLER);
+}
+/** Creates the timer if it is missing. Called when the web app is opened. */
+function ensureAutoUpdate_() {
+  if (autoUpdateTriggers_().length) return false;
+  ScriptApp.newTrigger(AUTO_UPDATE_HANDLER).timeBased().everyMinutes(5).create();
+  return true;
+}
+function enableAutoUpdate() {
+  autoUpdateTriggers_().forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger(AUTO_UPDATE_HANDLER).timeBased().everyMinutes(5).create();
+  return 'Automatic updates are on. GitHub is checked every 5 minutes, and the app is published only when there is a new commit.';
 }

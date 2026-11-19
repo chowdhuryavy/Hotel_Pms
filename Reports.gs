@@ -24,6 +24,7 @@ const REPORT_TYPES = [
 function hotelLogoHtml_(st) {
   const h = x => String(x == null ? '' : x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   if (!st || !st.logoUrl) return '';
+  if (/^data:image\//i.test(st.logoUrl)) return '<img src="' + h(st.logoUrl) + '" style="height:56px"><br>';
   try {
     const r = UrlFetchApp.fetch(String(st.logoUrl), { muteHttpExceptions: true, followRedirects: true });
     const hd = r.getHeaders() || {};

@@ -377,6 +377,11 @@ if (require.main === module) {
   ok(!!tryRun("transferPosting(TOK,'" + spC2Tax + "','" + spPmF + "')").e, 'a tax line cannot be moved on its own');
   ok(!tryRun("transferPosting(TOK,'" + spC2Id + "','" + spPmF + "')").e, 'a charge moves to the PM folio with its tax');
   ok(run("rows_(TBL.POSTINGS).filter(p => p.folioId === '" + spPmF + "' && p.voided !== true && p.parentId).length") === 2, 'moved charge brings its tax line');
+  ok(!!tryRun("saveSettings(TOK, {logoUrl: 'http://insecure.example/logo.png'})").e, 'logo must be an https link or an uploaded image');
+  ok(!tryRun("saveSettings(TOK, {logoUrl: 'https://example.com/logo.png'})").e, 'https logo link is saved');
+  ok(!tryRun("saveSettings(TOK, {logoUrl: 'data:image/png;base64,iVBORw0KGgo='})").e, 'uploaded logo is saved');
+  ok(!!tryRun("saveSettings(TOK, {logoUrl: 'data:image/png;base64," + 'A'.repeat(50000) + "'})").e, 'oversized logo is refused');
+  ok(!tryRun("saveSettings(TOK, {logoUrl: ''})").e, 'logo can be removed');
   ok(run("frontLists(TOK).inHouse.length") >= 1 && run("Array.isArray(frontLists(TOK).arrivals) && Array.isArray(frontLists(TOK).departures)"), 'guest lists: in-house, arrivals and departures');
   ok(run("publicSettings_().defaultLanguage") === 'en' && run("settings_().auditorAutoSend") === 'false', 'system defaults: language and auditor email are off');
   console.log('done');

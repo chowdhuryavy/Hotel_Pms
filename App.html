@@ -68,6 +68,7 @@ function refresh() { go(S.page, S.param); }
 function openModal(title, html) { $('mTitle').textContent = title; $('mBody').innerHTML = html; $('modal').classList.remove('hidden'); }
 function closeModal() { $('modal').classList.add('hidden'); $('mBody').innerHTML = ''; }
 function fieldHtml(f) {
+  if (f.raw) return f.raw;
   const v = f.value == null ? '' : f.value;
   let input;
   if (f.type === 'select') {
@@ -114,6 +115,7 @@ function clearSession() { try { sessionStorage.removeItem('st_session'); } catch
 const BRAND_ICON = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="6" y="6" width="52" height="52" rx="14" fill="#0f3d3e"/><path d="M16 42V24l16-10 16 10v18" fill="none" stroke="#f2b134" stroke-width="4" stroke-linejoin="round"/><rect x="26" y="32" width="12" height="10" fill="#f2b134"/><path d="M12 42h40" stroke="#1d7874" stroke-width="4" stroke-linecap="round"/></svg>';
 function brand() {
   const s = S.settings, logo = s.logoUrl ? `<img src="${esc(s.logoUrl)}" alt="">` : BRAND_ICON;
+  if ($('splashLogo')) $('splashLogo').innerHTML = logo;
   $('brandLogo').innerHTML = logo; $('loginLogo').innerHTML = logo; $('sbLogo').innerHTML = logo;
   $('brandName').textContent = s.appName || 'Stayline';
   $('brandHotel').textContent = s.hotelName || '';
@@ -712,7 +714,7 @@ var POST_CACHE = {};
 async function transferModal(postingId) {
   const p = POST_CACHE[postingId] || {};
   const folios = await api('cashierList');
-  const opts = folios.filter(f => f.id !== p.folioId).map(f => [f.id, 'Room ' + f.roomNo + ' · ' + f.guest + ' · Folio ' + f.folioNo + ' (' + f.name + ')' + ]);
+  const opts = folios.filter(f => f.id !== p.folioId).map(f => [f.id, 'Room ' + f.roomNo + ' · ' + f.guest + ' · Folio ' + f.folioNo + ' (' + f.name + ')']);
   if (!opts.length) { toast('No other open folio to move this to.', true); return; }
   openModal('Move charge to another folio', formHtml('fTf', [{ name: 'folioId', label: 'Target folio (room or PM)', type: 'select', options: opts, wide: true }], 'Move'));
   bindForm('fTf', async d => { await api('transferPosting', postingId, d.folioId); toast('Charge moved'); closeModal(); refresh(); });
@@ -1241,7 +1243,8 @@ async function pgAdmin() {
       { name: 'appName', label: 'App name', value: s.appName, required: true },
       { name: 'hotelName', label: 'Hotel name', value: s.hotelName, required: true },
       { name: 'hotelAddress', label: 'Address', value: s.hotelAddress, wide: true },
-      { name: 'logoUrl', label: 'Logo URL (https)', value: s.logoUrl, wide: true },
+      { name: 'logoUrl', label: 'Logo (https link, or upload below)', value: s.logoUrl, wide: true },
+      { name: 'logoPicker', raw: logoPickerHtml(s.logoUrl) },
       { name: 'currency', label: 'Currency code', value: s.currency },
       { name: 'taxRate', label: 'Tax rate (0.10 = 10%)', type: 'number', step: '0.0001', min: 0, value: s.taxRate },
       { name: 'checkInTime', label: 'Check-in time', value: s.checkInTime },
@@ -1304,6 +1307,17 @@ async function pgAdmin() {
     S.settings = Object.assign({}, S.settings, { appName: out.appName, hotelName: out.hotelName, logoUrl: out.logoUrl, currency: out.currency });
     brand(); toast('Settings saved');
   });
+  if (ADM === 'settings') {
+    const lf = $('logoFile'), lu = document.querySelector('#fSt [name=logoUrl]');
+    if (lf) lf.addEventListener('change', async () => {
+      try { const u = await readLogo_(lf.files[0]); if (u) { lu.value = u; setLogoPreview(u); toast('Logo ready. Save settings to apply it.'); } }
+      catch (e) { toast(e.message, true); }
+      lf.value = '';
+    });
+    if (lu) lu.addEventListener('change', () => setLogoPreview(lu.value.trim()));
+    const lc = $('logoClear');
+    if (lc) lc.addEventListener('click', () => { lu.value = ''; setLogoPreview(''); });
+  }
   if (ADM === 'system') bindForm('fSys', async d => {
     await api('saveSettings', { appUrl: d.appUrl, welcomeSubject: d.welcomeSubject, welcomeBody: d.welcomeBody, otpSubject: d.otpSubject,
       otpBody: d.otpBody, doneSubject: d.doneSubject, doneBody: d.doneBody, intPosUrl: d.intPosUrl, intTvUrl: d.intTvUrl,
@@ -1692,6 +1706,45 @@ function closeShiftModal() {
 
 /* Loading screen: stays for at least 1.1 s so the animation is seen, then fades out. */
 const T0 = Date.now();
+/* Logo picker in Settings: preview, upload (resized to a small PNG, or SVG) and remove. */
+function logoPickerHtml(url) {
+  return `<div class="wide logo-pick"><div class="logo-prev">${url ? `<img src="${esc(url)}" alt="Logo preview">` : BRAND_ICON}</div>
+    <div class="logo-ctl"><label class="field"><span>Upload logo (PNG, JPG, WebP or SVG)</span>
+    <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml"></label>
+    <p class="muted" style="margin:6px 0 10px;font-size:12px">Stored in the settings sheet, so the image is resized to fit. Upload, then save settings.</p>
+    <button type="button" class="btn ghost sm" id="logoClear">Remove logo</button></div></div>`;
+}
+function setLogoPreview(u) {
+  const el = document.querySelector('.logo-prev');
+  if (el) el.innerHTML = u ? `<img src="${esc(u)}" alt="Logo preview">` : BRAND_ICON;
+}
+function readLogo_(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve('');
+    if (file.size > 400000) return reject(new Error('That image is too large. Use a file under 400 KB.'));
+    const fr = new FileReader();
+    fr.onerror = () => reject(new Error('Could not read that file.'));
+    fr.onload = () => {
+      if (file.type === 'image/svg+xml') {
+        return fr.result.length > 45000 ? reject(new Error('That SVG is too large. Use a simpler image.')) : resolve(fr.result);
+      }
+      const img = new Image();
+      img.onerror = () => reject(new Error('That file is not an image.'));
+      img.onload = () => {
+        const k = Math.min(1, 240 / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        let out = c.toDataURL('image/png');
+        if (out.length > 45000) out = c.toDataURL('image/jpeg', 0.85);
+        if (out.length > 45000) return reject(new Error('The logo is still too large after resizing. Use a simpler image.'));
+        resolve(out);
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
 function splashMsg(m) { const el = $('splashMsg'); if (el) el.textContent = m; }
 function hideSplash() {
   const wait = Math.max(0, 1100 - (Date.now() - T0));

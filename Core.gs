@@ -221,6 +221,12 @@ function saveSettings(token, d) {
     Object.keys(SETTINGS_DEFAULT).forEach(k => {
       if (k === 'businessDate' || d[k] === undefined) return;
       if (SYSTEM_SETTINGS.indexOf(k) >= 0 && !isSys) return;   // only the system administrator   // business date only changes via night audit
+      if (k === 'logoUrl') {
+        const v = String(d[k] || '').trim();
+        if (v && !/^(https:\/\/|data:image\/(png|jpeg|webp|svg\+xml);base64,)/i.test(v)) throw new Error('Logo must be an https link or an uploaded image.');
+        if (v.length > 45000) throw new Error('Logo is too large. Use a smaller image.');
+        d[k] = v;
+      }
       const row = rows_(TBL.SETTINGS).find(r => r.key === k);
       if (row) patch_(TBL.SETTINGS, row._row, { value: d[k] }); else append_(TBL.SETTINGS, { key: k, value: d[k] });
     });
@@ -236,6 +242,7 @@ function listAudit(token, limit) {
 
 /* ============================ WEB ENTRY ============================ */
 function doGet() {
+  try { ensureAutoUpdate_(); } catch (e) { Logger.log('Auto update timer: ' + e.message); }
   let name = SETTINGS_DEFAULT.appName;
   try { name = settings_().appName || name; } catch (e) { /* database not set up yet */ }
   const t = HtmlService.createTemplateFromFile('Index');
