@@ -107,7 +107,7 @@ setTimeout(updateCheck_, 4000);
 let CONN = { state: 'checking' }, CONN_TIMER = null;
 const CONN_LABEL_ = { ok: 'Connected', slow: 'Slow', db: 'Database error', down: 'No server', offline: 'Offline', checking: 'Checking…' };
 async function connCheck_() {
-  if (!$('connDot') || !S.token) { connStop_(); return; }
+  if (!S.token) return;
   const t0 = Date.now();
   try {
     const h = await withTimeout_(rpc('healthCheck', S.token), 15000);
@@ -120,16 +120,7 @@ async function connCheck_() {
   }
   connRender_();
 }
-function connRender_() {
-  const el = $('connDot'); if (!el) return;
-  el.className = 'conn ' + CONN.state;
-  el.querySelector('.conn-txt').textContent = CONN_LABEL_[CONN.state] || CONN.state;
-}
-function connStart_() {
-  connCheck_();
-  if (!CONN_TIMER) CONN_TIMER = setInterval(connCheck_, 60000);
-}
-function connStop_() { if (CONN_TIMER) { clearInterval(CONN_TIMER); CONN_TIMER = null; } }
+function connRender_() { /* the status is shown on the System admin page only */ }
 function connRows_() {
   const c = CONN;
   const when = c.checkedAt ? new Date(c.checkedAt).toLocaleTimeString() : '—';
@@ -145,11 +136,7 @@ function connRows_() {
 function connPanelHtml_() {
   return `<div class="card conn-panel"><div class="head-row"><h3>Connection</h3><div class="acts"><button class="btn ghost sm" onclick="connCheck_().then(()=>renderPage_('sysadmin'))">Check now</button></div></div>
     <div class="conn-grid">${connRows_().map(([k, v]) => `<div><span class="muted">${esc(k)}</span><b class="conn-v">${esc(v)}</b></div>`).join('')}</div>
-    <p class="muted" style="margin:10px 0 0">Checked every minute while you are signed in. The dot in the header shows the same status.</p></div>`;
-}
-function connDetail_() {
-  openModal('Connection', `<div class="conn-grid one">${connRows_().map(([k, v]) => `<div><span class="muted">${esc(k)}</span><b class="conn-v">${esc(v)}</b></div>`).join('')}</div>
-    <div class="acts" style="margin-top:12px"><button class="btn ghost" onclick="connCheck_().then(connDetail_)">Check again</button></div>`);
+    <p class="muted" style="margin:10px 0 0">Status: <span class="conn ${CONN.state || 'checking'}" style="cursor:default"><span class="conn-dot"></span><span class="conn-txt">${esc(CONN_LABEL_[CONN.state] || 'Checking…')}</span></span>. Checked each time this page opens.</p></div>`;
 }
 
 /* ---------- Connection: detect, diagnose and recover ---------- */
@@ -440,10 +427,6 @@ function startApp() {
   $('who').innerHTML = `<div class="top-hotel"><div class="top-hotel-txt"><span class="top-hotel-name">${esc(hotelTop)}</span><span class="top-hotel-sub">${esc(subLine)}</span></div></div>` +
     `<form class="qs" role="search" onsubmit="searchGo(event)"><input name="q" type="search" placeholder="Search room, guest, res #, group…" aria-label="Search"></form>`;
   $('account').innerHTML = acctHtml_();
-  if (can('system.manage')) {
-    $('who').insertAdjacentHTML('beforeend', '<button type="button" class="conn" id="connDot" onclick="connDetail_()" title="Connection status"><span class="conn-dot"></span><span class="conn-txt">Checking…</span></button>');
-    connStart_();
-  }
   idleReset_();
   if (S.user.mustChange) toast('Please choose a new password to continue.');
   // Draw the first page directly. Relying on the hashchange event left the loading screen up until its 20-second limit.
@@ -1844,7 +1827,7 @@ async function pgAdmin(scope) {
   const tabs = ADM_TABS.filter(t => t[3] === scope && can(t[2]));
   if (!tabs.length) { setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1><div class="card">You do not have access to this area.</div>`); return; }
   if (!tabs.find(t => t[0] === ADM)) ADM = tabs[0][0];
-  if (scope === 'sys' && can('system.manage')) connCheck_();
+  if (scope === 'sys' && can('system.manage')) await connCheck_();
   const bar = `<div class="tabs">${tabs.map(([k, l]) => `<button class="btn ghost${ADM === k ? ' on' : ''}" onclick="admTab('${k}')">${l}</button>`).join('')}</div>`;
   let body = '';
   if (ADM === 'users') {
