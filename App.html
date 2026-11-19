@@ -165,7 +165,10 @@ function startApp() {
   $('app').classList.remove('hidden');
   brand();
   buildNav();
-  $('who').innerHTML = `<form class="qs" onsubmit="searchGo(event)"><input name="q" placeholder="Search room, guest, res #, group…" aria-label="Search"></form><span class="bizline">Business date <b>${esc(S.bizDate)}</b></span>`;
+  const hotelTop = (S.settings && (S.settings.hotelName || S.settings.appName)) || 'Stayline';
+  $('who').innerHTML = `<div class="top-hotel"><span class="top-hotel-name">${esc(hotelTop)}</span><span class="top-hotel-sub">${esc((S.settings && S.settings.appName) || 'Stayline')}</span></div>` +
+    `<form class="qs" onsubmit="searchGo(event)"><input name="q" placeholder="Search room, guest, res #, group…" aria-label="Search"></form>` +
+    `<span class="bizchip" title="Business date"><span>Business date</span><b>${esc(S.bizDate)}</b></span>`;
   $('account').innerHTML = acctHtml_();
   idleReset_();
   if (S.user.mustChange) toast('Please choose a new password to continue.');
@@ -1115,7 +1118,7 @@ async function pgRates() {
   CODES = codes;
   setView(`<h1>Rates & charges</h1>
     <div class="grid2">
-      <div class="card"><h3>Rate plans</h3>${table(['Code', 'Name', 'Active'], plans.map(p => tr([esc(p.code), esc(p.name), pill(p.active ? 'Active' : 'Closed')])))}
+      <div class="card"><h3>Rate plans</h3>${table(['Code', 'Name', 'Active', ''], plans.map(p => tr([esc(p.code), esc(p.name), pill(p.active ? 'Active' : 'Closed'), can('rates.manage') ? `<button class="btn sm ghost" onclick="planModal('${esc(p.code)}')">Edit</button> ${delBtn_('ratePlan', p.code, 'rates.manage')}` : ''])))}
         ${can('rates.manage') ? '<div class="acts" style="margin-top:10px"><button class="btn ghost" onclick="planModal()">+ Rate plan</button></div>' : ''}</div>
       <div class="card"><h3>Quote a stay</h3>
         <form class="toolbar" onsubmit="quoteSubmit(event)">
@@ -1128,10 +1131,10 @@ async function pgRates() {
     </div>
     <div class="card"><div class="head-row"><h3>Seasonal rates</h3>${can('rates.manage') ? '<div class="acts"><button class="btn" onclick="rateModal()">+ Rate</button></div>' : ''}</div>
       ${table(['Plan', 'Room type', 'From', 'To', 'Rate / night', 'Active', ''], rates.map(r => tr([esc(r.plan), esc(r.roomType), esc(r.startDate), esc(r.endDate), num(r.rate), r.active ? 'Yes' : 'No',
-        can('rates.manage') ? `<button class="btn sm ghost" onclick="rateModal('${esc(r.id)}')">Edit</button>` : ''])))}
+        can('rates.manage') ? `<button class="btn sm ghost" onclick="rateModal('${esc(r.id)}')">Edit</button> ${delBtn_('rate', r.id, 'rates.manage')}` : ''])))}
       <p class="muted">A night uses a seasonal rate for its plan and room type if one covers that date; otherwise the BAR rate for the room type; otherwise the room type's base rate.</p></div>
     <div class="card"><div class="head-row"><h3>Charge codes</h3>${can('rates.manage') ? '<div class="acts"><button class="btn ghost" onclick="codeModal()">+ Charge code</button></div>' : ''}</div>
-      ${table(['Code', 'Description', 'Department', 'Type', 'Taxable', 'Active'], codes.map(c => tr([esc(c.code), esc(c.description), esc(c.department), esc(c.type), c.taxable ? 'Yes' : 'No', c.active ? 'Yes' : 'No'])))}</div>`);
+      ${table(['Code', 'Description', 'Department', 'Type', 'Taxable', 'Active', ''], codes.map(c => tr([esc(c.code), esc(c.description), esc(c.department), esc(c.type), c.taxable ? 'Yes' : 'No', c.active ? 'Yes' : 'No', can('rates.manage') ? `<button class="btn sm ghost" onclick="codeModal('${esc(c.code)}')">Edit</button> ${delBtn_('chargeCode', c.code, 'rates.manage')}` : ''])))}</div>`);
 }
 async function quoteSubmit(e) {
   e.preventDefault();
@@ -1142,11 +1145,12 @@ async function quoteSubmit(e) {
       `<p><b>Total ${money(q.total)}</b> · average ${money(q.average)} / night · tax is added per charge at ${(Number(S.settings.taxRate || 0) * 100).toFixed(0)}%</p>`;
   } catch (err) { toast(err.message, true); }
 }
-function planModal() {
-  openModal('Rate plan', formHtml('fPl', [
-    { name: 'code', label: 'Code', required: true, placeholder: 'e.g. WKND' },
-    { name: 'name', label: 'Name', required: true },
-    { name: 'description', label: 'Description', wide: true }
+async function planModal(code) {
+  const p = code ? (await api('listRatePlans')).find(x => x.code === code) || {} : {};
+  openModal(code ? 'Edit rate plan' : 'Rate plan', formHtml('fPl', [
+    { name: 'code', label: 'Code', required: true, value: p.code || '', placeholder: 'e.g. WKND' },
+    { name: 'name', label: 'Name', required: true, value: p.name || '' },
+    { name: 'description', label: 'Description', wide: true, value: p.description || '' }
   ], 'Save plan'));
   bindForm('fPl', async d => { await api('saveRatePlan', d); toast('Plan saved'); closeModal(); refresh(); });
 }
@@ -1166,14 +1170,15 @@ async function rateModal(id) {
     toast('Rate saved'); closeModal(); refresh();
   });
 }
-function codeModal() {
-  openModal('Charge code', formHtml('fCc', [
-    { name: 'code', label: 'Code', required: true, placeholder: 'e.g. GYM' },
-    { name: 'description', label: 'Description', required: true },
-    { name: 'department', label: 'Department', type: 'select', options: ['Rooms', 'F&B', 'Misc', 'Tax', 'Payment'] },
-    { name: 'type', label: 'Type', type: 'select', options: ['Charge', 'Payment'] },
-    { name: 'taxable', label: 'Taxable', type: 'check', value: true },
-    { name: 'active', label: 'Active', type: 'check', value: true }
+async function codeModal(code) {
+  const c = code ? (await api('listChargeCodes')).find(x => x.code === code) || {} : {};
+  openModal(code ? 'Edit charge code' : 'Charge code', formHtml('fCc', [
+    { name: 'code', label: 'Code', required: true, value: c.code || '', placeholder: 'e.g. GYM' },
+    { name: 'description', label: 'Description', required: true, value: c.description || '' },
+    { name: 'department', label: 'Department', type: 'select', options: ['Rooms', 'F&B', 'Misc', 'Tax', 'Payment'], value: c.department || '' },
+    { name: 'type', label: 'Type', type: 'select', options: ['Charge', 'Payment'], value: c.type || 'Charge' },
+    { name: 'taxable', label: 'Taxable', type: 'check', value: code ? c.taxable === true : true },
+    { name: 'active', label: 'Active', type: 'check', value: code ? c.active === true : true }
   ], 'Save code'));
   bindForm('fCc', async d => { await api('saveChargeCode', { code: d.code, description: d.description, department: d.department, type: d.type, taxable: d.taxable === 'true', active: d.active === 'true' }); toast('Code saved'); closeModal(); refresh(); });
 }
@@ -1248,7 +1253,7 @@ async function pgAdmin(scope) {
   let body = '';
   if (ADM === 'users') {
     const us = await api('listUsers');
-    body = `<div class="head-row"><h3>Users</h3><div class="acts"><button class="btn" onclick="userModal()">+ User</button></div></div>` +
+    body = `<div class="head-row"><h3>Users</h3><div class="acts">${can('system.manage') ? '<button class="btn" onclick="userModal()">+ User</button>' : ''}</div></div>` +
       table(['Name', 'Username', 'Role', 'Active', 'Last login', ''], us.map(u => tr([esc(u.name), esc(u.username), pill(u.role), u.locked ? pill('Locked') : (u.active ? 'Yes' : 'No'), esc(u.lastLogin), `${u.locked ? `<button class="btn sm ok" onclick="unlockUserAct('${esc(u.id)}')">Unlock</button> ` : ''}<button class="btn sm ghost" onclick="userModal('${esc(u.id)}')">Edit</button> <button class="btn sm ghost" onclick="resetPwAct('${esc(u.id)}')">Reset password</button>`])));
   } else if (ADM === 'padmins') {
     const us = (await api('listUsers')).filter(u => u.role === 'Property Admin');
@@ -1260,6 +1265,7 @@ async function pgAdmin(scope) {
       { name: 'appName', label: 'App name', value: s.appName, required: true },
       { name: 'hotelName', label: 'Hotel name', value: s.hotelName, required: true },
       { name: 'hotelAddress', label: 'Address', value: s.hotelAddress, wide: true },
+      { name: 'loadingMessage', label: 'Loading screen message', value: s.loadingMessage, wide: true },
       { name: 'logoUrl', label: 'Logo (https link, or upload below)', value: s.logoUrl, wide: true },
       { name: 'logoPicker', raw: logoPickerHtml(s.logoUrl) },
       { name: 'currency', label: 'Currency code', value: s.currency },
@@ -1273,12 +1279,12 @@ async function pgAdmin(scope) {
     const ms = await api('listPaymentMethods');
     body = `<div class="head-row"><h3>Payment methods</h3><div class="acts"><button class="btn" onclick="paymentMethodModal()">+ Method</button></div></div>
       <p class="muted">A payment method is how a guest pays: cash, card, bank, cheque, or city ledger (AR). Each one posts with a payment charge code. A city ledger method bills the folio to a company account.</p>` +
-      table(['Code', 'Name', 'Kind', 'Posts with', 'Company account', 'Active', ''], ms.map(m => tr([esc(m.code), esc(m.name), esc(m.kind), esc(m.chargeCode), esc(m.accountId), m.active ? 'Yes' : 'No', `<button class="btn sm ghost" onclick="paymentMethodModal('${esc(m.code)}')">Edit</button>`])));
+      table(['Code', 'Name', 'Kind', 'Posts with', 'Company account', 'Active', ''], ms.map(m => tr([esc(m.code), esc(m.name), esc(m.kind), esc(m.chargeCode), esc(m.accountId), m.active ? 'Yes' : 'No', `<button class="btn sm ghost" onclick="paymentMethodModal('${esc(m.code)}')">Edit</button> ${delBtn_('paymentMethod', m.code, 'settings.manage')}`])));
   } else if (ADM === 'packages') {
     const pk = await api('listPackages');
     body = `<div class="head-row"><h3>Packages</h3><div class="acts"><button class="btn" onclick="packageModal()">+ Package</button></div></div>
       <p class="muted">A package is a fixed price posted to a charge code, once per stay or once per night. Staff post packages from the room's billing screen.</p>` +
-      table(['Code', 'Name', 'Charge code', 'Amount', 'Per night', 'Active', ''], pk.map(p => tr([esc(p.code), esc(p.name), esc(p.chargeCode), num(p.amount), p.perNight ? 'Yes' : 'No', p.active ? 'Yes' : 'No', `<button class="btn sm ghost" onclick="packageModal('${esc(p.code)}')">Edit</button>`])));
+      table(['Code', 'Name', 'Charge code', 'Amount', 'Per night', 'Active', ''], pk.map(p => tr([esc(p.code), esc(p.name), esc(p.chargeCode), num(p.amount), p.perNight ? 'Yes' : 'No', p.active ? 'Yes' : 'No', `<button class="btn sm ghost" onclick="packageModal('${esc(p.code)}')">Edit</button> ${delBtn_('package', p.code, 'rates.manage')}`])));
   } else if (ADM === 'system') {
     const s = await api('getSettings');
     const opt = (v, l) => [v, l];
@@ -1307,11 +1313,11 @@ async function pgAdmin(scope) {
   } else if (ADM === 'types') {
     const ts = await api('listRoomTypes');
     body = `<div class="head-row"><h3>Room types</h3><div class="acts"><button class="btn" onclick="typeModal()">+ Room type</button></div></div>` +
-      table(['Code', 'Name', 'Base rate', 'Max adults', 'Description', ''], ts.map(t => tr([esc(t.code), esc(t.name), num(t.baseRate), t.maxAdults, esc(t.description), `<button class="btn sm ghost" onclick="typeModal('${esc(t.code)}')">Edit</button>`])));
+      table(['Code', 'Name', 'Base rate', 'Max adults', 'Description', ''], ts.map(t => tr([esc(t.code), esc(t.name), num(t.baseRate), t.maxAdults, esc(t.description), `<button class="btn sm ghost" onclick="typeModal('${esc(t.code)}')">Edit</button> ${delBtn_('roomType', t.code, 'rooms.manage')}`])));
   } else if (ADM === 'rooms') {
     const rs = await api('listRooms');
     body = `<div class="head-row"><h3>Rooms</h3><div class="acts"><button class="btn" onclick="roomModal()">+ Room</button></div></div>` +
-      table(['Room', 'Type', 'Floor', 'Status', 'Housekeeping', 'Reason'], rs.map(r => tr([esc(r.roomNo), esc(r.type), esc(r.floor), pill(r.status === 'Active' ? 'Active' : 'Out'), pill(r.housekeeping), esc(r.statusReason)])));
+      table(['Room', 'Type', 'Floor', 'Status', 'Housekeeping', 'Reason', ''], rs.map(r => tr([esc(r.roomNo), esc(r.type), esc(r.floor), pill(r.status === 'Active' ? 'Active' : 'Out'), pill(r.housekeeping), esc(r.statusReason), can('rooms.manage') ? `<button class="btn sm ghost" onclick="roomModal('${esc(r.roomNo)}')">Edit</button> ${delBtn_('room', r.roomNo, 'rooms.manage')}` : ''])));
   } else {
     const rl = await api('listRoles');
     body = `<div class="head-row"><h3>Roles &amp; permissions</h3><div class="acts"><button class="btn" onclick="roleModal()">+ Role</button></div></div>
@@ -1322,7 +1328,7 @@ async function pgAdmin(scope) {
   setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1><p class="muted">${scope === 'sys' ? 'System administrator only: property admin accounts, roles and permissions, system settings and email templates.' : 'Hotel operations: staff users, hotel settings, rooms, packages and payment methods.'}</p>${bar}<div class="card">${body}</div>`);
   if (ADM === 'settings') bindForm('fSt', async d => {
     const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, hotelAddress: d.hotelAddress, logoUrl: d.logoUrl, currency: d.currency,
-      taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit });
+      taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit, loadingMessage: d.loadingMessage });
     S.settings = Object.assign({}, S.settings, { appName: out.appName, hotelName: out.hotelName, logoUrl: out.logoUrl, currency: out.currency });
     brand(); toast('Settings saved');
   });
@@ -1409,6 +1415,10 @@ function userModal(id, presetRole) {
         openModal('Temporary password', `<p>No email was sent, so share this temporary password with the user. It is shown only once, and the user must change it at first sign-in.</p><p class="code-box">${esc(r.tempPassword)}</p><div class="acts"><button class="btn" onclick="closeModal();refresh()">Done</button></div>`);
       } else { closeModal(); refresh(); }
     });
+  if (id && can('system.manage') && id !== S.user.id) {
+    $('mBody').insertAdjacentHTML('beforeend', '<div class="actions"><button class="btn danger" type="button" id="udDel">Delete user</button></div>');
+    $('udDel').addEventListener('click', () => deleteUserAct(id));
+  }
   }).catch(e => toast(e.message, true));
 }
 /* ---------- Copy reservation: same guest, room type, plan and details; new dates ---------- */
@@ -1494,6 +1504,26 @@ async function arReceiptModal(accId) {
   });
 }
 
+/* ---------- Delete configuration and users (edit rights come from the permission allocation) ---------- */
+function delBtn_(kind, key, perm) {
+  return can(perm) ? `<button class="btn sm danger" onclick="deleteConfigAct('${kind}','${esc(String(key))}')">Delete</button>` : '';
+}
+function deleteConfigAct(kind, key) {
+  openModal('Delete', `<p>Delete this item? If it has already been used in a reservation or posting, it is deactivated instead so its history stays intact.</p>
+    <div class="actions"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn danger" id="dcGo">Delete</button></div>`);
+  $('dcGo').addEventListener('click', async () => {
+    try { const r = await api('deleteConfig', kind, key); toast(r.deactivated ? 'Used before, so it was deactivated instead' : 'Deleted'); closeModal(); refresh(); }
+    catch (e) { toast(e.message, true); }
+  });
+}
+function deleteUserAct(id) {
+  openModal('Delete user', `<p>Delete this user account? Their past actions stay in the audit log. This cannot be undone.</p>
+    <div class="actions"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn danger" id="duGo">Delete user</button></div>`);
+  $('duGo').addEventListener('click', async () => {
+    try { await api('deleteUser', id); toast('User deleted'); closeModal(); refresh(); } catch (e) { toast(e.message, true); }
+  });
+}
+
 /* ---------- Account security: unlock, admin password reset, inactivity sign-out ---------- */
 async function unlockUserAct(id) {
   try { await api('unlockUser', id); toast('Account unlocked'); refresh(); } catch (e) { toast(e.message, true); }
@@ -1535,13 +1565,14 @@ function typeModal(code) {
     });
   }).catch(e => toast(e.message, true));
 }
-async function roomModal() {
-  const ts = await api('listRoomTypes');
-  openModal('New room', formHtml('fRm', [
-    { name: 'roomNo', label: 'Room number', required: true },
-    { name: 'type', label: 'Room type', type: 'select', options: ts.map(t => [t.code, t.name]) },
-    { name: 'floor', label: 'Floor' },
-    { name: 'notes', label: 'Notes', wide: true }
+async function roomModal(roomNo) {
+  const [ts, rs] = await Promise.all([api('listRoomTypes'), roomNo ? api('listRooms') : Promise.resolve([])]);
+  const r = roomNo ? rs.find(x => String(x.roomNo) === String(roomNo)) || {} : {};
+  openModal(roomNo ? 'Edit room' : 'New room', formHtml('fRm', [
+    { name: 'roomNo', label: 'Room number', required: true, value: r.roomNo || '' },
+    { name: 'type', label: 'Room type', type: 'select', options: ts.map(t => [t.code, t.name]), value: r.type || '' },
+    { name: 'floor', label: 'Floor', value: r.floor || '' },
+    { name: 'notes', label: 'Notes', wide: true, value: r.notes || '' }
   ], 'Save room'));
   bindForm('fRm', async d => { await api('saveRoom', d); toast('Room saved'); closeModal(); refresh(); });
 }
@@ -1742,7 +1773,7 @@ async function pgAccounts() {
     <div class="head-row"><div class="acts"></div><div class="acts">${can('accounts.manage') ? '<button class="btn" onclick="accountModal()">+ Company account</button>' : ''}</div></div>
     <div class="card">${table(['Code', 'Company', 'Contact', 'Credit limit', 'Balance owed', 'Status', ''],
       list.map(a => tr([esc(a.code), esc(a.name), esc(a.contact) || '—', Number(a.creditLimit) ? num(a.creditLimit) : 'No limit', balCell(a.balance),
-        a.active ? pill('Active') : pill('Inactive'), lnkTo('account', a.id, 'Open')])))}</div>`);
+        a.active ? pill('Active') : pill('Inactive'), lnkTo('account', a.id, 'Open'), delBtn_('account', a.id, 'accounts.manage')])))}</div>`);
 }
 function accountModal(id) {
   const load = id ? api('getAccount', id).then(d => d.account) : Promise.resolve({});
@@ -1768,7 +1799,7 @@ async function pgAccount() {
     <div class="kpis">${kpi('Balance owed', num(d.balance))}${kpi('Credit limit', Number(a.creditLimit) ? num(a.creditLimit) : 'None')}${kpi('Billed folios', d.folios.length)}</div>
     <div class="grid2">
       <div class="card"><h3>Details</h3>${kv([['Contact', esc(a.contact) || '—'], ['Email', esc(a.email) || '—']])}
-        <div class="acts" style="margin-top:12px">${can('accounts.manage') ? `<button class="btn ghost" onclick="accountModal('${esc(a.id)}')">Edit</button>` : ''}
+        <div class="acts" style="margin-top:12px">${can('accounts.manage') ? `<button class="btn ghost" onclick="accountModal('${esc(a.id)}')">Edit</button> ${delBtn_('account', a.id, 'accounts.manage')}` : ''}
         ${can('folio.post') ? `<button class="btn ok" onclick="accPayModal('${esc(a.id)}')">Record payment</button>` : ''}</div></div>
       <div class="card"><h3>Billed stays</h3>${table(['Res #', 'Folio', 'Status'], d.folios.map(f => tr([lnk(f.resNo), esc(f.folioNo + ' · ' + f.name), pill(f.status)])))}</div>
     </div>
@@ -1884,6 +1915,7 @@ function hideSplash() {
   try { S.settings = await rpc('getPublicSettings'); }
   catch (e) { S.settings = { appName: 'Stayline', hotelName: '', currency: '' }; splashMsg('Database not set up yet. Use Stayline → Set up database.'); }
   brand();
+  if (S.settings && S.settings.loadingMessage) splashMsg(S.settings.loadingMessage);
   applyLanguage_((S.settings && S.settings.defaultLanguage) || 'en');
   const saved = loadSession();
   if (saved && saved.token) {

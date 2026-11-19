@@ -1,6 +1,6 @@
 const fs = require('fs'), vm = require('vm'), crypto = require('crypto');
 const SRC = '../';
-const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','Recovery','Roles','Billing','Ledger','Menu','Updater'];
+const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','Recovery','Roles','Billing','Ledger','Admin','Menu','Updater'];
 const code = files.map(f => fs.readFileSync(SRC + f + '.gs', 'utf8')).join('\n;\n');
 
 // ---- in-memory Spreadsheet ----
@@ -26,6 +26,7 @@ function makeSheet(name) {
     getLastColumn: () => data.reduce((m, r) => Math.max(m, r.length), 0),
     getDataRange: () => ({ getValues: () => data.map(r => r.slice()) }),
     appendRow(r) { data.push(r.slice()); },
+    deleteRow(r) { data.splice(r - 1, 1); },
     setFrozenRows() {},
     getRange(row, col, nr, nc) {
       nr = nr || 1; nc = nc || 1;
@@ -427,6 +428,21 @@ if (require.main === module) {
   ok(!tryRun("login('lockme','Lock12345')").e, 'unlocked account signs in again');
   ok(!tryRun("resetUserPassword(TOK,'" + secLkId + "')").e, 'admin resets a password');
   ok(run("rows_(TBL.USERS).find(u => u.username === 'lockme').mustChange") === true, 'reset password must be changed at next sign-in');
+  // delete rights: system admin for users; allocation-based for configuration
+  ok(!!tryRun("saveUser(PT2, {username:'newbie', name:'New Bie', role:'FrontDesk', password:'Newbie12345', active:true, email:''})").e, 'property admin cannot add users');
+  ok(!tryRun("saveUser(TOK, {username:'delme', name:'Delete Me', role:'FrontDesk', password:'Delme12345', active:true, email:''})").e, 'system admin adds a user');
+  const dlUser = run("rows_(TBL.USERS).find(u => u.username === 'delme').id");
+  ok(!!tryRun("deleteUser(PT2,'" + dlUser + "')").e, 'property admin cannot delete users');
+  ok(!!tryRun("deleteUser(TOK,'" + run("rows_(TBL.USERS).find(u => u.username === 'admin').id") + "')").e, 'nobody deletes their own account');
+  ok(!tryRun("deleteUser(TOK,'" + dlUser + "')").e, 'system admin deletes a user');
+  ok(run("rows_(TBL.USERS).some(u => u.username === 'delme')") === false, 'deleted user is gone');
+  ok(!tryRun("saveRoomType(TOK, {code:'DL1', name:'Delete one', baseRate:100, maxAdults:2, active:true})").e, 'room type created for the delete test');
+  ok(!!tryRun("deleteConfig(CTOK,'roomType','DL1')").e, 'cashier cannot delete configuration');
+  ok(!tryRun("deleteConfig(PT2,'roomType','DL1')").e, 'property admin with rooms.manage deletes an unused room type');
+  ok(run("rows_(TBL.ROOMTYPES).some(t => t.code === 'DL1')") === false, 'deleted room type is gone');
+  ok(!tryRun("savePaymentMethod(TOK, {code:'DLPM', name:'Temp', kind:'Cash', chargeCode:'" + payCode + "', active:true})").e, 'payment method created for the delete test');
+  ok(!tryRun("deleteConfig(PT2,'paymentMethod','DLPM')").e, 'property admin with settings.manage deletes a payment method');
+  ok(!!tryRun("deleteConfig(TOK,'roomType','NOPE')").e, 'deleting an unknown item is refused');
   ok(!!tryRun("saveSettings(TOK, {logoUrl: 'http://insecure.example/logo.png'})").e, 'logo must be an https link or an uploaded image');
   ok(!tryRun("saveSettings(TOK, {logoUrl: 'https://example.com/logo.png'})").e, 'https logo link is saved');
   ok(!tryRun("saveSettings(TOK, {logoUrl: 'data:image/png;base64,iVBORw0KGgo='})").e, 'uploaded logo is saved');

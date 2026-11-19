@@ -101,7 +101,7 @@ function permMap_(role) {
 }
 function publicSettings_() {
   const s = settings_();
-  return { appName: s.appName, hotelName: s.hotelName, logoUrl: s.logoUrl, currency: s.currency || s.defaultCurrency, defaultLanguage: s.defaultLanguage, inactivityMinutes: inactivityMinutes_() };
+  return { appName: s.appName, hotelName: s.hotelName, logoUrl: s.logoUrl, loadingMessage: s.loadingMessage || '', currency: s.currency || s.defaultCurrency, defaultLanguage: s.defaultLanguage, inactivityMinutes: inactivityMinutes_() };
 }
 function getPublicSettings() { return publicSettings_(); }
 
@@ -220,6 +220,7 @@ function saveUser(token, d) {
       audit_(s.username, 'USER_UPDATED', 'User', d.id, uname + ' ' + d.role);
       return { id: d.id, tempPassword: '' };
     }
+    if (!isSys) throw new Error('Only the system administrator can add users.');
     const pw = d.password || genTempPassword_();
     checkNewPassword_(pw);
     const id = id_('U'), salt = Utilities.getUuid();

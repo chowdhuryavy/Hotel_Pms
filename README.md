@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.6**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.7**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.7: the header shows the hotel name and the business date; the loading screen message is set in Hotel settings. Delete: system admin adds and deletes users; configuration items (room types, rooms, rate plans, rates, charge codes, packages, payment methods, company accounts) can be edited and deleted by whoever holds the matching permission. An item already used in a reservation or posting is deactivated instead, so its history stays intact.
 
 Release notes for 1.2.6: the header avatar is gone; the whole account block at the bottom of the sidebar opens the menu. Administration is split into Property admin (hotel operations, staff users) and System admin (property admin accounts, roles, system settings), and a property admin cannot see, edit, deactivate, unlock or reset a system admin. Every change to a reservation, its folios and postings is logged with date, time, user and action, with field-level detail for modifications. Copy reservation creates a new booking with the same guest, room type, plan and details on new dates. Accounts receivable (AR) is a separate page: receipts from companies, statements, open items and aging. A folio can be routed to a company's city ledger when the company pays. Security: an account locks after wrong passwords (limit set by the system admin, minimum 5), admins can unlock and reset passwords (the user must change it at sign-in), and idle sessions sign out after a limit the system admin sets.
 

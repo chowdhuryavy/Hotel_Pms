@@ -77,13 +77,14 @@ const PERMISSIONS = [
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.6';
+const APP_VERSION = '1.2.7';
 const SETTINGS_DEFAULT = {
   maxLoginAttempts: 5,      // wrong passwords before the account is locked (system admin, minimum 5)
   inactivityMinutes: 30,    // idle minutes before sign-out (system admin)
   appName: 'Stayline',
   hotelName: 'Stayline Hotel',
   hotelAddress: '',
+  loadingMessage: 'Preparing your hotel…',   // shown on the loading screen
   logoUrl: '',
   currency: 'QAR',
   taxRate: 0.10,                       // applied to every taxable charge (0.10 = 10%)

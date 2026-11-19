@@ -324,7 +324,13 @@
   .avatar-wrap.side .user-menu{top:auto;bottom:56px;left:0;right:auto}
   .avatar-wrap.top{display:none}
   .avatar-wrap.top .user-menu{right:0;top:50px;left:auto;bottom:auto}
-  @media (max-width:900px){ .avatar-wrap.top{display:block} .bizline{display:none} }
+  .top-hotel{display:flex;flex-direction:column;line-height:1.2;min-width:0;margin-right:auto}
+  .top-hotel-name{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+  .top-hotel-sub{font-size:11px;color:var(--muted);letter-spacing:.4px;text-transform:uppercase}
+  .bizchip{display:inline-flex;flex-direction:column;align-items:flex-end;padding:6px 12px;border-radius:12px;background:rgba(242,177,52,.14);border:1px solid rgba(242,177,52,.45);white-space:nowrap}
+  .bizchip span{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .bizchip b{font-size:13px}
+  @media (max-width:900px){ .top-hotel-sub{display:none} .top-hotel-name{max-width:150px} .bizchip{padding:4px 8px} .bizchip span{display:none} }
   body.rtl .avatar-wrap.top .user-menu{left:0;right:auto}
   body.rtl .avatar-wrap.side .user-menu{right:0;left:auto}
   body.rtl .sidebar{left:auto;right:-250px}
