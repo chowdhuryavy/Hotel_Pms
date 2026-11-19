@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.1.7**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.1.8**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.1.8: resetAdminPassword (set the admin password from Script properties); a blank Settings value keeps the default name.
 
 Release notes for 1.1.7: a push to GitHub updates the app directly through a GitHub webhook (no timer).
 
@@ -81,6 +83,10 @@ One-time setup:
 5. In GitHub: repo `Hotel_Pms` → Settings → Webhooks → **Add webhook**. Payload URL: your web app URL followed by `?key=` and the `WEBHOOK_KEY` text. Content type: **application/json**. Events: **Just the push event**. Save.
 
 Stayline → **Update from GitHub** still works by hand at any time.
+
+### Forgotten admin password
+
+If sign-in as `admin` fails, add `ADMIN_PASSWORD` (8+ characters) in Script properties, select **resetAdminPassword** in the editor and press Run, then delete `ADMIN_PASSWORD`. Never type a hash into the Users tab: the app stores a salted hash that only it can create.
 
 ### Upgrading an existing database
 

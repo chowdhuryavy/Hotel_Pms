@@ -151,3 +151,27 @@ function checkDatabase() {
   Logger.log(problems.length ? problems.join('\n') : 'Database structure OK');
   return problems;
 }
+
+/**
+ * Sets the password of the "admin" user. Use it when sign-in with the admin account fails.
+ * Steps: 1) Project Settings → Script properties → add ADMIN_PASSWORD (8+ characters).
+ *        2) Select resetAdminPassword in the editor and press Run.
+ *        3) Delete ADMIN_PASSWORD from Script properties.
+ * The app creates the salted hash itself, so never type a hash into the Users tab.
+ */
+function resetAdminPassword() {
+  const pw = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSWORD') || '';
+  if (pw.length < 8) throw new Error('Add ADMIN_PASSWORD in Script properties first (at least 8 characters).');
+  const salt = Utilities.getUuid();
+  const passHash = hash_(salt, pw);
+  withLock_(() => {
+    const admin = rows_(TBL.USERS).find(x => String(x.username).toLowerCase() === 'admin');
+    if (admin) {
+      patch_(TBL.USERS, admin._row, { salt: salt, passHash: passHash, active: true });
+    } else {
+      append_(TBL.USERS, { id: id_('U'), username: 'admin', name: 'Administrator', role: 'Admin', salt: salt, passHash: passHash, active: true, lastLogin: '', createdAt: fmtTs_(new Date()) });
+    }
+  });
+  CacheService.getScriptCache().remove('fail:admin');
+  return 'Admin password is set. Sign in as admin, then delete ADMIN_PASSWORD from Script properties.';
+}

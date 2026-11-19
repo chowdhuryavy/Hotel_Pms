@@ -73,7 +73,8 @@ function audit_(user, action, entity, entityId, details) {
 /* ============================ SETTINGS ============================ */
 function settings_() {
   const m = Object.assign({}, SETTINGS_DEFAULT);
-  rows_(TBL.SETTINGS).forEach(r => { m[r.key] = r.value; });
+  // a blank value in the sheet keeps the default (so an empty App name still shows Stayline)
+  rows_(TBL.SETTINGS).forEach(r => { if (r.key && r.value !== '' && r.value != null) m[r.key] = r.value; });
   m.taxRate = Number(m.taxRate) || 0;
   return m;
 }
