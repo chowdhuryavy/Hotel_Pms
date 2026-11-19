@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.142**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.143**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.143: Every test email button opens a dialog to type the recipient address first. Nothing is sent until an address is entered.
 
 Release notes for 1.2.142: The app page can be shown in the Vercel frame. Google had blocked the frame, which showed a blank page.
 

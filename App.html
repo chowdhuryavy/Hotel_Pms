@@ -2979,7 +2979,7 @@ async function pgAdmin(scope) {
       { name: 'doneSubject', label: 'Password changed email: subject', value: s.doneSubject, wide: true },
       { name: 'doneBody', label: 'Password changed email: message', type: 'textarea', value: s.doneBody, wide: true }
     ], 'Save email messages', false) + `<p class="muted">Email placeholders: <code>{{name}}</code> <code>{{username}}</code> <code>{{tempPassword}}</code> <code>{{role}}</code> <code>{{appUrl}}</code> <code>{{code}}</code> <code>{{minutes}}</code> <code>{{appName}}</code> <code>{{hotelName}}</code>. Keep the reset code on its own line, for example “Your verification code is {{code}}”, so Gmail can offer to copy it.</p>`
-      + `<div class="acts"><button class="btn ghost" type="button" onclick="testEmail()">Send the reset and password emails to me as a test</button></div>`;
+      + `<div class="acts"><button class="btn ghost" type="button" onclick="testModal_('')">Send the reset and password emails as a test</button></div>`;
   } else if (ADM === 'email') {
     const e = await api('getEmailConfig');
     const using = e.active ? 'SMTP' : e.resendActive ? 'Resend' : 'the Google account';
@@ -3166,8 +3166,19 @@ function secretField_(name, label, isSet, hint) {
 /* The test inside each form: it sends through that sender's saved settings */
 function emailTestRow_(via) {
   return `<div class="wide" style="border-top:1px solid var(--line);padding-top:12px"><p class="muted" style="margin:0 0 8px">Save first, then send a test email with the saved settings.</p>
-    <label class="wide field"><span>Send the test email to (blank = your own address)</span><input name="testTo" type="email"></label>
-    <div class="actions"><button class="btn ghost" type="button" onclick="testEmail(this.form.testTo.value,'${via}')">Send test email</button></div></div>`;
+    <div class="actions"><button class="btn ghost" type="button" onclick="testModal_('${via}')">Send test email</button></div></div>`;
+}
+/* Asks for the recipient in a dialog, then sends. Nothing is sent until an address is typed. */
+function testModal_(via) {
+  openModal('Send test email', formHtml('fTest', [
+    { name: 'to', label: 'Send the test email to', value: '', wide: true }
+  ], 'Send test email'));
+  bindForm('fTest', async d => {
+    const to = String(d.to || '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { toast('Type a valid email address', true); return; }
+    closeModal();
+    await testEmail(to, via);
+  });
 }
 function emailSmtpModal() {
   api('getEmailConfig').then(e => {
