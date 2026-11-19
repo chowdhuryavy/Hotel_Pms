@@ -42,16 +42,29 @@ function createServiceRequest(token, d, rid) {
     return out;
   });
 }
+/** Staff who can be given a request: active users, names only */
+function serviceStaff(token) {
+  auth_(token, 'service.view');
+  return rows_(TBL.USERS).filter(u => u.active === true).map(u => ({ username: u.username, name: u.name || u.username })).sort((a, b) => a.name.localeCompare(b.name));
+}
+/** status: a new status, or '' to keep the current one. assignedTo: a username, '' to unassign, or null to keep the current one. */
 function updateServiceRequest(token, id, status, assignedTo) {
   const s = auth_(token, 'service.manage');
-  if (SVC_STATUS.indexOf(status) < 0) throw new Error('Unknown status.');
+  if (status && SVC_STATUS.indexOf(status) < 0) throw new Error('Unknown status.');
   return withLock_(() => {
     const row = rows_(TBL.SVCREQ).find(x => x.id === id);
     if (!row) throw new Error('Request not found.');
     if (row.status === 'Done' || row.status === 'Cancelled') throw new Error('This request is already ' + row.status.toLowerCase() + '.');
+    const st = status || row.status;
+    let who = row.assignedTo || '';
+    if (assignedTo !== null && assignedTo !== undefined) {
+      who = String(assignedTo).trim();
+      if (who && !rows_(TBL.USERS).some(u => u.active === true && u.username === who)) throw new Error('Choose an active staff member.');
+    }
     const now = fmtTs_(new Date());
-    patch_(TBL.SVCREQ, row._row, { status: status, assignedTo: String(assignedTo || row.assignedTo || ''), updatedAt: now, doneAt: status === 'Done' ? now : '' });
-    audit_(s.username, 'SERVICE_' + status.toUpperCase().replace(/ /g, '_'), 'Room', row.roomNo, row.category);
-    return svcRow_(Object.assign({}, row, { status: status, updatedAt: now, doneAt: status === 'Done' ? now : '' }));
+    patch_(TBL.SVCREQ, row._row, { status: st, assignedTo: who, updatedAt: now, doneAt: st === 'Done' ? now : '' });
+    const what = status ? 'SERVICE_' + st.toUpperCase().replace(/ /g, '_') : 'SERVICE_ASSIGNED';
+    audit_(s.username, what, 'Room', row.roomNo, row.category + (who ? ' · ' + who : ''));
+    return svcRow_(Object.assign({}, row, { status: st, assignedTo: who, updatedAt: now, doneAt: st === 'Done' ? now : '' }));
   });
 }

@@ -351,6 +351,12 @@ if (require.main === module) {
   ok(!sr.e && !!sr.v.id, 'guest service request is created');
   ok(!tryRun("updateServiceRequest(TOK, '" + (sr.v ? sr.v.id : '') + "', 'Done', '')").e, 'guest service request is marked done');
   ok(!!tryRun("updateServiceRequest(TOK, '" + (sr.v ? sr.v.id : '') + "', 'Open', '')").e, 'a finished request cannot be reopened');
+  const srA = tryRun("createServiceRequest(TOK, { roomNo: '" + ihRoom + "', category: 'Maintenance', description: 'Lamp broken', priority: 'Urgent' }, 'srrid2')");
+  const staffUser = run("(rows_(TBL.USERS).find(u => u.active === true) || {}).username || ''");
+  ok(!!staffUser && run("serviceStaff(TOK).some(u => u.username === '" + staffUser + "')"), 'staff list has active users');
+  ok(!tryRun("updateServiceRequest(TOK, '" + srA.v.id + "', '', '" + staffUser + "')").e && run("(rows_(TBL.SVCREQ).find(x => x.id === '" + srA.v.id + "') || {}).assignedTo") === staffUser, 'request is assigned to a staff member');
+  ok(!!tryRun("updateServiceRequest(TOK, '" + srA.v.id + "', '', 'nobody-here')").e, 'cannot assign to an unknown user');
+  ok(!tryRun("updateServiceRequest(TOK, '" + srA.v.id + "', '', '')").e && run("(rows_(TBL.SVCREQ).find(x => x.id === '" + srA.v.id + "') || {}).assignedTo") === '', 'request can be unassigned');
   ok(run("billingRooms(TOK).some(r => r.roomNo === '" + ihRoom + "' && r.stay === 'In-House')"), 'billing room list shows the occupied room');
   ok(run("globalSearch(TOK, '" + ihRes + "').reservations.length") >= 1, 'search finds a reservation by its number');
   ok(run("globalSearch(TOK, '" + ihRoom + "').rooms.length") >= 1 && run("globalSearch(TOK, '" + ihRoom + "').reservations.length") >= 1, 'search finds a room and its stay');

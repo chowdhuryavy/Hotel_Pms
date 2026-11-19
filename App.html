@@ -52,7 +52,7 @@ function rpc(fn, ...args) {
 /* Google's script runner sometimes fails a call in transit ("Network error"). Reads are retried; saves are not,
  * because a repeated save could duplicate the record. */
 const NET_ERR_RE = /network error|server error|failed to fetch|timed out|connection|service invoked too many/i;
-const READ_FN_RE = /^(get|list|run|front|billing|occupancy|availability|search|my|report|ar[A-Z]|account|guest|folio|audit|dashboard|rack|export|reportTypes|frontDesk|cashier|housekeeping|night|group)/;
+const READ_FN_RE = /^(get|list|run|service|front|billing|occupancy|availability|search|my|report|ar[A-Z]|account|guest|folio|audit|dashboard|rack|export|reportTypes|frontDesk|cashier|housekeeping|night|group)/;
 const isNetErr_ = m => NET_ERR_RE.test(String(m || ''));
 /* Money-moving calls: kept and retried for up to 60 seconds if the connection drops. Each has a request id, so a retry
    cannot post twice (the server returns the saved result). */
@@ -955,11 +955,23 @@ async function pgService() {
   await svcLoad();
 }
 function svcFilter(v) { SVC_FILTER = v; svcLoad().catch(e => toast(e.message, true)); }
+let SVC_STAFF = [];
 async function svcLoad() {
-  const rows = await api('listServiceRequests', SVC_FILTER);
+  const [rows, staff] = await Promise.all([api('listServiceRequests', SVC_FILTER), can('service.manage') ? api('serviceStaff') : []]);
+  SVC_STAFF = staff;
   const manage = can('service.manage');
-  $('svcOut').innerHTML = table(['Room', 'Guest', 'Request', 'Type', 'Priority', 'Status', 'Logged', ''], rows.map(x => tr([
-    esc(x.roomNo), esc(x.guestName), esc(x.description), esc(x.category), x.priority === 'Urgent' ? '<b>Urgent</b>' : esc(x.priority), esc(x.status), esc(x.createdAt), manage ? svcActions(x) : ''])));
+  $('svcOut').innerHTML = table(['Room', 'Guest', 'Request', 'Type', 'Priority', 'Status', 'Assigned to', 'Logged', ''], rows.map(x => tr([
+    esc(x.roomNo), esc(x.guestName), esc(x.description), esc(x.category), x.priority === 'Urgent' ? '<b>Urgent</b>' : esc(x.priority), esc(x.status),
+    manage && x.status !== 'Done' && x.status !== 'Cancelled' ? svcAssignBox(x) : esc(x.assignedTo || '—'), esc(x.createdAt), manage ? svcActions(x) : ''])));
+}
+/* Who the request is given to. Shown only while the request is open. */
+function svcAssignBox(x) {
+  return `<select aria-label="Assign to" onchange="svcAssign('${esc(x.id)}', this.value)"><option value="">Unassigned</option>` +
+    SVC_STAFF.map(u => `<option value="${esc(u.username)}"${u.username === x.assignedTo ? ' selected' : ''}>${esc(u.name)}</option>`).join('') + '</select>';
+}
+async function svcAssign(id, who) {
+  try { await api('updateServiceRequest', id, '', who); toast(who ? 'Assigned to ' + who : 'Unassigned'); svcLoad(); }
+  catch (e) { toast(e.message, true); }
 }
 function svcActions(x) {
   if (x.status === 'Done' || x.status === 'Cancelled') return '';
@@ -967,7 +979,7 @@ function svcActions(x) {
   return (x.status === 'Open' ? b('In progress', 'Start') : '') + b('Done', 'Done', 'ok') + b('Cancelled', 'Cancel', 'ghost');
 }
 async function svcSet(id, status) {
-  try { await api('updateServiceRequest', id, status, ''); toast('Request ' + status.toLowerCase()); svcLoad(); }
+  try { await api('updateServiceRequest', id, status, null); toast('Request ' + status.toLowerCase()); svcLoad(); }
   catch (e) { toast(e.message, true); }
 }
 function svcNew() {

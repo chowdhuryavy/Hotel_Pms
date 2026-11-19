@@ -17,7 +17,7 @@ function ipv4ToInt(ip) {
   return n;
 }
 
-function ipAllowed(ip, rules) {
+export function ipAllowed(ip, rules) {
   const addr = ipv4ToInt(ip);
   return rules.some(rule => {
     const [base, bits] = rule.split('/');
@@ -40,7 +40,9 @@ export default {
     const target = new URL(env.APP_URL);
     target.search = incoming.search;
     // Forward the request as it is (method, body, headers), so the app works the same as its own address
-    const init = { method: request.method, headers: request.headers, redirect: 'follow' };
+    const headers = new Headers(request.headers);
+    headers.delete('host');   // the app address must not see the gate's own name
+    const init = { method: request.method, headers: headers, redirect: 'follow' };
     if (request.method !== 'GET' && request.method !== 'HEAD') init.body = request.body;
     return fetch(target.toString(), init);
   }

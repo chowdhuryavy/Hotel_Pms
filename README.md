@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.108**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.109**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.109: Guest service requests can be assigned to an active staff member from the list, and unassigned again. The IP gate (ip-gate folder) is tested for allowed and blocked addresses; it still needs deploying to Cloudflare.
 
 Release notes for 1.2.108: Three new functions. Multi-currency: foreign currencies with a rate to the hotel currency (Administration > Currencies). A payment can be taken in a foreign currency and is converted when posted; the original amount and rate are written on the posting. Guest service: a Guest service page for requests (housekeeping, maintenance, room service, amenities, transport, wake-up calls, concierge), with Open, In progress, Done and Cancelled. Minibar: items with a price and charge code (Administration > Minibar items), posted from the room's posting window (Minibar tab). After updating, run Set up database so the new tables and permissions are added.
 
