@@ -622,4 +622,40 @@
   .conn-grid .muted{font-size:12px}
   .conn-v{font-size:14px;word-break:break-word}
   @media (max-width:700px){ .conn-grid{grid-template-columns:1fr} .conn .conn-txt{display:none} }
+
+  /* ===== Fit every screen: phones (320px and up), tablets, laptops and large monitors ===== */
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+  img,svg,canvas,video{max-width:100%}
+  .main,.view,.app{min-width:0}
+  .view > *{min-width:0;max-width:100%}
+  .grid2 > *,.post-grid > *,.fgrid > *,.toolbar > *,.acts{min-width:0}
+  .view h1,.view h2,.view h3{overflow-wrap:anywhere}
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+  .modal-box{max-height:90vh;max-height:90dvh;max-width:100%}
+  .dlg{width:min(420px,calc(100vw - 32px))}
+  .toolbar input,.toolbar select,.fgrid input,.fgrid select,.fgrid textarea{max-width:100%}
+  .tbl{max-width:100%;-webkit-overflow-scrolling:touch}
+  @media (min-width:1600px){ .view{max-width:1480px} .kpis{grid-template-columns:repeat(6,minmax(0,1fr))} }
+  @media (max-width:1100px){ .kpis{grid-template-columns:repeat(3,minmax(0,1fr))} }
+  @media (max-width:700px){
+    .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .view{padding:14px}
+    .btn{min-height:40px}
+    .ab{font-size:10.5px;min-width:0;max-width:none;flex:1 1 0}
+    .ab-i{width:30px}
+    .actbar{gap:2px;padding-left:4px;padding-right:4px}
+  }
+  @media (max-width:360px){
+    .view{padding:12px}
+    .view h1{font-size:20px}
+    .btn{padding:7px 10px;font-size:12.5px}
+    .fgrid{gap:10px}
+    .kpi b{font-size:18px}
+    .ab{font-size:10px}
+  }
+  @media (max-height:500px) and (orientation:landscape){
+    .topbar{padding:6px 12px}
+    .actbar{padding-bottom:6px}
+    body.has-actbar .view{padding-bottom:80px}
+  }
 </style>
