@@ -918,8 +918,11 @@ async function postFind(e) {
 }
 async function pgPost(param) {
   const room = String(param || '').trim();
-  const head = `<h1>Posting <small>charges, payments and packages</small></h1>
-    <form class="card toolbar" onsubmit="postLoad(event)"><label><span>Room number</span><input name="room" value="${esc(room)}" placeholder="e.g. 204" autofocus></label>
+  // A selected room is posted to on its own: no search or room list. Without one, the room list and search show.
+  const head = room
+    ? `<h1>Posting <small>room ${esc(room)} only</small></h1><p><button class="btn ghost sm" type="button" onclick="go('billing','${esc(room)}')">&larr; Back to billing</button></p>`
+    : `<h1>Posting <small>charges, payments and packages</small></h1>
+    <form class="card toolbar" onsubmit="postLoad(event)"><label><span>Room number</span><input name="room" placeholder="e.g. 204" autofocus></label>
       <button class="btn" type="submit">Open room</button></form>${postFindHtml_()}`;
   if (!room) {
     const br = await api('billingRooms'), rooms = (Array.isArray(br) ? br : []).filter(x => x.stay);
