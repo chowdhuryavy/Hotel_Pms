@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.0**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.1**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.1: sidebar with a logo toggle (grouped menu, collapsible groups); buttons have a spin effect; admins create roles and set their permissions in Administration → Roles & permissions; folio, registration card and reports show the hotel logo and name; reset-code and password-changed emails are editable in Hotel settings, with a test send, and the code line is detectable by Gmail.
 
 Release notes for 1.2.0: sign in with email or username; Forgot password (email code, then a new password); password rules with live check, show/hide toggles and a confirmation email; resetAdminPassword.
 
@@ -57,6 +59,8 @@ Release notes for 1.1.0: company accounts (city ledger), cashier shifts with cas
 - **Folio PDF.** Each reservation can print a guest folio (all folios, postings and balances) as a PDF.
 
 ## Roles (default permission grid)
+
+Roles are the columns of the Permissions tab. Administration → Roles & permissions lets an admin add a role (optionally copying another role), change its permissions and delete it when no user has it. The Admin role always keeps every permission, and nobody can remove their own access to user management.
 
 Seven roles: **Admin, Manager, FrontDesk, Cashier, Housekeeping, Sales, Accountant**. Permissions are 31 TRUE/FALSE flags on the *Permissions* tab. The server checks them on every action, so a hidden button cannot be bypassed. Edit the grid to change what a role can do.
 

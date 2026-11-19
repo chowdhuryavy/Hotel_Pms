@@ -17,6 +17,23 @@ const REPORT_TYPES = [
   ['housekeeping', 'Housekeeping status & assignments']
 ];
 
+/** Hotel logo for printed documents (folio, registration card, reports). Fetched and embedded so the PDF
+ *  converter does not need to load it from the web. Falls back to the link, and to no logo if neither works. */
+function hotelLogoHtml_(st) {
+  const h = x => String(x == null ? '' : x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  if (!st || !st.logoUrl) return '';
+  try {
+    const r = UrlFetchApp.fetch(String(st.logoUrl), { muteHttpExceptions: true, followRedirects: true });
+    const hd = r.getHeaders() || {};
+    const type = String(hd['Content-Type'] || hd['content-type'] || '').split(';')[0].trim();
+    const bytes = r.getContent();
+    if (r.getResponseCode() === 200 && /^image\//.test(type) && bytes.length < 1500000) {
+      return '<img src="data:' + type + ';base64,' + Utilities.base64Encode(bytes) + '" style="height:56px"><br>';
+    }
+  } catch (e) { Logger.log('Hotel logo: ' + e.message); }
+  return '<img src="' + h(st.logoUrl) + '" style="height:56px"><br>';
+}
+
 function buildReport_(type, from, to) {
   const bd = bizDate_();
   const f = from || bd, t = to || bd;
@@ -127,13 +144,13 @@ function exportReportPdf(token, type, from, to) {
   const rep = buildReport_(type, from, to);
   const st = settings_();
   const esc = x => String(x == null ? '' : x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const logo = st.logoUrl ? '<img src="' + esc(st.logoUrl) + '" style="height:46px"><br>' : '';
+  const logo = hotelLogoHtml_(st);
   const html = '<html><head><style>body{font-family:Arial,sans-serif;font-size:11px}h1{font-size:18px;margin:0}' +
     'table{border-collapse:collapse;width:100%;margin-top:10px}td,th{border:1px solid #999;padding:4px}th{background:#e6efef;text-align:left}</style></head><body>' +
     logo + '<h1>' + esc(st.hotelName) + '</h1><h3>' + esc(rep.title) + ' · ' + esc(from || '') + ' to ' + esc(to || '') + '</h3>' +
     '<table><tr>' + rep.headers.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr>' +
     rep.rows.map(r => '<tr>' + r.map(c => '<td>' + esc(c) + '</td>').join('') + '</tr>').join('') +
-    '</table><p>Generated ' + fmtTs_(new Date()) + ' by ' + esc(st.appName) + '</p></body></html>';
+    '</table><p>Generated ' + fmtTs_(new Date()) + ' · ' + esc(st.hotelName) + '</p></body></html>';
   const blob = HtmlService.createHtmlOutput(html).getAs('application/pdf');
   audit_(s.username, 'REPORT_EXPORT', 'Report', type, (from || '') + ' to ' + (to || ''));
   return { name: rep.title.replace(/\W+/g, '_') + '.pdf', base64: Utilities.base64Encode(blob.getBytes()) };

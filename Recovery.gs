@@ -26,23 +26,51 @@ function maskEmail_(e) {
 function sendMail_(to, subject, text, html) {
   MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: html, name: appName_() });
 }
-/** Professional, simple HTML email. Inline styles only, so it renders in Gmail and Outlook. */
-function mailHtml_(title, intro, code, note) {
-  const app = escHtml_(appName_());
-  const codeBlock = code
-    ? '<div style="margin:26px 0;text-align:center"><span style="display:inline-block;font-family:Menlo,Consolas,monospace;font-size:30px;letter-spacing:8px;font-weight:700;color:#0f3d3e;background:#eef6f5;border:1px solid #cfe3e0;border-radius:12px;padding:14px 22px">' + code + '</span></div>'
-    : '';
+function hotelName_() {
+  try { return settings_().hotelName || appName_(); } catch (e) { return 'Stayline'; }
+}
+/** Fills {{placeholders}} in an email template saved in Settings. */
+function tplText_(key, vars) {
+  const tpl = settings_()[key] || SETTINGS_DEFAULT[key];
+  return String(tpl).replace(/\{\{(\w+)\}\}/g, (m, k) => vars[k] != null ? String(vars[k]) : '');
+}
+/** Turns the plain text into HTML. The verification code, if present, is shown in a box. */
+function htmlFromText_(text, code) {
+  const box = code ? '<span style="display:inline-block;font-family:Menlo,Consolas,monospace;font-size:28px;letter-spacing:6px;font-weight:700;color:#0f3d3e;background:#eef6f5;border:1px solid #cfe3e0;border-radius:12px;padding:10px 18px">' + escHtml_(code) + '</span>' : '';
+  return String(text).split(/\r?\n/).map(line => {
+    if (!line.trim()) return '';
+    let h = escHtml_(line);
+    if (code) h = h.split(escHtml_(code)).join(box);
+    return '<p style="margin:0 0 14px;font-size:15px;line-height:1.6">' + h + '</p>';
+  }).join('');
+}
+/** Wraps the body in a simple, inline-styled layout that renders in Gmail and Outlook. */
+function mailHtml_(bodyHtml) {
+  const hotel = escHtml_(hotelName_());
   return '<!doctype html><html><body style="margin:0;padding:0;background:#f4f7f6;font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#14232b">' +
     '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 12px"><tr><td align="center">' +
     '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #dde5e3">' +
-    '<tr><td style="background:#0f3d3e;padding:22px 28px;color:#ffffff;font-size:18px;font-weight:700">' + app + '</td></tr>' +
-    '<tr><td style="padding:28px">' +
-    '<h1 style="margin:0 0 12px;font-size:20px;color:#0f3d3e">' + escHtml_(title) + '</h1>' +
-    '<p style="margin:0;font-size:15px;line-height:1.6">' + intro + '</p>' + codeBlock +
-    '<p style="margin:0;font-size:13px;line-height:1.6;color:#66757d">' + escHtml_(note) + '</p>' +
-    '</td></tr>' +
-    '<tr><td style="padding:16px 28px;border-top:1px solid #dde5e3;font-size:12px;color:#66757d">This is an automated message from ' + app + '. Please do not reply.</td></tr>' +
+    '<tr><td style="background:#0f3d3e;padding:22px 28px;color:#ffffff;font-size:18px;font-weight:700">' + hotel + '</td></tr>' +
+    '<tr><td style="padding:28px">' + bodyHtml + '</td></tr>' +
+    '<tr><td style="padding:16px 28px;border-top:1px solid #dde5e3;font-size:12px;color:#66757d">This is an automated message from ' + hotel + '. Please do not reply.</td></tr>' +
     '</table></td></tr></table></body></html>';
+}
+/** Subject, plain text and HTML for one of the editable emails: kind is 'otp' or 'done'. */
+function renderMail_(kind, vars) {
+  const v = Object.assign({ appName: appName_(), hotelName: hotelName_() }, vars);
+  const text = tplText_(kind + 'Body', v);
+  return { subject: tplText_(kind + 'Subject', v), text: text, html: mailHtml_(htmlFromText_(text, v.code || '')) };
+}
+
+/** Sends the two emails to the signed-in admin's own address, so the wording can be checked. */
+function sendEmailTest(token) {
+  const s = auth_(token, 'settings.manage');
+  const u = rows_(TBL.USERS).find(x => x.id === s.id);
+  if (!u || !u.email) throw new Error('Add an email to your user first (Administration → Users).');
+  const who = u.name || u.username;
+  const otp = renderMail_('otp', { name: who, code: '123456', minutes: Math.round(OTP_SECONDS / 60) });
+  sendMail_(u.email, '[Test] ' + otp.subject, otp.text, otp.html);
+  return { sentTo: maskEmail_(u.email) };
 }
 
 /** Step 1. Sends a code if the username or email matches an active account. Always answers the same way. */
@@ -57,11 +85,8 @@ function forgotRequest(identifier) {
   cache.put('otp:' + u.id, JSON.stringify({ h: hash_(salt, code), s: salt, t: 0 }), OTP_SECONDS);
   cache.put('otpcd:' + u.id, '1', OTP_COOLDOWN);
   const who = u.name || u.username;
-  sendMail_(u.email, 'Your password reset code',
-    'Hello ' + who + ',\n\nYour password reset code is ' + code + '. It expires in 10 minutes.\n\nIf you did not ask for this, ignore this email. Your password will not change.',
-    mailHtml_('Reset your password',
-      'Hello ' + escHtml_(who) + ', use this code to reset your password. It expires in 10 minutes.',
-      code, 'If you did not ask for a password reset, you can ignore this email. Your password will not change.'));
+  const m = renderMail_('otp', { name: u.name || u.username, code: code, minutes: Math.round(OTP_SECONDS / 60) });
+  sendMail_(u.email, m.subject, m.text, m.html);
   withLock_(() => audit_('system', 'PASSWORD_RESET_CODE_SENT', 'User', u.id, u.username));
   return { message: generic.message, sentTo: maskEmail_(u.email) };
 }
@@ -104,10 +129,8 @@ function forgotReset(resetToken, newPassword) {
     audit_('system', 'PASSWORD_RESET', 'User', u.id, u.username);
     if (u.email) {
       const who = u.name || u.username;
-      sendMail_(u.email, 'Your password was changed',
-        'Hello ' + who + ',\n\nYour password was changed just now. If this was not you, contact your administrator at once.',
-        mailHtml_('Your password was changed', 'Hello ' + escHtml_(who) + ', your password was changed just now.', '',
-          'If this was not you, contact your administrator at once.'));
+      const m = renderMail_('done', { name: u.name || u.username });
+      sendMail_(u.email, m.subject, m.text, m.html);
     }
     return true;
   });

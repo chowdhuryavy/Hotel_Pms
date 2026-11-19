@@ -1,6 +1,6 @@
 const fs = require('fs'), vm = require('vm'), crypto = require('crypto');
 const SRC = '../';
-const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','Recovery','Menu','Updater'];
+const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','Recovery','Roles','Menu','Updater'];
 const code = files.map(f => fs.readFileSync(SRC + f + '.gs', 'utf8')).join('\n;\n');
 
 // ---- in-memory Spreadsheet ----
@@ -110,7 +110,8 @@ if (require.main === module) {
   ok(!req.e && /code has been sent/.test(req.v.message) && req.v.sentTo === 'a***@example.com', 'forgot request sends a code (masked address shown)');
   const mail = mailbox[mailbox.length - 1] || {};
   const code = ((mail.body || '').match(/\b(\d{6})\b/) || [])[1];
-  ok(mailbox.length >= 1 && /reset code/i.test(mail.subject || '') && !!code && /<html/i.test(mail.htmlBody || ''), 'code emailed as a professional HTML email');
+  ok(mailbox.length >= 1 && /verification code/i.test(mail.subject || '') && !!code && /<html/i.test(mail.htmlBody || ''), 'code emailed as a professional HTML email');
+  ok(/Your verification code is \d{6}/.test(mail.body || ''), 'plain text has a "Your verification code is NNNNNN" line (Gmail copy button)');
   const again = tryRun("forgotRequest('admin@example.com')");
   ok(!again.e && mailbox.length === 1, 'no second email within the cooldown');
   const wrong = tryRun("forgotVerify('admin@example.com','" + (code === '000000' ? '111111' : '000000') + "')");
@@ -126,7 +127,7 @@ if (require.main === module) {
   const newLogin = tryRun("login('admin','Brand3New').token");
   ok(!newLogin.e, 'sign in with the new password works');
   ok(!!tryRun("login('admin','Admin12345')").e, 'old password is refused');
-  ok(mailbox[mailbox.length - 1].subject === 'Your password was changed', 'confirmation email sent after reset');
+  ok(/password was changed/.test((mailbox[mailbox.length - 1] || {}).subject || ''), 'confirmation email sent after reset');
   props.ADMIN_PASSWORD = 'Admin12345';
   tryRun("resetAdminPassword()");
   ok(!tryRun("login('admin','Admin12345').token").e, 'admin password restored for the rest of the tests');
@@ -267,5 +268,20 @@ if (require.main === module) {
   ok(run("compareVersions_('1.10.0','1.9.0')") > 0, 'version 1.10.0 is newer than 1.9.0');
   ok(run("compareVersions_('1.1.0','1.1.0')") === 0, 'equal versions compare equal');
   ok(run("compareVersions_('1.0.9','1.1.0')") < 0, 'older version compares lower');
+  // roles: the admin creates roles and sets their permissions
+  ok(!tryRun("createRole(TOK, 'Night Auditor', 'Cashier')").e, 'admin creates a role copied from Cashier');
+  ok(run("listRoles(TOK).some(r => r.name === 'Night Auditor')"), 'new role is listed');
+  ok(!!tryRun("createRole(TOK, 'Night Auditor', '')").e, 'duplicate role name is refused');
+  ok(!!tryRun("createRole(TOK, '1bad', '')").e, 'role name must start with a letter');
+  ok(run("getRolePerms(TOK, 'Night Auditor').perms.some(p => p.permission === 'folio.post' && p.allowed)") === true, 'copied permission is on');
+  ok(!tryRun("saveRolePerms(TOK, 'Night Auditor', ['dashboard.view','reports.view'])").e, 'admin saves a role with two permissions');
+  ok(run("myPermissions(TOK)['reports.view']") === true, 'admin keeps own permissions');
+  ok(run("getRolePerms(TOK, 'Night Auditor').perms.filter(p => p.allowed).length") === 2, 'only the two chosen permissions are on');
+  ok(!tryRun("saveRolePerms(TOK, 'Admin', [])").e && run("getRolePerms(TOK, 'Admin').perms.every(p => p.allowed)") === true, 'Admin keeps every permission');
+  ok(!!tryRun("saveRolePerms(TOK, 'Admin', ['dashboard.view'])").e === false, 'Admin save cannot drop permissions');
+  ok(!!tryRun("saveUser(TOK, { username: 'nightuser', name: 'Night', role: 'Night Auditor', password: 'Night1234', active: true })").e === false, 'user assigned to the new role');
+  ok(!!tryRun("deleteRole(TOK, 'Night Auditor')").e, 'role with users cannot be deleted');
+  ok(!!tryRun("deleteRole(TOK, 'Admin')").e, 'Admin role cannot be deleted');
+  ok(!!tryRun("saveRolePerms(TOK, 'Admin', [])").e === false, 'admin can still save the Admin role');
   console.log('done');
 }

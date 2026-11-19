@@ -101,7 +101,7 @@ function clearSession() { try { sessionStorage.removeItem('st_session'); } catch
 const BRAND_ICON = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="6" y="6" width="52" height="52" rx="14" fill="#0f3d3e"/><path d="M16 42V24l16-10 16 10v18" fill="none" stroke="#f2b134" stroke-width="4" stroke-linejoin="round"/><rect x="26" y="32" width="12" height="10" fill="#f2b134"/><path d="M12 42h40" stroke="#1d7874" stroke-width="4" stroke-linecap="round"/></svg>';
 function brand() {
   const s = S.settings, logo = s.logoUrl ? `<img src="${esc(s.logoUrl)}" alt="">` : BRAND_ICON;
-  $('brandLogo').innerHTML = logo; $('loginLogo').innerHTML = logo;
+  $('brandLogo').innerHTML = logo; $('loginLogo').innerHTML = logo; $('sbLogo').innerHTML = logo;
   $('brandName').textContent = s.appName || 'Stayline';
   $('brandHotel').textContent = s.hotelName || '';
   $('loginTitle').textContent = s.appName || 'Stayline';
@@ -150,8 +150,24 @@ function startApp() {
   $('app').classList.remove('hidden');
   brand();
   buildNav();
-  $('who').innerHTML = `${esc(S.user.name)} &middot; ${esc(S.user.role)} &nbsp; <button class="btn ghost sm" onclick="go('password')">Password</button> <button class="btn ghost sm" onclick="logout()">Sign out</button>`;
+  $('who').innerHTML = `Business date <b>${esc(S.bizDate)}</b>`;
+  $('account').innerHTML = `<b>${esc(S.user.name)}</b><span>${esc(S.user.role)}</span><div class="acct-btns"><button class="btn ghost sm" onclick="go('password')">Password</button> <button class="btn ghost sm" onclick="logout()">Sign out</button></div>`;
   go(firstPage());
+}
+
+/* Sidebar toggle: the logo button. Mobile slides the menu over; desktop collapses it (remembered per browser). */
+function toggleSidebar() {
+  const b = $('sbToggle');
+  let open;
+  if (window.matchMedia('(max-width: 900px)').matches) {
+    open = document.body.classList.toggle('menu-open');
+  } else {
+    const collapsed = document.body.classList.toggle('sb-collapsed');
+    open = !collapsed;
+    try { localStorage.setItem('st_sb', collapsed ? '0' : '1'); } catch (e) { /* private mode */ }
+  }
+  b.setAttribute('aria-expanded', String(open));
+  b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin');
 }
 
 /* ---------- Navigation ---------- */
@@ -177,14 +193,25 @@ const NAV = [
   { k: 'admin', l: 'Administration', p: ['users.manage', 'settings.manage', 'rooms.manage', 'rates.manage'] }
 ];
 function firstPage() { const f = NAV.find(n => n.k && canAny(n.p)); return f ? f.k : 'password'; }
+function grpState_() { try { return JSON.parse(localStorage.getItem('st_grp') || '{}'); } catch (e) { return {}; } }
+function toggleGrp(h) {
+  const s = grpState_(); s[h] = !s[h];
+  try { localStorage.setItem('st_grp', JSON.stringify(s)); } catch (e) { /* private mode */ }
+  buildNav();
+}
 function buildNav() {
-  let html = '', pendingHead = '';
+  const closed = grpState_();
+  let html = '', head = null, items = '';
+  const flush = () => {
+    if (head !== null && items) html += `<div class="grp-wrap${closed[head] ? ' closed' : ''}"><button class="grp" onclick="toggleGrp('${esc(head)}')" aria-expanded="${closed[head] ? 'false' : 'true'}"><span>${esc(head)}</span><i class="caret">&#9662;</i></button><div class="grp-items">${items}</div></div>`;
+    items = '';
+  };
   NAV.forEach(n => {
-    if (n.h) { pendingHead = n.h; return; }
+    if (n.h) { flush(); head = n.h; return; }
     if (!canAny(n.p)) return;
-    if (pendingHead) { html += `<div class="grp">${esc(pendingHead)}</div>`; pendingHead = ''; }
-    html += `<a data-p="${n.k}" onclick="go('${n.k}')">${esc(n.l)}</a>`;
+    items += `<a data-p="${n.k}" class="${n.k === S.page ? 'on' : ''}" onclick="go('${n.k}')">${esc(n.l)}</a>`;
   });
+  flush();
   $('nav').innerHTML = html;
   $('bizbox').innerHTML = `Business date<b>${esc(S.bizDate)}</b>`;
 }
@@ -889,7 +916,7 @@ async function pgLog() {
 /* ============================================================
  * ADMINISTRATION
  * ============================================================ */
-const ADM_TABS = [['users', 'Users', 'users.manage'], ['settings', 'Hotel settings', 'settings.manage'], ['types', 'Room types', 'rooms.manage'], ['rooms', 'Rooms', 'rooms.manage'], ['perms', 'Permissions', 'users.manage']];
+const ADM_TABS = [['users', 'Users', 'users.manage'], ['settings', 'Hotel settings', 'settings.manage'], ['types', 'Room types', 'rooms.manage'], ['rooms', 'Rooms', 'rooms.manage'], ['roles', 'Roles & permissions', 'users.manage']];
 async function pgAdmin() {
   const tabs = ADM_TABS.filter(t => can(t[2]));
   if (!tabs.find(t => t[0] === ADM)) ADM = tabs[0][0];
@@ -911,8 +938,14 @@ async function pgAdmin() {
       { name: 'checkInTime', label: 'Check-in time', value: s.checkInTime },
       { name: 'checkOutTime', label: 'Check-out time', value: s.checkOutTime },
       { name: 'allowCheckoutWithBalance', label: 'Allow check-out with balance', type: 'select', options: ['false', 'true'], value: String(s.allowCheckoutWithBalance) },
-      { name: 'autoNoShowOnAudit', label: 'Auto no-show on night audit', type: 'select', options: ['true', 'false'], value: String(s.autoNoShowOnAudit) }
-    ], 'Save settings', false) + `<p class="muted">Business date: <b>${esc(s.businessDate)}</b> (changes only through night audit).</p>`;
+      { name: 'autoNoShowOnAudit', label: 'Auto no-show on night audit', type: 'select', options: ['true', 'false'], value: String(s.autoNoShowOnAudit) },
+      { name: 'otpSubject', label: 'Reset code email: subject', value: s.otpSubject, wide: true },
+      { name: 'otpBody', label: 'Reset code email: message', type: 'textarea', value: s.otpBody, wide: true },
+      { name: 'doneSubject', label: 'Password changed email: subject', value: s.doneSubject, wide: true },
+      { name: 'doneBody', label: 'Password changed email: message', type: 'textarea', value: s.doneBody, wide: true }
+    ], 'Save settings', false) + `<p class="muted">Business date: <b>${esc(s.businessDate)}</b> (changes only through night audit).</p>
+    <p class="muted">Email placeholders: <code>{{name}}</code> <code>{{code}}</code> <code>{{minutes}}</code> <code>{{appName}}</code> <code>{{hotelName}}</code>. Keep the code line as plain text (for example “Your verification code is {{code}}”) so mail apps such as Gmail can offer to copy it.</p>
+    <div class="acts"><button class="btn ghost" type="button" onclick="testEmail()">Send both emails to me as a test</button></div>`;
   } else if (ADM === 'types') {
     const ts = await api('listRoomTypes');
     body = `<div class="head-row"><h3>Room types</h3><div class="acts"><button class="btn" onclick="typeModal()">+ Room type</button></div></div>` +
@@ -922,27 +955,75 @@ async function pgAdmin() {
     body = `<div class="head-row"><h3>Rooms</h3><div class="acts"><button class="btn" onclick="roomModal()">+ Room</button></div></div>` +
       table(['Room', 'Type', 'Floor', 'Status', 'Housekeeping', 'Reason'], rs.map(r => tr([esc(r.roomNo), esc(r.type), esc(r.floor), pill(r.status === 'Active' ? 'Active' : 'Out'), pill(r.housekeeping), esc(r.statusReason)])));
   } else {
-    const ps = await api('listPermissions');
-    body = `<h3>Permissions</h3><p class="muted">Each permission is a TRUE/FALSE per role. Edit the grid on the <b>Permissions</b> tab of the database spreadsheet; changes apply on the next action.</p>` +
-      table(['Permission', 'Description'], ps.map(p => tr([esc(p.permission), esc(p.description)])));
+    const rl = await api('listRoles');
+    body = `<div class="head-row"><h3>Roles &amp; permissions</h3><div class="acts"><button class="btn" onclick="roleModal()">+ Role</button></div></div>
+      <p class="muted">Every user has one role. A role decides which menus and actions the user gets. Admin always has every permission.</p>` +
+      table(['Role', 'Users', 'Permissions', ''], rl.map(r => tr([esc(r.name) + (r.builtIn ? ' <span class="pill">built-in</span>' : ''), r.users, r.permissions + ' of ' + r.total,
+        `<div class="acts"><button class="btn sm ghost" onclick="permModal('${esc(r.name)}')">${r.builtIn ? 'View' : 'Permissions'}</button>${r.builtIn || r.users ? '' : `<button class="btn sm danger" onclick="removeRole('${esc(r.name)}')">Delete</button>`}</div>`])));
   }
   setView(`<h1>Administration</h1>${bar}<div class="card">${body}</div>`);
   if (ADM === 'settings') bindForm('fSt', async d => {
     const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, hotelAddress: d.hotelAddress, logoUrl: d.logoUrl, currency: d.currency,
-      taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit });
+      taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit,
+      otpSubject: d.otpSubject, otpBody: d.otpBody, doneSubject: d.doneSubject, doneBody: d.doneBody });
     S.settings = Object.assign({}, S.settings, { appName: out.appName, hotelName: out.hotelName, logoUrl: out.logoUrl, currency: out.currency });
     brand(); toast('Settings saved');
   });
 }
+async function testEmail() {
+  try { const r = await api('sendEmailTest'); toast('Test emails sent to ' + r.sentTo); }
+  catch (e) { toast(e.message, true); }
+}
 function admTab(k) { ADM = k; go('admin'); }
+/* Menu group for each permission prefix, used to group the permission checkboxes. */
+const PERM_GROUPS = { dashboard: 'Front office', rack: 'Front office', frontdesk: 'Front office', reservations: 'Front office', guests: 'Front office', groups: 'Front office',
+  housekeeping: 'Housekeeping', rooms: 'Housekeeping', folio: 'Cashier & billing', shifts: 'Cashier & billing', accounts: 'Cashier & billing',
+  nightaudit: 'Night audit', rates: 'Rates & reports', reports: 'Rates & reports', audit: 'Administration', users: 'Administration', settings: 'Administration' };
+function roleModal() {
+  api('listRoles').then(rl => {
+    openModal('New role', formHtml('fRl', [
+      { name: 'name', label: 'Role name', required: true, wide: true },
+      { name: 'copy', label: 'Start from (copy the permissions of)', type: 'select', wide: true, options: [['', 'Nothing, I will set them']].concat(rl.map(r => [r.name, r.name])) }
+    ], 'Create role'));
+    bindForm('fRl', async d => {
+      const out = await api('createRole', d.name, d.copy || '');
+      go('admin'); toast('Role created');
+      permModal(out.name);
+    });
+  });
+}
+function permModal(role) {
+  api('getRolePerms', role).then(d => {
+    const isAdmin = role === 'Admin', groups = {};
+    d.perms.forEach(p => { const g = PERM_GROUPS[p.permission.split('.')[0]] || 'Other'; (groups[g] = groups[g] || []).push(p); });
+    const body = Object.keys(groups).map(g => `<div class="pgrp"><h4>${esc(g)}</h4>` + groups[g].map(p =>
+      `<label class="pchk"><input type="checkbox" name="perm" value="${esc(p.permission)}"${p.allowed ? ' checked' : ''}${isAdmin ? ' disabled' : ''}><span>${esc(p.description)}</span></label>`).join('') + '</div>').join('');
+    openModal('Permissions · ' + role, (isAdmin ? '<p class="muted">Admin always has every permission.</p>' : '') +
+      `<div class="pgrid">${body}</div><div class="acts pm-foot"><button class="btn" id="pmSave"${isAdmin ? ' disabled' : ''}>Save permissions</button></div>`);
+    $('pmSave').onclick = () => savePerms(role);
+  });
+}
+async function savePerms(role) {
+  const list = [...document.querySelectorAll('#mBody input[name=perm]:checked')].map(i => i.value);
+  try {
+    await api('saveRolePerms', role, list);
+    if (role === S.user.role) { S.perms = await api('myPermissions'); buildNav(); }
+    closeModal(); go('admin'); toast('Permissions saved');
+  } catch (e) { toast(e.message, true); }
+}
+function removeRole(name) {
+  if (!confirm('Delete the role "' + name + '"? Its permissions are removed.')) return;
+  api('deleteRole', name).then(() => { go('admin'); toast('Role deleted'); }).catch(e => toast(e.message, true));
+}
 function userModal(id) {
-  api('listUsers').then(us => {
+  Promise.all([api('listUsers'), api('listRoles')]).then(([us, rl]) => {
+    const roles = rl.map(r => r.name);
     const u = id ? us.find(x => x.id === id) || {} : {};
     openModal(id ? 'Edit user' : 'New user', formHtml('fUs', [
       { name: 'username', label: 'Username', required: true, value: u.username || '' },
       { name: 'name', label: 'Full name', value: u.name || '' },
       { name: 'email', label: 'Email (used for password reset)', value: u.email || '' },
-      { name: 'role', label: 'Role', type: 'select', options: ['Admin', 'Manager', 'FrontDesk', 'Cashier', 'Housekeeping', 'Sales', 'Accountant'], value: u.role || 'FrontDesk' },
+      { name: 'role', label: 'Role', type: 'select', options: roles, value: u.role || 'FrontDesk' },
       { name: 'password', label: id ? 'New password (blank = keep)' : 'Password (min 8)', type: 'password', required: !id },
       { name: 'active', label: 'Active', type: 'check', value: id ? !!u.active : true }
     ], 'Save user'));
@@ -1273,6 +1354,7 @@ function hideSplash() {
 }
 
 (async function boot() {
+  try { if (localStorage.getItem('st_sb') === '0') document.body.classList.add('sb-collapsed'); } catch (e) { /* ignore */ }
   try { S.settings = await rpc('getPublicSettings'); }
   catch (e) { S.settings = { appName: 'Stayline', hotelName: '', currency: '' }; splashMsg('Database not set up yet. Use Stayline → Set up database.'); }
   brand();

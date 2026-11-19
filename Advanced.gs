@@ -156,7 +156,7 @@ function exportFolioPdf(token, resNo) {
   });
   const html = '<html><head><style>body{font-family:Arial,sans-serif;font-size:11px}h1{font-size:18px;margin:0}' +
     'table{border-collapse:collapse;width:100%;margin:6px 0}td,th{border:1px solid #999;padding:4px}th{background:#e6efef;text-align:left}</style></head><body>' +
-    (st.logoUrl ? '<img src="' + esc(st.logoUrl) + '" style="height:46px"><br>' : '') +
+    hotelLogoHtml_(st) +
     '<h1>' + esc(st.hotelName) + '</h1>' + (st.hotelAddress ? '<div>' + esc(st.hotelAddress) + '</div>' : '') +
     '<h2>Guest folio · ' + esc(r.resNo) + '</h2>' +
     '<table><tr><td><b>Guest</b></td><td>' + esc(d.guestName) + '</td><td><b>Room</b></td><td>' + esc(d.room.roomNo) + ' · ' + esc(d.room.type) + '</td></tr>' +
@@ -185,7 +185,7 @@ function registrationCard(token, resNo) {
     'h2{font-size:13px;margin:14px 0 4px;color:#0f3d3e}table{border-collapse:collapse;width:100%}' +
     'td{border:1px solid #999;padding:5px}td.lbl{background:#eef4f3;width:17%;font-weight:bold}td.val{width:33%}' +
     '.sig td{height:42px;vertical-align:bottom}.small{font-size:9.5px;color:#444;margin-top:8px}</style></head><body>' +
-    (st.logoUrl ? '<img src="' + esc(st.logoUrl) + '" style="height:46px"><br>' : '') +
+    hotelLogoHtml_(st) +
     '<h1>' + esc(st.hotelName) + '</h1>' + (st.hotelAddress ? '<div>' + esc(st.hotelAddress) + '</div>' : '') +
     '<h2>GUEST REGISTRATION CARD · ' + esc(r.resNo) + '</h2>' +
     '<table><tr>' + field('Guest name', d.guestName) + field('Title', g.title) + '</tr>' +

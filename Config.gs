@@ -69,7 +69,7 @@ const PERMISSIONS = [
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.2.1';
 const SETTINGS_DEFAULT = {
   appName: 'Stayline',
   hotelName: 'Stayline Hotel',
@@ -81,7 +81,12 @@ const SETTINGS_DEFAULT = {
   checkOutTime: '12:00',
   businessDate: '',                    // set by setupDatabase(); advanced by night audit
   allowCheckoutWithBalance: 'false',   // checkout blocked while folios have a balance
-  autoNoShowOnAudit: 'true'            // night audit marks un-arrived reservations as No-Show
+  autoNoShowOnAudit: 'true',           // night audit marks un-arrived reservations as No-Show
+  // Emails. Placeholders: {{name}} {{code}} {{minutes}} {{appName}} {{hotelName}}
+  otpSubject: 'Your verification code for {{appName}}',
+  otpBody: 'Hello {{name}},\n\nYour verification code is {{code}}\n\nUse this code to reset your password. It expires in {{minutes}} minutes.\n\nIf you did not ask for a password reset, you can ignore this email. Your password will not change.',
+  doneSubject: 'Your {{appName}} password was changed',
+  doneBody: 'Hello {{name}},\n\nYour password was changed just now. If this was not you, contact your administrator at once.'
 };
 
 const CHARGE_CODES_DEFAULT = [

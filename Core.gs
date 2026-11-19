@@ -76,6 +76,8 @@ function settings_() {
   // a blank value in the sheet keeps the default (so an empty App name still shows Stayline)
   rows_(TBL.SETTINGS).forEach(r => { if (r.key && r.value !== '' && r.value != null) m[r.key] = r.value; });
   m.taxRate = Number(m.taxRate) || 0;
+  // the sheet can hold the business date as a date cell, read back as 'yyyy-mm-dd HH:mm'
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(m.businessDate))) m.businessDate = String(m.businessDate).slice(0, 10);
   return m;
 }
 function setting_(k) { return settings_()[k]; }
@@ -165,7 +167,7 @@ function listUsers(token) {
 }
 function saveUser(token, d) {
   const s = auth_(token, 'users.manage');
-  if (ROLES.indexOf(d.role) < 0) throw new Error('Invalid role.');
+  if (roleNames_().indexOf(d.role) < 0) throw new Error('Invalid role.');
   const uname = String(d.username || '').trim().toLowerCase();
   if (!uname) throw new Error('Username is required.');
   const active = d.active !== false && d.active !== 'false';

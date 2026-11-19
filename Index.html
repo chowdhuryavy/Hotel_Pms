@@ -78,11 +78,12 @@
       </div>
       <nav class="nav" id="nav"></nav>
       <div class="bizbox" id="bizbox"></div>
+      <div class="account" id="account"></div>
       <div class="ver">Stayline v<?= appVersion ?></div>
     </aside>
     <main class="main">
       <header class="topbar">
-        <button class="btn ghost sm menu-btn" onclick="document.body.classList.toggle('menu-open')">Menu</button>
+        <button class="logo-btn" id="sbToggle" onclick="toggleSidebar()" title="Show or hide menu" aria-label="Toggle sidebar" aria-expanded="true"><span id="sbLogo"></span></button>
         <div class="who" id="who"></div>
       </header>
       <section class="view" id="view"></section>
