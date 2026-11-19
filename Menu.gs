@@ -83,6 +83,6 @@ function menuTabs() {
 
 function menuBackup() {
   const ui = SpreadsheetApp.getUi();
-  try { const name = nightlyBackup_(); ui.alert('Backup saved: ' + name + ' (in the Stayline backups folder in Drive).'); }
+  try { const name = nightlyBackup_(); ui.alert('Backup saved: ' + name + ' (in the ' + backupFolderName_() + ' folder in Drive).'); }
   catch (e) { ui.alert('Backup failed: ' + e.message); }
 }

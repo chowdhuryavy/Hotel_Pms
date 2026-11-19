@@ -49,7 +49,7 @@ function docShell_(o) {
     meta + o.body +
     (o.note ? '<div class="note">' + o.note + '</div>' : '') +
     '<table class="ft"><tr><td>Printed ' + escHtml_(fmtTs_(new Date())) + ' by ' + escHtml_(o.by || '') + '</td>' +
-    '<td class="r">' + escHtml_(st.hotelAppUrl || '') + ' &nbsp;·&nbsp; ' + escHtml_(st.appName || 'Stayline') + ' ' + APP_VERSION + '</td></tr></table>' +
+    '<td class="r">' + escHtml_(st.hotelAppUrl || '') + ' &nbsp;·&nbsp; ' + escHtml_(st.appName || '') + ' ' + APP_VERSION + '</td></tr></table>' +
     '</body></html>';
 }
 function docPdf_(html, name) {

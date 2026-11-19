@@ -580,5 +580,8 @@ if (require.main === module) {
   ok(run("renderMail_('otp', { code: '246810' }).subject") === 'Your ' + "Stayline" + ' security code: 246810' || run("renderMail_('otp', { code: '246810' }).subject").indexOf('security code: 246810') > 0, 'reset code subject follows the security code pattern');
   run("(function(){ patch_(TBL.SETTINGS, rows_(TBL.SETTINGS).find(r => r.key === 'otpSubject') ? rows_(TBL.SETTINGS).find(r => r.key === 'otpSubject')._row : 1, { value: 'Your verification code for {{appName}}' }); return true; })()");
   ok(run("renderMail_('otp', { code: '246810' }).subject").indexOf('security code: 246810') > 0, 'an old saved subject gets the new pattern');
+  // The backup folder follows the app name in Settings, not a fixed word
+  run("(function(){ patch_(TBL.SETTINGS, rows_(TBL.SETTINGS).find(r => r.key === 'appName')._row, { value: 'Lumen' }); return true; })()");
+  ok(run("backupFolderName_()") === 'Lumen backups', 'backup folder is named after the app name in Settings');
   console.log('done');
 }

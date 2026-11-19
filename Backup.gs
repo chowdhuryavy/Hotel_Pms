@@ -1,18 +1,21 @@
 /* Stayline – Backup.gs
- * Nightly copy of the database spreadsheet into the "Stayline backups" folder in Drive.
+ * Nightly copy of the database spreadsheet into the "<app name> backups" folder in Drive.
  * The newest 30 copies are kept; older ones go to the Drive bin.
  */
 const BACKUP_HANDLER = 'nightlyBackup_';
 const BACKUP_KEEP = 30;
+/** The backup folder is named after the app name in Settings, for example "Stayline backups". */
+function backupFolderName_() { return (appName_() || 'Hotel PMS') + ' backups'; }
 function backupFolder_() {
-  const it = DriveApp.getFoldersByName('Stayline backups');
-  return it.hasNext() ? it.next() : DriveApp.createFolder('Stayline backups');
+  const n = backupFolderName_();
+  const it = DriveApp.getFoldersByName(n);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(n);
 }
 /** Copies the database now and trims old copies. Returns the new copy's name. */
 function nightlyBackup_() {
   const ss = ss_();
   const folder = backupFolder_();
-  const name = (ss.getName() || 'Stayline') + ' backup ' + Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH-mm');
+  const name = (ss.getName() || appName_() || 'Hotel PMS') + ' backup ' + Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH-mm');
   DriveApp.getFileById(ss.getId()).makeCopy(name, folder);
   const files = [];
   const it = folder.getFiles();

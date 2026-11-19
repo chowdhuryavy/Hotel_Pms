@@ -68,7 +68,7 @@ function setupDatabase() {
   }
 
   try { organiseTabs_(); } catch (e) { Logger.log('Tab order: ' + e.message); }
-  const msg = 'Stayline database ready.\nSheet: ' + ss.getUrl() + firstAdminNote;
+  const msg = (appName_() || 'Hotel PMS') + ' database ready.\nSheet: ' + ss.getUrl() + firstAdminNote;
   Logger.log(msg);
   return msg;
 }
