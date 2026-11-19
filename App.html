@@ -221,9 +221,18 @@ async function pgBillingRoom(roomNo) {
   if (!d.res) { setView(head + `<div class="card"><p>Room ${esc(roomNo)} has no in-house or reserved stay. Check the guest in from the front desk first.</p></div>`); return; }
   const r = d.res.res, folios = d.res.folios || [];
   const folioHtml = folios.map(f => {
-    const rows = f.postings.map(p => tr([esc(p.bizDate), esc(p.code), p.voided ? '<s>' + esc(p.description) + '</s> <span class="pill">void</span>' : esc(p.description), num(p.amount),
-      (!p.voided && Number(p.amount) < 0 && can('folio.refund') ? `<button class="btn sm ghost" onclick="refundModal('${esc(p.id)}')">Refund</button>` : '') + (!p.voided && can('folio.void') ? `<button class="btn sm ghost" onclick="voidModal('${esc(p.id)}')">Void</button>` : ''),
-      !p.voided && can('folio.transfer') ? `<button class="btn sm ghost" onclick="transferModal('${esc(p.id)}')">Move</button>` : ''], p.voided ? 'muted' : ''));
+    const rows = f.postings.map(p => {
+      POST_CACHE[p.id] = p;
+      const isCh = !p.voided && !p.parentId && d.types[p.code] === 'Charge';
+      const open = f.status === 'Open';
+      const refund = !p.voided && Number(p.amount) < 0 && can('folio.refund') ? `<button class="btn sm ghost" onclick="refundModal('${esc(p.id)}')">Refund</button>` : '';
+      const voidBtn = !p.voided && can('folio.void') ? `<button class="btn sm ghost" onclick="voidModal('${esc(p.id)}')">Void</button>` : '';
+      const edit = isCh && open && can('folio.edit') ? `<button class="btn sm ghost" onclick="editChargeModal('${esc(p.id)}')">Edit</button>` : '';
+      const split = isCh && open && can('folio.edit') ? `<button class="btn sm ghost" onclick="splitModal('${esc(p.id)}')">Split</button>` : '';
+      const move = isCh && open && can('folio.transfer') ? `<button class="btn sm ghost" onclick="transferModal('${esc(p.id)}')">Move</button>` : '';
+      const desc = p.voided ? '<s>' + esc(p.description) + '</s> <span class="pill">void</span>' : (p.parentId ? '<span class="muted">&nbsp;&nbsp;↳ ' + esc(p.description) + '</span>' : esc(p.description));
+      return tr([esc(p.bizDate), esc(p.code), desc, num(p.amount), refund + voidBtn, edit + split + move], p.voided ? 'muted' : '');
+    });
     const acts = d.canPost && f.status === 'Open' ? `<div class="acts"><button class="btn sm" onclick="chargeModal('${esc(f.id)}')">Charge</button>
       <button class="btn sm ok" onclick="billPayModal('${esc(f.id)}')">Payment</button><button class="btn sm" onclick="billPackageModal('${esc(r.resNo)}','${esc(f.id)}')">Package</button></div>` : '';
     return `<div class="card"><div class="head-row"><h3>Folio ${f.folioNo} · ${esc(f.name)} ${pill(f.status)}</h3><div>${acts}</div></div>` +
@@ -699,12 +708,73 @@ async function payModal(folioId) {
     toast('Payment recorded. Stay balance ' + money(r.balance)); closeModal(); refresh();
   });
 }
+var POST_CACHE = {};
 async function transferModal(postingId) {
+  const p = POST_CACHE[postingId] || {};
   const folios = await api('cashierList');
-  const opts = folios.map(f => [f.id, f.resNo + ' · Room ' + f.roomNo + ' · ' + f.guest + ' · ' + f.name]);
-  if (!opts.length) { toast('No open folios to transfer to.', true); return; }
-  openModal('Transfer posting', formHtml('fTf', [{ name: 'folioId', label: 'Target folio', type: 'select', options: opts, wide: true }], 'Transfer'));
-  bindForm('fTf', async d => { await api('transferPosting', postingId, d.folioId); toast('Transferred'); closeModal(); refresh(); });
+  const opts = folios.filter(f => f.id !== p.folioId).map(f => [f.id, 'Room ' + f.roomNo + ' · ' + f.guest + ' · Folio ' + f.folioNo + ' (' + f.name + ')' + ]);
+  if (!opts.length) { toast('No other open folio to move this to.', true); return; }
+  openModal('Move charge to another folio', formHtml('fTf', [{ name: 'folioId', label: 'Target folio (room or PM)', type: 'select', options: opts, wide: true }], 'Move'));
+  bindForm('fTf', async d => { await api('transferPosting', postingId, d.folioId); toast('Charge moved'); closeModal(); refresh(); });
+}
+function editChargeModal(postingId) {
+  const p = POST_CACHE[postingId];
+  if (!p) { toast('Reload the room first.', true); return; }
+  openModal('Edit charge · ' + p.code, formHtml('fEc', [
+    { name: 'amount', label: 'Amount', type: 'number', step: '0.01', min: 0.01, required: true, value: p.amount },
+    { name: 'description', label: 'Description', required: true, value: p.description, wide: true },
+    { name: 'reason', label: 'Reason for change (required)', type: 'textarea', required: true, wide: true }
+  ], 'Save change'));
+  bindForm('fEc', async d => { await api('editCharge', postingId, d); toast('Charge updated'); closeModal(); refresh(); });
+}
+async function splitModal(postingId) {
+  const p = POST_CACHE[postingId];
+  if (!p) { toast('Reload the room first.', true); return; }
+  const folios = await api('cashierList');
+  if (folios.length < 1) { toast('No open folio to split to.', true); return; }
+  const total = Number(p.amount);
+  const half = Math.round(total * 50) / 100, rest = Math.round((total - half) * 100) / 100;
+  const selOpts = folios.map(f => `<option value="${esc(f.id)}"${f.id === p.folioId ? ' selected' : ''}>Room ${esc(f.roomNo)} · ${esc(f.guest)} · Folio ${f.folioNo} (${esc(f.name)})</option>`).join('');
+  openModal('Split charge · ' + p.code, `<form id="fSp" class="fgrid">
+    <p class="wide muted">Total <b>${num(total)}</b>. Each part can go to any open room or PM folio. The parts must add up to the total.</p>
+    <div class="wide" id="spRows"></div>
+    <p class="wide"><button class="btn ghost sm" type="button" id="spAdd">+ Add part</button> <span id="spSum" class="muted"></span></p>
+    <label class="wide field"><span>Reason for split (required)</span><textarea name="reason" rows="2" required></textarea></label>
+    <p class="err wide" id="fgErr"></p>
+    <div class="actions"><button class="btn ghost" type="button" onclick="closeModal()">Cancel</button><button class="btn" type="submit">Split</button></div></form>`);
+  const form = $('fSp'), rowsEl = $('spRows');
+  const sum = () => {
+    const t = [...rowsEl.querySelectorAll('.spA')].reduce((a, i) => a + Number(i.value || 0), 0);
+    const ok = Math.abs(t - total) < 0.005;
+    $('spSum').innerHTML = `Parts: <b class="${ok ? '' : 'err'}">${t.toFixed(2)}</b> of ${total.toFixed(2)}`;
+    return t;
+  };
+  const addRow = (folioId, amt) => {
+    const div = document.createElement('div');
+    div.className = 'spRow';
+    div.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1.2fr auto;gap:8px;margin-bottom:8px;align-items:center';
+    div.innerHTML = `<select class="spF">${selOpts}</select><input class="spA" type="number" step="0.01" min="0.01" value="${amt}">` +
+      `<input class="spD" placeholder="Description (optional)"><button type="button" class="btn ghost sm spX">✕</button>`;
+    if (folioId) div.querySelector('.spF').value = folioId;
+    rowsEl.appendChild(div);
+    sum();
+  };
+  addRow(p.folioId, half);
+  addRow('', rest);
+  $('spAdd').addEventListener('click', () => addRow('', 0));
+  rowsEl.addEventListener('click', e => { if (e.target.classList.contains('spX') && rowsEl.querySelectorAll('.spRow').length > 2) { e.target.closest('.spRow').remove(); sum(); } });
+  rowsEl.addEventListener('input', sum);
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const parts = [...rowsEl.querySelectorAll('.spRow')].map(r => ({ folioId: r.querySelector('.spF').value, amount: r.querySelector('.spA').value, description: r.querySelector('.spD').value }));
+    if (parts.length < 2) { toast('Add at least two parts.', true); return; }
+    const t = sum();
+    if (Math.abs(t - total) > 0.005) { toast('Parts add up to ' + t.toFixed(2) + ' but the charge is ' + total.toFixed(2), true); return; }
+    const btn = form.querySelector('button[type=submit]');
+    btn.disabled = true;
+    try { await api('splitPosting', postingId, parts, form.querySelector('[name=reason]').value); toast('Charge split into ' + parts.length + ' parts'); closeModal(); refresh(); }
+    catch (err) { toast(err.message, true); btn.disabled = false; }
+  });
 }
 function voidModal(postingId) {
   openModal('Void posting', formHtml('fVd', [{ name: 'reason', label: 'Reason (required)', type: 'textarea', required: true, wide: true }], 'Void'));

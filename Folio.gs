@@ -103,6 +103,9 @@ function transferPosting(token, id, toFolioId) {
   return withLock_(() => {
     const p = rows_(TBL.POSTINGS).find(x => x.id === id);
     if (!p || p.voided === true) throw new Error('Posting not found or already voided.');
+    if (p.parentId) throw new Error('Tax lines move with their charge. Move the charge instead.');
+    if (!isCharge_(p.code)) throw new Error('Only charges can be moved. Payments stay on their folio.');
+    if (folioRow_(p.folioId).status !== 'Open') throw new Error('The folio this charge is on is closed.');
     const target = folioRow_(toFolioId);
     if (target.status !== 'Open') throw new Error('Target folio is closed.');
     if (target.id === p.folioId) throw new Error('Posting is already on that folio.');

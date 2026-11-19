@@ -56,6 +56,7 @@ const PERMISSIONS = [
   ['folio.post',            'Post charges & payments',                   true,  true,  true,  true,  false, false, false],
   ['folio.transfer',        'Transfer postings between folios',          true,  true,  true,  true,  false, false, false],
   ['folio.void',            'Void postings',                             true,  true,  false, false, false, false, false],
+  ['folio.edit',            'Edit or split charges (not payments)',       true,  true,  false, false, false, false, false],
   ['rates.view',            'View rates & rate plans',                   true,  true,  false, false, false, true,  true ],
   ['rates.manage',          'Manage rates, plans & charge codes',        true,  false, false, false, false, false, false],
   ['nightaudit.run',        'Run night audit',                           true,  true,  false, false, false, false, false],
@@ -73,7 +74,7 @@ const PERMISSIONS = [
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.3';
+const APP_VERSION = '1.2.4';
 const SETTINGS_DEFAULT = {
   appName: 'Stayline',
   hotelName: 'Stayline Hotel',

@@ -73,6 +73,7 @@ function billingRoom(token, roomNo) {
     charges: codes.filter(c => c.type === CHARGE_TYPE && c.active),
     payments: codes.filter(c => c.type === PAY_TYPE && c.active),
     packages: listPackages(token).filter(p => p.active),
+    types: codes.reduce((m, c) => { m[c.code] = c.type; return m; }, {}),
     canPost: permMap_(s.role)['folio.post'] === true };
   if (rs.length) out.res = getReservation(token, rs[0].resNo);
   return out;
@@ -245,4 +246,88 @@ function sendAuditorReport_(bd) {
   const body = reportTableHtml_(buildReport_('nightaudit', bd, bd)) + reportTableHtml_(buildReport_('ar', bd, bd));
   sendMail_(st.auditorEmail, 'Night audit ' + bd + ' · ' + st.hotelName, 'Night audit and city ledger reports for ' + bd + ' are attached below.',
     mailHtml_('<p>Night audit and city ledger reports for ' + escHtml_(bd) + '.</p>' + body));
+}
+
+/* ---------- Charges: edit, split and move (payments are never changed here) ---------- */
+function isCharge_(code) {
+  const c = rows_(TBL.CHARGES).find(x => x.code === code);
+  return !!c && c.type === CHARGE_TYPE;
+}
+/** The charge row that an edit or split works on. Tax lines and payments are refused. */
+function chargeRow_(id) {
+  const p = rows_(TBL.POSTINGS).find(x => x.id === id);
+  if (!p || p.voided === true) throw new Error('Posting not found or already voided.');
+  if (p.parentId) throw new Error('Tax lines follow their charge. Edit or split the charge instead.');
+  if (!isCharge_(p.code)) throw new Error('Only charges can be edited or split. Payments are not changed here.');
+  return p;
+}
+function taxLinesOf_(id) {
+  return rows_(TBL.POSTINGS).filter(c => c.parentId === id && c.voided !== true);
+}
+
+/** Changes the amount and/or description of a charge. Tax is recalculated. A reason is required. */
+function editCharge(token, postingId, d) {
+  const s = auth_(token, 'folio.edit');
+  const reason = String((d && d.reason) || '').trim();
+  if (!reason) throw new Error('A reason is required to change a charge.');
+  const amt = num_(d && d.amount);
+  if (!(amt > 0)) throw new Error('Amount must be greater than zero.');
+  return withLock_(() => {
+    const p = chargeRow_(postingId);
+    const f = folioRow_(p.folioId);
+    if (f.status !== 'Open') throw new Error('Folio is closed.');
+    const desc = String((d && d.description) || '').trim() || p.description;
+    const rate = settings_().taxRate;
+    const tax = taxLinesOf_(postingId);
+    const oldGross = num_(p.amount) + tax.reduce((a, t) => a + num_(t.amount), 0);
+    const newGross = amt + (tax.length ? amt * rate : 0);
+    if (f.accountId && newGross > oldGross) assertCredit_(f.accountId, newGross - oldGross);
+    const before = p.amount + ' ' + p.description;
+    patch_(TBL.POSTINGS, p._row, { amount: amt, description: desc });
+    tax.forEach(t => patch_(TBL.POSTINGS, t._row, { amount: amt * rate, description: 'Tax on ' + p.code }));
+    audit_(s.username, 'EDIT_CHARGE', 'Posting', postingId, before + ' > ' + amt + ' ' + desc + ' | ' + reason);
+    return { balance: num_(balances_()[p.resNo] || 0) };
+  });
+}
+
+/**
+ * Splits a charge into parts. Each part can go to any open folio of an active stay
+ * (room or postmaster). The parts must add up to the original amount. The original is voided.
+ */
+function splitPosting(token, postingId, parts, reason) {
+  const s = auth_(token, 'folio.edit');
+  if (!String(reason || '').trim()) throw new Error('A reason is required to split a charge.');
+  if (!Array.isArray(parts) || parts.length < 2) throw new Error('A split needs at least two parts.');
+  return withLock_(() => {
+    const p = chargeRow_(postingId);
+    if (folioRow_(p.folioId).status !== 'Open') throw new Error('Folio is closed.');
+    const clean = parts.map(x => ({ folioId: String((x && x.folioId) || ''), amount: num_(x && x.amount), description: String((x && x.description) || '').trim() }));
+    if (clean.some(x => !(x.amount > 0))) throw new Error('Every part needs an amount greater than zero.');
+    const total = num_(p.amount);
+    const sum = clean.reduce((a, x) => a + x.amount, 0);
+    if (Math.abs(sum - total) > 0.005) throw new Error('Parts add up to ' + sum.toFixed(2) + ' but the charge is ' + total.toFixed(2) + '.');
+    const targets = clean.map(x => {
+      const f = folioRow_(x.folioId);
+      if (f.status !== 'Open') throw new Error('Folio ' + f.folioNo + ' is closed.');
+      const r = resOf_(f.resNo);
+      if (!r || RES_ACTIVE.indexOf(r.status) < 0) throw new Error('Folio ' + f.folioNo + ' must belong to a Reserved or In-House stay.');
+      return { f: f, r: r };
+    });
+    const rate = settings_().taxRate;
+    const hasTax = taxLinesOf_(postingId).length > 0;
+    targets.forEach((t, i) => { if (t.f.accountId) assertCredit_(t.f.accountId, clean[i].amount * (hasTax ? 1 + rate : 1)); });
+    const bd = p.bizDate || bizDate_();
+    const newIds = clean.map((x, i) => {
+      const t = targets[i];
+      const desc = x.description || (p.description + ' (' + (i + 1) + '/' + clean.length + ')');
+      const parent = postEntry_(t.r.resNo, t.r.roomNo, t.f.id, p.code, desc, x.amount, s.username, bd, '');
+      if (hasTax) postEntry_(t.r.resNo, t.r.roomNo, t.f.id, 'TAX', 'Tax on ' + p.code, x.amount * rate, s.username, bd, parent);
+      return parent;
+    });
+    const tag = 'Split into ' + clean.length + ' parts: ' + reason + ' (by ' + s.username + ')';
+    patch_(TBL.POSTINGS, p._row, { voided: true, voidReason: tag });
+    taxLinesOf_(postingId).forEach(t => patch_(TBL.POSTINGS, t._row, { voided: true, voidReason: tag }));
+    audit_(s.username, 'SPLIT', 'Posting', postingId, p.code + ' ' + total.toFixed(2) + ' > ' + clean.map(x => x.amount.toFixed(2)).join(' + ') + ' | ' + reason);
+    return { ids: newIds };
+  });
 }

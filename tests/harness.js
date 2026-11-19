@@ -198,10 +198,10 @@ if (require.main === module) {
   const rack = run("rackData(TOK, bizDate_(), 7)");
   ok(rack.rooms.length === 16 + 0 || rack.rooms.length > 10, 'rack returns ' + rack.rooms.length + ' rooms');
   // ---- advanced: migration, company accounts, guest alerts, shifts, late checkout, forecast, reports, housekeeping ----
-  ok(run('rows_(TBL.PERMS).length') === 33, 'permission matrix has 33 rows');
+  ok(run('rows_(TBL.PERMS).length') === 34, 'permission matrix has 34 rows');
   ok(run("rows_(TBL.CHARGES).some(c => c.code === 'LCO')"), 'late checkout charge code LCO present');
   run('migrateSchema_()'); run('migrateSchema_()');
-  ok(run('rows_(TBL.PERMS).length') === 33 && run("rows_(TBL.CHARGES).filter(c => c.code === 'LCO').length") === 1, 'migration is idempotent');
+  ok(run('rows_(TBL.PERMS).length') === 34 && run("rows_(TBL.CHARGES).filter(c => c.code === 'LCO').length") === 1, 'migration is idempotent');
   run("rows_(TBL.ROOMS).forEach(r => patch_(TBL.ROOMS, r._row, { housekeeping: 'Clean' }))");
 
   const acc = tryRun("saveAccount(TOK, { name: 'Acme Corp', code: 'ACME', creditLimit: 500 })");
@@ -345,6 +345,38 @@ if (require.main === module) {
   ok(!!tryRun("refundPayment(TOK, '" + pid + "', 30, 'too much')").e, 'refund cannot exceed what is left');
   ok(!!tryRun("refundPayment(CTOK, '" + pid + "', 5, 'x')").e, 'cashier cannot refund without permission');
   ok(run("rows_(TBL.POSTINGS).filter(p => p.parentId === '" + pid + "').reduce((a, p) => a + Number(p.amount), 0)") === 15, 'refund is kept against the payment');
+
+  // edit, split and move charges (never payments; permission folio.edit)
+  const spRes = tryRun("createReservation(TOK, {firstName:'Split', lastName:'Test', roomType:'DLX', arrival: bizDate_(), departure: addDays_(bizDate_(),1), adults:1, plan:'BAR'})");
+  run("checkIn(TOK,'" + spRes.v.resNo + "','',0,'DEP')");
+  const spF = run("getReservation(TOK,'" + spRes.v.resNo + "').folios[0].id");
+  run("postCharge(TOK,'" + spF + "','MB','Water',100)");
+  const spChg = run("rows_(TBL.POSTINGS).find(p => p.folioId === '" + spF + "' && p.code === 'MB' && !p.parentId && p.voided !== true).id");
+  const spPmRes = tryRun("createReservation(TOK, {firstName:'Postmaster', lastName:'Room', roomType:'DLX', arrival: bizDate_(), departure: addDays_(bizDate_(),1), adults:1, plan:'BAR'})");
+  run("checkIn(TOK,'" + spPmRes.v.resNo + "','',0,'DEP')");
+  const spPmF = run("getReservation(TOK,'" + spPmRes.v.resNo + "').folios[0].id");
+  ok(!!tryRun("editCharge(CTOK,'" + spChg + "',{amount:50,description:'Water',reason:'x'})").e, 'cashier cannot edit charges without folio.edit');
+  ok(!!tryRun("editCharge(TOK,'" + spChg + "',{amount:50,description:'Water',reason:''})").e, 'edit needs a reason');
+  ok(!!tryRun("editCharge(TOK,'" + pid + "',{amount:5,description:'x',reason:'x'})").e, 'payments cannot be edited');
+  ok(!tryRun("editCharge(TOK,'" + spChg + "',{amount:120,description:'Water 2 bottles',reason:'wrong quantity'})").e, 'admin edits a charge amount and description');
+  const spRate = run("settings_().taxRate");
+  const spTax = run("rows_(TBL.POSTINGS).find(p => p.parentId === '" + spChg + "' && p.voided !== true).amount");
+  ok(Math.abs(spTax - 120 * spRate) < 0.005, 'tax line is recalculated after the edit');
+  ok(!!tryRun("splitPosting(TOK,'" + spChg + "',[{folioId:'" + spF + "',amount:50},{folioId:'" + spPmF + "',amount:10}],'x')").e, 'split parts must add up to the charge');
+  ok(!!tryRun("splitPosting(TOK,'" + spChg + "',[{folioId:'" + spF + "',amount:60},{folioId:'" + spPmF + "',amount:60}],'')").e, 'split needs a reason');
+  ok(!!tryRun("splitPosting(CTOK,'" + spChg + "',[{folioId:'" + spF + "',amount:60},{folioId:'" + spPmF + "',amount:60}],'x')").e, 'cashier cannot split without folio.edit');
+  ok(!tryRun("splitPosting(TOK,'" + spChg + "',[{folioId:'" + spF + "',amount:60},{folioId:'" + spPmF + "',amount:60,description:'Water to PM'}],'Guest asked PM to pay')").e, 'admin splits a charge across room and PM folios');
+  ok(run("rows_(TBL.POSTINGS).find(p => p.id === '" + spChg + "').voided") === true, 'original charge is voided by the split');
+  ok(run("rows_(TBL.POSTINGS).filter(p => p.folioId === '" + spPmF + "' && p.code === 'MB' && p.voided !== true).length") === 1, 'part moved to the PM folio');
+  ok(run("rows_(TBL.POSTINGS).filter(p => p.folioId === '" + spPmF + "' && p.code === 'TAX' && p.voided !== true).length") === 1, 'tax follows the split part');
+  ok(!!tryRun("splitPosting(TOK,'" + spChg + "',[{folioId:'" + spF + "',amount:60},{folioId:'" + spPmF + "',amount:60}],'again')").e, 'a voided charge cannot be split again');
+  ok(!!tryRun("transferPosting(TOK,'" + pid + "','" + spF + "')").e, 'payments cannot be moved between folios');
+  const spC2 = tryRun("postCharge(TOK,'" + spF + "','MB','Juice',20)");
+  const spC2Id = run("rows_(TBL.POSTINGS).find(p => p.folioId === '" + spF + "' && p.code === 'MB' && p.description === 'Juice' && !p.parentId && p.voided !== true).id");
+  const spC2Tax = run("rows_(TBL.POSTINGS).find(p => p.parentId === '" + spC2Id + "' && p.voided !== true).id");
+  ok(!!tryRun("transferPosting(TOK,'" + spC2Tax + "','" + spPmF + "')").e, 'a tax line cannot be moved on its own');
+  ok(!tryRun("transferPosting(TOK,'" + spC2Id + "','" + spPmF + "')").e, 'a charge moves to the PM folio with its tax');
+  ok(run("rows_(TBL.POSTINGS).filter(p => p.folioId === '" + spPmF + "' && p.voided !== true && p.parentId).length") === 2, 'moved charge brings its tax line');
   ok(run("frontLists(TOK).inHouse.length") >= 1 && run("Array.isArray(frontLists(TOK).arrivals) && Array.isArray(frontLists(TOK).departures)"), 'guest lists: in-house, arrivals and departures');
   ok(run("publicSettings_().defaultLanguage") === 'en' && run("settings_().auditorAutoSend") === 'false', 'system defaults: language and auditor email are off');
   console.log('done');

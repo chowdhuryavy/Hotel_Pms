@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.3**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.4**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.4: charges can be edited (amount and description, with a reason, tax recalculated), split into parts across room and PM folios (the parts must add up to the total), and moved to another folio with their tax. Payments are never edited, split or moved here. New permission folio.edit (Admin and Manager by default).
 
 Release notes for 1.2.3: sidebar with the avatar at the bottom (a corner avatar on mobile), a spinning logo button, several loading screens (skeleton pages, a progress bar for every server call, four splash styles); System tab: default language (English or Arabic layout), default currency, auditor email and auto-send after night audit (night audit and AR reports), integration addresses for POS, television, telephone and card terminal with test buttons; packages posted per stay or per night; billing screen for every room (charges, packages, payments, refunds, moves, voids); search by room, guest, reservation number, group, company, phone and email; guest history button on each reservation; guest lists (in-house, arrivals, departures); payment methods (cash, card, bank, cheque, city ledger linked to a company account); refunds limited to the folio.refund permission; POS can post charges through the web app address.
 
