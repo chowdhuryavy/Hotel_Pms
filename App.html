@@ -1361,7 +1361,7 @@ function toggleSidebar() {
   }
   b.setAttribute('aria-expanded', String(open));
   b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin');
-  clearTimeout(b._spinT); b._spinT = setTimeout(() => b.classList.remove('spin'), 800);
+  clearTimeout(b._spinT); b._spinT = setTimeout(() => b.classList.remove('spin'), 1600);
 }
 
 /* ---------- Navigation ---------- */
