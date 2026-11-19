@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.165**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.166**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.166: Access changes by the system administrator apply straight away: the menu and screens are re-checked on each refresh and when you come back to the app. The user does not need to sign in again.
 
 Release notes for 1.2.165: The Property admin screens ticks decide what a Property Admin can use again. Select all ticks every screen. Hotel details can be set per screen, as the system administrator chooses.
 

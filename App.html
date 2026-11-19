@@ -405,13 +405,23 @@ async function act(fn, msg, ...args) {
   try { await api(fn, ...args); if (msg) toast(msg); refresh(); }
   catch (e) { toast(e.message, true); }
 }
+/* Re-reads this user's permissions, so a change made by the system administrator shows without signing in again */
+function syncPerms_() {
+  if (!S.token) return Promise.resolve();
+  return api('myPermissions').then(p => {
+    if (JSON.stringify(p) !== JSON.stringify(S.perms)) { S.perms = p; buildNav(); }
+  }).catch(() => { /* keep the current menu if the check cannot run */ });
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncPerms_(); });
 function refresh() {
-  if (ACTIVE_TAB !== 'page') {   // a page tab reloads its own data
-    const t = APP_TABS.find(x => x.id === ACTIVE_TAB);
-    if (t && t.page) { t.loaded = false; showAppTab_(t.id); }
-    return;
-  }
-  go(S.page, S.param);
+  syncPerms_().then(() => {
+    if (ACTIVE_TAB !== 'page') {   // a page tab reloads its own data
+      const t = APP_TABS.find(x => x.id === ACTIVE_TAB);
+      if (t && t.page) { t.loaded = false; showAppTab_(t.id); }
+      return;
+    }
+    go(S.page, S.param);
+  });
 }
 
 /* ---------- Modal & forms ---------- */

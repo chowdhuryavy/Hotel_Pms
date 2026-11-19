@@ -44,8 +44,19 @@ function getRolePerms(token, role) {
     perms: rows_(TBL.PERMS).map(p => ({ permission: p.permission, description: p.description, allowed: role === ADMIN_ROLE || p[role] === true }))
   };
 }
+/* The signed-in user's permissions, read live: the role from the grid, and the user's extra access and role from the Users sheet */
 function myPermissions(token) {
   const s = auth_(token);
+  const u = rows_(TBL.USERS).find(x => x.id === s.id);
+  if (u) {
+    const extra = userExtra_(u);
+    if (JSON.stringify(extra) !== JSON.stringify(s.extra || []) || u.role !== s.role) {
+      const cache = CacheService.getScriptCache();
+      const raw = cache.get('s:' + token);
+      if (raw) cache.put('s:' + token, JSON.stringify(Object.assign(JSON.parse(raw), { extra: extra, role: u.role })), SESSION_SECONDS);
+      s.extra = extra; s.role = u.role;
+    }
+  }
   return permMap_(s);
 }
 function saveRolePerms(token, role, allowed) {
