@@ -401,6 +401,19 @@ function toggleUserMenu(e, id) {
 }
 function closeUserMenu() { document.querySelectorAll('.user-menu.open').forEach(m => m.classList.remove('open')); }
 document.addEventListener('click', e => { if (!e.target.closest('.avatar-wrap')) closeUserMenu(); });
+/* Mobile menu: a click outside the sidebar (on the dimmed page) closes it. The menu button toggles it as before. */
+function closeMobileMenu_() {
+  if (!document.body.classList.contains('menu-open')) return;
+  document.body.classList.remove('menu-open');
+  const b = $('sbToggle'); if (b) b.setAttribute('aria-expanded', 'false');
+}
+document.addEventListener('click', e => {
+  if (e.target.closest('.sidebar') || e.target.closest('#sbToggle')) return;
+  closeMobileMenu_();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.querySelector('.dlg-bg')) closeMobileMenu_();
+});
 /* Sidebar account block: the whole block is the button. It opens the menu with change password and sign out. */
 function acctHtml_() {
   const who = S.user || {};
