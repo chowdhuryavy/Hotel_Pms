@@ -77,6 +77,7 @@ function runNightAudit(token) {
     if (row) patch_(TBL.SETTINGS, row._row, { value: next });
     else append_(TBL.SETTINGS, { key: 'businessDate', value: next });
     audit_(s.username, 'NIGHT_AUDIT', 'BusinessDate', bd, roomsPosted + ' rooms, ' + num_(total) + ' room revenue, ' + noShows + ' no-shows; next ' + next);
+    try { sendAuditorReport_(bd); } catch (e) { Logger.log('Auditor report: ' + e.message); }
     return { closed: bd, next: next, roomsPosted: roomsPosted, roomRevenue: num_(total), noShows: noShows };
   });
 }

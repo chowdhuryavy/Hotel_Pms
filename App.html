@@ -35,7 +35,20 @@ function rpc(fn, ...args) {
       })[fn](...args);
   });
 }
-const api = (fn, ...a) => rpc(fn, S.token, ...a);
+const api = (fn, ...a) => { progressStart_(); return rpc(fn, S.token, ...a).finally(progressEnd_); };
+let PROGRESS_N = 0;
+function progressStart_() { PROGRESS_N++; const p = document.getElementById('progress'); if (p) p.classList.add('on'); }
+function progressEnd_() { PROGRESS_N = Math.max(0, PROGRESS_N - 1); if (!PROGRESS_N) { const p = document.getElementById('progress'); if (p) p.classList.remove('on'); } }
+function skeleton_() {
+  const cards = [0, 1, 2, 3].map(() => '<div class="sk-card"><div class="sk-line w60"></div><div class="sk-line w40"></div></div>').join('');
+  return `<div class="skel" aria-busy="true"><div class="sk-line w30 big"></div><div class="sk-grid">${cards}</div><div class="sk-card tall"><div class="sk-line w80"></div><div class="sk-line w70"></div><div class="sk-line w90"></div></div></div>`;
+}
+function applyLanguage_(lang) {
+  const rtl = lang === 'ar';
+  document.documentElement.lang = rtl ? 'ar' : 'en';
+  document.documentElement.dir = rtl ? 'rtl' : 'ltr';
+  document.body.classList.toggle('rtl', rtl);
+}
 
 /* ---------- Feedback ---------- */
 function toast(msg, bad) {
@@ -150,18 +163,191 @@ function startApp() {
   $('app').classList.remove('hidden');
   brand();
   buildNav();
-  $('who').innerHTML = `<span class="bizline">Business date <b>${esc(S.bizDate)}</b></span><div class="avatar-wrap"><button class="avatar" onclick="toggleUserMenu(event)" title="${esc(S.user.name)}" aria-label="Account menu">${esc(initials_(S.user.name || S.user.username))}</button><div class="user-menu" id="userMenu"><div class="um-head"><b>${esc(S.user.name)}</b><span>${esc(S.user.role)}</span></div><button onclick="closeUserMenu();pwModal()">Change password</button><button onclick="logout()">Sign out</button></div></div>`;
-  $('account').innerHTML = `<b>${esc(S.user.name)}</b><span>${esc(S.user.role)}</span>`;
+  $('who').innerHTML = `<form class="qs" onsubmit="searchGo(event)"><input name="q" placeholder="Search room, guest, res #, group…" aria-label="Search"></form><span class="bizline">Business date <b>${esc(S.bizDate)}</b></span><div class="avatar-wrap top">${avatarHtml_('top')}</div>`;
+  $('account').innerHTML = `<div class="avatar-wrap side">${avatarHtml_('side')}<div class="who-txt"><b>${esc(S.user.name)}</b><span>${esc(S.user.role)}</span></div></div>`;
   if (S.user.mustChange) toast('Please choose a new password to continue.');
   const want = parseHash_();
   go(want.page && pageAllowed_(want.page) ? want.page : firstPage(), want.page && pageAllowed_(want.page) ? want.param : null);
 }
 
+/* ---------- Search ---------- */
+function searchGo(e) { e.preventDefault(); go('search', e.target.q.value.trim()); }
+async function pgSearch() {
+  const q = typeof S.param === 'string' ? S.param : '';
+  setView(`<h1>Search</h1><form class="card toolbar" onsubmit="searchGo(event)">
+    <label style="flex:1"><span>Room, guest name, reservation (communication) number, group, company, phone or email</span><input name="q" value="${esc(q)}" autofocus placeholder="Type at least 2 characters"></label>
+    <button class="btn" type="submit">Search</button></form><div id="srOut"></div>`);
+  if (q.trim().length < 2) { $('srOut').innerHTML = '<p class="muted">Type at least two characters and press Search.</p>'; return; }
+  const r = await api('globalSearch', q);
+  const sec = (title, head, rows) => rows.length ? `<div class="card"><h3>${title} <span class="muted">${rows.length}</span></h3>${table(head, rows)}</div>` : '';
+  const html = sec('Reservations', ['Res #', 'Guest', 'Room', 'Arrival', 'Departure', 'Status', 'Group', 'Company'],
+      r.reservations.map(x => tr([lnk(x.resNo), esc(x.guestName), esc(x.roomNo), esc(x.arrival), esc(x.departure), pill(x.status), x.groupId ? lnkTo('group', x.groupId, x.groupId) : '', esc(x.company)]))) +
+    sec('Rooms', ['Room', 'Type', 'Status', ''], r.rooms.map(x => tr([esc(x.roomNo), esc(x.type), esc(x.status), `<button class="btn sm" onclick="go('billing','${esc(x.roomNo)}')">Billing</button>`]))) +
+    sec('Groups', ['Group', 'Name', 'Arrival', 'Departure', 'Status'], r.groups.map(g => tr([lnkTo('group', g.id, g.id), esc(g.name), esc(g.arrival), esc(g.departure), pill(g.status)]))) +
+    sec('Companies', ['Code', 'Name', 'Active'], r.companies.map(a => tr([esc(a.code), esc(a.name), a.active ? 'Yes' : 'No']))) +
+    sec('Guests', ['Guest', 'Phone', 'Email', 'Nationality', ''], r.guests.map(g => tr([esc(g.name) + (g.vip ? ' <span class="pill">VIP</span>' : ''), esc(g.phone), esc(g.email), esc(g.nationality), `<button class="btn sm" onclick="guestHistoryModal('${esc(g.id)}')">History</button>`])));
+  $('srOut').innerHTML = html || `<div class="card"><p class="muted">Nothing found for “${esc(q)}”.</p></div>`;
+}
+/* Guest history: every stay of this guest, opened from a reservation or from search. */
+async function guestHistoryModal(guestId) {
+  const h = await api('guestHistory', guestId);
+  openModal('Guest history · ' + h.guest.name, `<p class="muted">${h.guest.vip ? '<span class="pill">VIP</span> ' : ''}${esc(h.guest.phone)} ${esc(h.guest.email)} · ${h.stays.length} stay(s), ${h.nights} night(s)</p>` +
+    table(['Res #', 'Arrival', 'Departure', 'Room', 'Status', 'Company', 'Balance'], h.stays.map(s => tr([lnk(s.resNo), esc(s.arrival), esc(s.departure), esc(s.roomNo), pill(s.status), esc(s.company), balCell(s.balance)]))));
+}
+
+/* ---------- Billing: every room has its own billing screen ---------- */
+let BILL = [];
+async function pgBilling() {
+  if (S.param) return pgBillingRoom(String(S.param));
+  BILL = await api('billingRooms');
+  const total = BILL.reduce((a, r) => a + r.balance, 0);
+  setView(`<h1>Billing <small>every room, with its own folios</small></h1>
+    <div class="kpis"><div class="kpi"><span>Occupied rooms</span><b>${BILL.filter(r => r.stay === 'In-House').length}</b></div><div class="kpi"><span>Outstanding balance</span><b>${num(total)}</b></div></div>
+    <div class="card"><div class="toolbar"><label><span>Filter</span><input placeholder="Room, guest, res #" oninput="billingFilter(this.value)"></label></div>
+    <div id="bTable">${billingTable_(BILL)}</div></div>`);
+}
+function billingTable_(rooms) {
+  return table(['Room', 'Type', 'Room', 'Guest', 'Stay', 'Res #', 'Balance', ''], rooms.map(r => tr([esc(r.roomNo), esc(r.type), pill(r.status === 'Active' ? 'Active' : 'Out'), esc(r.guest),
+    r.stay ? pill(r.stay) : '<span class="muted">Vacant</span>', r.resNo ? lnk(r.resNo) : '', r.resNo ? balCell(r.balance) : '',
+    `<button class="btn sm" onclick="go('billing','${esc(r.roomNo)}')">Open billing</button>`])));
+}
+function billingFilter(q) {
+  const t = String(q || '').trim().toLowerCase();
+  $('bTable').innerHTML = billingTable_(BILL.filter(r => JSON.stringify(r).toLowerCase().indexOf(t) >= 0));
+}
+async function pgBillingRoom(roomNo) {
+  const d = await api('billingRoom', roomNo);
+  const head = `<h1>Room ${esc(roomNo)} <small>billing</small></h1><p><button class="btn ghost sm" onclick="go('billing')">&larr; All rooms</button></p>`;
+  if (!d.res) { setView(head + `<div class="card"><p>Room ${esc(roomNo)} has no in-house or reserved stay. Check the guest in from the front desk first.</p></div>`); return; }
+  const r = d.res.res, folios = d.res.folios || [];
+  const folioHtml = folios.map(f => {
+    const rows = f.postings.map(p => tr([esc(p.bizDate), esc(p.code), p.voided ? '<s>' + esc(p.description) + '</s> <span class="pill">void</span>' : esc(p.description), num(p.amount),
+      (!p.voided && Number(p.amount) < 0 && can('folio.refund') ? `<button class="btn sm ghost" onclick="refundModal('${esc(p.id)}')">Refund</button>` : '') + (!p.voided && can('folio.void') ? `<button class="btn sm ghost" onclick="voidModal('${esc(p.id)}')">Void</button>` : ''),
+      !p.voided && can('folio.transfer') ? `<button class="btn sm ghost" onclick="transferModal('${esc(p.id)}')">Move</button>` : ''], p.voided ? 'muted' : ''));
+    const acts = d.canPost && f.status === 'Open' ? `<div class="acts"><button class="btn sm" onclick="chargeModal('${esc(f.id)}')">Charge</button>
+      <button class="btn sm ok" onclick="billPayModal('${esc(f.id)}')">Payment</button><button class="btn sm" onclick="billPackageModal('${esc(r.resNo)}','${esc(f.id)}')">Package</button></div>` : '';
+    return `<div class="card"><div class="head-row"><h3>Folio ${f.folioNo} · ${esc(f.name)} ${pill(f.status)}</h3><div>${acts}</div></div>` +
+      table(['Date', 'Code', 'Description', 'Amount', '', ''], rows) + `<p><b>Folio balance:</b> ${balCell(f.balance)}</p></div>`;
+  }).join('');
+  setView(`${head}<div class="card"><div class="head-row"><div><h2>${esc(d.res.guestName)}</h2>
+    <p class="muted">${lnk(r.resNo)} · ${pill(r.status)} · ${esc(r.arrival)} to ${esc(r.departure)} · ${esc(r.roomType)}${r.company ? ' · ' + esc(r.company) : ''}</p></div>
+    <div class="acts"><button class="btn ghost" onclick="guestHistoryModal('${esc(r.guestId)}')">Guest history</button>
+    <button class="btn ghost" onclick="go('res','${esc(r.resNo)}')">Open reservation</button>
+    ${d.canPost ? `<button class="btn ghost" onclick="addFolioModal('${esc(r.resNo)}')">+ Folio</button>` : ''}</div></div>
+    <p>Stay balance: ${balCell(d.res.balance)}</p></div>${folioHtml || '<div class="card"><p class="muted">No folios yet.</p></div>'}`);
+}
+async function billPackageModal(resNo, folioId) {
+  const pk = (await api('listPackages')).filter(p => p.active);
+  if (!pk.length) { toast('No packages yet. Create them in Administration → Packages.', true); return; }
+  openModal('Post package', formHtml('fPk', [
+    { name: 'code', label: 'Package', type: 'select', wide: true, options: pk.map(p => [p.code, p.name + ' · ' + num(p.amount) + (p.perNight ? ' per night' : '')]) }
+  ], 'Post package'));
+  bindForm('fPk', async d => {
+    const r = await api('postPackage', resNo, d.code, folioId || '');
+    toast('Package posted: ' + num(r.total) + ' (' + r.nights + ' night' + (r.nights === 1 ? '' : 's') + ')');
+    closeModal(); refresh();
+  });
+}
+async function packageModal(code) {
+  const [pk, cc] = await Promise.all([api('listPackages'), api('listChargeCodes')]);
+  const p = pk.find(x => x.code === code) || {};
+  const charges = cc.filter(c => c.type === 'Charge' && c.active);
+  openModal(code ? 'Edit package' : 'New package', formHtml('fPkg', [
+    { name: 'code', label: 'Code', required: true, value: p.code || '' },
+    { name: 'name', label: 'Name', required: true, value: p.name || '' },
+    { name: 'chargeCode', label: 'Charge code', type: 'select', options: charges.map(c => [c.code, c.code + ' · ' + c.description]), value: p.chargeCode || '' },
+    { name: 'amount', label: 'Amount', type: 'number', step: '0.01', min: 0, required: true, value: p.amount != null ? p.amount : '' },
+    { name: 'perNight', label: 'Charge per night', type: 'check', value: !!p.perNight },
+    { name: 'active', label: 'Active', type: 'check', value: code ? !!p.active : true },
+    { name: 'description', label: 'Description', type: 'textarea', wide: true, value: p.description || '' }
+  ], 'Save package'));
+  bindForm('fPkg', async d => {
+    await api('savePackage', { code: d.code, name: d.name, chargeCode: d.chargeCode, amount: Number(d.amount) || 0, perNight: d.perNight === 'true', active: d.active === 'true', description: d.description });
+    toast('Package saved'); closeModal(); refresh();
+  });
+}
+async function integTest(channel) {
+  try { await api('integrationTest', channel); toast('Connected. Reply received.'); }
+  catch (e) { toast(e.message, true); }
+}
+
+/* ---------- Guest lists: in-house, arrivals, departures ---------- */
+let LISTS = [];
+async function pgLists() {
+  const tab = ['inHouse', 'arrivals', 'departures'].indexOf(S.param) >= 0 ? S.param : 'inHouse';
+  const d = await api('frontLists');
+  const L = { inHouse: ['In-house guests', d.inHouse], arrivals: ['Arrivals', d.arrivals], departures: ['Departures', d.departures] };
+  LISTS = L[tab][1];
+  setView(`<h1>Guest lists <small>${esc(d.bizDate)}</small></h1>
+    <div class="tabs">${Object.keys(L).map(k => `<button class="btn ghost${k === tab ? ' on' : ''}" onclick="go('lists','${k}')">${L[k][0]} <b>${L[k][1].length}</b></button>`).join('')}</div>
+    <div class="card"><div class="toolbar"><label><span>Filter</span><input oninput="listsFilter(this.value)" placeholder="Room, guest, res #, company"></label></div>
+    <div id="lTable">${listsTable_(LISTS)}</div></div>`);
+}
+function listsTable_(rows) {
+  return table(['Room', 'Guest', 'Res #', 'Stay', 'Arrival', 'Departure', 'Company', 'Balance', ''], rows.map(r => tr([esc(r.roomNo), esc(r.guestName) + (r.vip ? ' <span class="pill">VIP</span>' : ''),
+    lnk(r.resNo), pill(r.status), esc(r.arrival), esc(r.departure), esc(r.company), balCell(r.balance), `<button class="btn sm" onclick="go('billing','${esc(r.roomNo)}')">Billing</button>`])));
+}
+function listsFilter(q) { const t = String(q || '').trim().toLowerCase(); $('lTable').innerHTML = listsTable_(LISTS.filter(r => JSON.stringify(r).toLowerCase().indexOf(t) >= 0)); }
+
+/* ---------- Payments and refunds from a room's billing screen ---------- */
+async function billPayModal(folioId) {
+  const [ms, accs] = await Promise.all([api('listPaymentMethods'), api('listAccounts').catch(() => [])]);
+  openModal('Take payment', formHtml('fPm', [
+    { name: 'method', label: 'Payment method', type: 'select', wide: true, options: ms.filter(m => m.active).map(m => [m.code, m.name + ' · ' + m.kind]) },
+    { name: 'amount', label: 'Amount', type: 'number', step: '0.01', min: 0.01, required: true },
+    { name: 'account', label: 'Company account (city ledger only)', type: 'select', wide: true, options: [['', '— choose —']].concat(accs.filter(a => a.active).map(a => [a.id, a.code + ' · ' + a.name])) }
+  ], 'Post payment'));
+  bindForm('fPm', async d => {
+    const r = await api('paymentByMethod', folioId, d.method, Number(d.amount) || 0, d.account || '');
+    toast(r && r.billedTo ? 'Folio billed to the company account' : 'Payment posted');
+    closeModal(); refresh();
+  });
+}
+function refundModal(postingId) {
+  openModal('Refund payment', formHtml('fRf', [
+    { name: 'amount', label: 'Amount to refund', type: 'number', step: '0.01', min: 0.01, required: true },
+    { name: 'reason', label: 'Reason', type: 'textarea', required: true, wide: true }
+  ], 'Refund'));
+  bindForm('fRf', async d => {
+    const r = await api('refundPayment', postingId, Number(d.amount) || 0, d.reason);
+    toast('Refunded. Total refunded: ' + num(r.refunded)); closeModal(); refresh();
+  });
+}
+async function paymentMethodModal(code) {
+  const [ms, cc] = await Promise.all([api('listPaymentMethods'), api('listChargeCodes')]);
+  const accs = await api('listAccounts').catch(() => []);
+  const m = ms.find(x => x.code === code) || {};
+  const pay = cc.filter(c => c.type === 'Payment' && c.active);
+  openModal(code ? 'Edit payment method' : 'New payment method', formHtml('fPmt', [
+    { name: 'code', label: 'Code', required: true, value: m.code || '' },
+    { name: 'name', label: 'Name', required: true, value: m.name || '' },
+    { name: 'kind', label: 'Kind', type: 'select', value: m.kind || 'Cash', options: ['Cash', 'Card', 'Bank transfer', 'Cheque', 'City ledger', 'Other'] },
+    { name: 'chargeCode', label: 'Posts with payment code (not used for city ledger)', type: 'select', wide: true, value: m.chargeCode || '', options: [['', '— choose —']].concat(pay.map(c => [c.code, c.code + ' · ' + c.description])) },
+    { name: 'accountId', label: 'Linked company account (city ledger, optional)', type: 'select', wide: true, value: m.accountId || '', options: [['', '— choose at posting —']].concat(accs.filter(a => a.active).map(a => [a.id, a.code + ' · ' + a.name])) },
+    { name: 'active', label: 'Active', type: 'check', value: code ? !!m.active : true }
+  ], 'Save method'));
+  bindForm('fPmt', async d => {
+    await api('savePaymentMethod', { code: d.code, name: d.name, kind: d.kind, chargeCode: d.chargeCode, accountId: d.accountId, active: d.active === 'true' });
+    toast('Payment method saved'); closeModal(); refresh();
+  });
+}
+
 /* ---------- Avatar menu and password dialog ---------- */
 function initials_(n) { return String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('') || '?'; }
-function toggleUserMenu(e) { e.stopPropagation(); $('userMenu').classList.toggle('open'); }
-function closeUserMenu() { const m = document.getElementById('userMenu'); if (m) m.classList.remove('open'); }
+function toggleUserMenu(e, id) {
+  e.stopPropagation();
+  document.querySelectorAll('.user-menu.open').forEach(m => { if (m.id !== id) m.classList.remove('open'); });
+  const m = document.getElementById(id); if (m) m.classList.toggle('open');
+}
+function closeUserMenu() { document.querySelectorAll('.user-menu.open').forEach(m => m.classList.remove('open')); }
 document.addEventListener('click', e => { if (!e.target.closest('.avatar-wrap')) closeUserMenu(); });
+function avatarHtml_(where) {
+  const who = S.user || {};
+  const menuId = where === 'top' ? 'userMenuTop' : 'userMenuSide';
+  return `<button class="avatar" onclick="toggleUserMenu(event,'${menuId}')" title="${esc(who.name || '')}" aria-label="Account menu">${esc(initials_(who.name || who.username))}</button>` +
+    `<div class="user-menu ${where}" id="${menuId}"><div class="um-head"><b>${esc(who.name || '')}</b><span>${esc(who.role || '')}</span></div>` +
+    `<button onclick="closeUserMenu();pwModal()">Change password</button><button onclick="logout()">Sign out</button></div>`;
+}
 function pwModal() {
   openModal('Change password', `<form id="fPwM" class="fgrid">
     ${pwField('oldPw', 'Current password', 'current-password', false)}
@@ -199,8 +385,10 @@ function toggleSidebar() {
 const NAV = [
   { h: 'Front office' },
   { k: 'dashboard', l: 'Dashboard', p: ['dashboard.view'] },
+  { k: 'search', l: 'Search', p: ['reservations.view'] },
   { k: 'frontdesk', l: 'Front desk', p: ['frontdesk.checkin', 'frontdesk.checkout'] },
   { k: 'rack', l: 'Room rack', p: ['rack.view'] },
+  { k: 'lists', l: 'Guest lists', p: ['reservations.view'] },
   { k: 'reservations', l: 'Reservations', p: ['reservations.view'] },
   { k: 'newres', l: 'New reservation', p: ['reservations.create'] },
   { k: 'guests', l: 'Guests', p: ['guests.view'] },
@@ -208,6 +396,7 @@ const NAV = [
   { h: 'Operations' },
   { k: 'housekeeping', l: 'Housekeeping', p: ['rooms.view'] },
   { k: 'cashier', l: 'Cashier', p: ['folio.view'] },
+  { k: 'billing', l: 'Billing (rooms)', p: ['folio.view'] },
   { k: 'shifts', l: 'Cashier shifts', p: ['shifts.manage', 'shifts.view'] },
   { k: 'accounts', l: 'City ledger', p: ['accounts.view'] },
   { k: 'nightaudit', l: 'Night audit', p: ['nightaudit.run'] },
@@ -244,7 +433,7 @@ const PAGES = {
   dashboard: pgDashboard, frontdesk: pgFrontDesk, rack: pgRack, reservations: pgReservations, res: pgRes,
   newres: pgNewRes, guests: pgGuests, guest: pgGuest, groups: pgGroups, group: pgGroup,
   housekeeping: pgHousekeeping, cashier: pgCashier, nightaudit: pgNightAudit, rates: pgRates,
-  reports: pgReports, log: pgLog, admin: pgAdmin, password: pgPassword,
+  reports: pgReports, log: pgLog, admin: pgAdmin, password: pgPassword, search: pgSearch, billing: pgBilling, lists: pgLists,
   accounts: pgAccounts, account: pgAccount, shifts: pgShifts
 };
 /* ---------- Routing: every page has its own address (#/reservations, #/res?"RES1") ---------- */
@@ -271,7 +460,7 @@ function renderPage_(page, param) {
   document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('on', a.dataset.p === page));
   const label = (NAV.find(n => n.k === page) || {}).l || 'Change password';
   document.title = label + ' · ' + ((S.settings && S.settings.appName) || 'Stayline');
-  setView('<div class="loading">Loading…</div>');
+  setView(skeleton_());
   PAGES[page]().catch(e => setView(`<div class="card err">${esc(e.message)}</div>`));
 }
 window.addEventListener('hashchange', () => {
@@ -417,6 +606,7 @@ async function pgRes() {
   RES = d;
   const r = d.res, st = r.status;
   const btn = [];
+  btn.push(`<button class="btn ghost" onclick="guestHistoryModal('${esc(r.guestId)}')">Guest history</button>`);
   if (st === 'Reserved' && can('frontdesk.checkin')) btn.push(`<button class="btn ok" onclick="ciModal('${esc(r.resNo)}')">Check in</button>`);
   if (st === 'In-House' && can('frontdesk.checkout')) btn.push(`<button class="btn ok" onclick="coAct('${esc(r.resNo)}')">Check out</button>`);
   if (st === 'Reserved' && can('reservations.modify')) btn.push(`<button class="btn ghost" onclick="modifyModal('${esc(r.resNo)}')">Modify</button>`);
@@ -965,7 +1155,7 @@ async function pgLog() {
 /* ============================================================
  * ADMINISTRATION
  * ============================================================ */
-const ADM_TABS = [['users', 'Users', 'users.manage'], ['settings', 'Hotel settings', 'settings.manage'], ['types', 'Room types', 'rooms.manage'], ['rooms', 'Rooms', 'rooms.manage'], ['roles', 'Roles & permissions', 'system.manage'], ['system', 'System', 'system.manage']];
+const ADM_TABS = [['users', 'Users', 'users.manage'], ['settings', 'Hotel settings', 'settings.manage'], ['types', 'Room types', 'rooms.manage'], ['rooms', 'Rooms', 'rooms.manage'], ['roles', 'Roles & permissions', 'system.manage'], ['system', 'System', 'system.manage'], ['packages', 'Packages', 'rates.manage'], ['payments', 'Payment methods', 'settings.manage']];
 async function pgAdmin() {
   const tabs = ADM_TABS.filter(t => can(t[2]));
   if (!tabs.find(t => t[0] === ADM)) ADM = tabs[0][0];
@@ -987,14 +1177,41 @@ async function pgAdmin() {
       { name: 'checkInTime', label: 'Check-in time', value: s.checkInTime },
       { name: 'checkOutTime', label: 'Check-out time', value: s.checkOutTime },
       { name: 'allowCheckoutWithBalance', label: 'Allow check-out with balance', type: 'select', options: ['false', 'true'], value: String(s.allowCheckoutWithBalance) },
-      { name: 'autoNoShowOnAudit', label: 'Auto no-show on night audit', type: 'select', options: ['true', 'false'], value: String(s.autoNoShowOnAudit) },
+      { name: 'autoNoShowOnAudit', label: 'Auto no-show on night audit', type: 'select', options: ['true', 'false'], value: String(s.autoNoShowOnAudit) }
+    ], 'Save settings', false) + `<p class="muted">Business date: <b>${esc(s.businessDate)}</b> (changes only through night audit).</p>`;
+  } else if (ADM === 'payments') {
+    const ms = await api('listPaymentMethods');
+    body = `<div class="head-row"><h3>Payment methods</h3><div class="acts"><button class="btn" onclick="paymentMethodModal()">+ Method</button></div></div>
+      <p class="muted">A payment method is how a guest pays: cash, card, bank, cheque, or city ledger (AR). Each one posts with a payment charge code. A city ledger method bills the folio to a company account.</p>` +
+      table(['Code', 'Name', 'Kind', 'Posts with', 'Company account', 'Active', ''], ms.map(m => tr([esc(m.code), esc(m.name), esc(m.kind), esc(m.chargeCode), esc(m.accountId), m.active ? 'Yes' : 'No', `<button class="btn sm ghost" onclick="paymentMethodModal('${esc(m.code)}')">Edit</button>`])));
+  } else if (ADM === 'packages') {
+    const pk = await api('listPackages');
+    body = `<div class="head-row"><h3>Packages</h3><div class="acts"><button class="btn" onclick="packageModal()">+ Package</button></div></div>
+      <p class="muted">A package is a fixed price posted to a charge code, once per stay or once per night. Staff post packages from the room's billing screen.</p>` +
+      table(['Code', 'Name', 'Charge code', 'Amount', 'Per night', 'Active', ''], pk.map(p => tr([esc(p.code), esc(p.name), esc(p.chargeCode), num(p.amount), p.perNight ? 'Yes' : 'No', p.active ? 'Yes' : 'No', `<button class="btn sm ghost" onclick="packageModal('${esc(p.code)}')">Edit</button>`])));
+  } else if (ADM === 'system') {
+    const s = await api('getSettings');
+    const opt = (v, l) => [v, l];
+    body = `<h3>System settings</h3><p class="muted">Only system administrators see this tab. These settings apply to the whole app.</p>` + formHtml('fSys', [
+      { name: 'defaultLanguage', label: 'Default language', type: 'select', options: [opt('en', 'English (left to right)'), opt('ar', 'Arabic (right to left layout)')], value: s.defaultLanguage },
+      { name: 'defaultCurrency', label: 'Default currency code (used when the hotel has none)', value: s.defaultCurrency },
+      { name: 'auditorEmail', label: 'Auditor email (night audit and AR reports)', value: s.auditorEmail, wide: true },
+      { name: 'auditorAutoSend', label: 'Email the auditor after each night audit', type: 'select', options: ['false', 'true'], value: String(s.auditorAutoSend) },
+      { name: 'appUrl', label: 'App link (sent to new users)', value: s.appUrl, wide: true },
+      { name: 'welcomeSubject', label: 'Welcome email: subject', value: s.welcomeSubject, wide: true },
+      { name: 'welcomeBody', label: 'Welcome email: message', type: 'textarea', value: s.welcomeBody, wide: true },
       { name: 'otpSubject', label: 'Reset code email: subject', value: s.otpSubject, wide: true },
       { name: 'otpBody', label: 'Reset code email: message', type: 'textarea', value: s.otpBody, wide: true },
       { name: 'doneSubject', label: 'Password changed email: subject', value: s.doneSubject, wide: true },
-      { name: 'doneBody', label: 'Password changed email: message', type: 'textarea', value: s.doneBody, wide: true }
-    ], 'Save settings', false) + `<p class="muted">Business date: <b>${esc(s.businessDate)}</b> (changes only through night audit).</p>
-    <p class="muted">Email placeholders: <code>{{name}}</code> <code>{{code}}</code> <code>{{minutes}}</code> <code>{{appName}}</code> <code>{{hotelName}}</code>. Keep the code line as plain text (for example “Your verification code is {{code}}”) so mail apps such as Gmail can offer to copy it.</p>
-    <div class="acts"><button class="btn ghost" type="button" onclick="testEmail()">Send both emails to me as a test</button></div>`;
+      { name: 'doneBody', label: 'Password changed email: message', type: 'textarea', value: s.doneBody, wide: true },
+      { name: 'intPosUrl', label: 'POS address (https)', value: s.intPosUrl, wide: true },
+      { name: 'intTvUrl', label: 'Television address (https)', value: s.intTvUrl, wide: true },
+      { name: 'intPhoneUrl', label: 'Telephone address (https)', value: s.intPhoneUrl, wide: true },
+      { name: 'intCardUrl', label: 'Card terminal address (https)', value: s.intCardUrl, wide: true }
+    ], 'Save system settings', false) + `<p class="muted">Email placeholders: <code>{{name}}</code> <code>{{username}}</code> <code>{{tempPassword}}</code> <code>{{role}}</code> <code>{{appUrl}}</code> <code>{{code}}</code> <code>{{minutes}}</code> <code>{{appName}}</code> <code>{{hotelName}}</code>. Keep the reset code on its own line, for example “Your verification code is {{code}}”, so Gmail can offer to copy it.</p>
+    <div class="acts"><button class="btn ghost" type="button" onclick="testEmail()">Send the reset and password emails to me as a test</button></div>
+    <h3>Integrations</h3><p class="muted">Each system receives JSON posts with the header X-Stayline-Key, whose value is the INTEGRATION_KEY script property. Save an address, then test it. A system must answer with status 200.</p>
+    <div class="acts"><button class="btn ghost" type="button" onclick="integTest('pos')">Test POS</button><button class="btn ghost" type="button" onclick="integTest('tv')">Test television</button><button class="btn ghost" type="button" onclick="integTest('phone')">Test telephone</button><button class="btn ghost" type="button" onclick="integTest('card')">Test card terminal</button></div>`;
   } else if (ADM === 'types') {
     const ts = await api('listRoomTypes');
     body = `<div class="head-row"><h3>Room types</h3><div class="acts"><button class="btn" onclick="typeModal()">+ Room type</button></div></div>` +
@@ -1013,15 +1230,17 @@ async function pgAdmin() {
   setView(`<h1>Administration</h1>${bar}<div class="card">${body}</div>`);
   if (ADM === 'settings') bindForm('fSt', async d => {
     const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, hotelAddress: d.hotelAddress, logoUrl: d.logoUrl, currency: d.currency,
-      taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit,
-      otpSubject: d.otpSubject, otpBody: d.otpBody, doneSubject: d.doneSubject, doneBody: d.doneBody });
+      taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit });
     S.settings = Object.assign({}, S.settings, { appName: out.appName, hotelName: out.hotelName, logoUrl: out.logoUrl, currency: out.currency });
     brand(); toast('Settings saved');
   });
   if (ADM === 'system') bindForm('fSys', async d => {
     await api('saveSettings', { appUrl: d.appUrl, welcomeSubject: d.welcomeSubject, welcomeBody: d.welcomeBody, otpSubject: d.otpSubject,
-      otpBody: d.otpBody, doneSubject: d.doneSubject, doneBody: d.doneBody });
+      otpBody: d.otpBody, doneSubject: d.doneSubject, doneBody: d.doneBody, intPosUrl: d.intPosUrl, intTvUrl: d.intTvUrl,
+      intPhoneUrl: d.intPhoneUrl, intCardUrl: d.intCardUrl, defaultLanguage: d.defaultLanguage, defaultCurrency: d.defaultCurrency,
+      auditorEmail: d.auditorEmail, auditorAutoSend: d.auditorAutoSend });
     toast('System settings saved');
+    if (d.defaultLanguage) applyLanguage_(d.defaultLanguage);
   });
 }
 async function testEmail() {
@@ -1410,10 +1629,13 @@ function hideSplash() {
 }
 
 (async function boot() {
+  const pg = document.createElement('div'); pg.id = 'progress'; document.body.appendChild(pg);
+  const sp = document.getElementById('splash'); if (sp) sp.classList.add('theme-' + (1 + Math.floor(Math.random() * 4)));
   try { if (localStorage.getItem('st_sb') === '0') document.body.classList.add('sb-collapsed'); } catch (e) { /* ignore */ }
   try { S.settings = await rpc('getPublicSettings'); }
   catch (e) { S.settings = { appName: 'Stayline', hotelName: '', currency: '' }; splashMsg('Database not set up yet. Use Stayline → Set up database.'); }
   brand();
+  applyLanguage_((S.settings && S.settings.defaultLanguage) || 'en');
   const saved = loadSession();
   if (saved && saved.token) {
     splashMsg('Welcome back…');

@@ -30,6 +30,8 @@ const TBL = {
   SHIFTS:    ['Shifts', ['id','user','openedAt','closedAt','openingFloat','expectedCash','countedCash','variance','status','notes']],
   POSTINGS:  ['Postings', ['id','folioId','resNo','roomNo','bizDate','code','description','amount','parentId','voided','voidReason','postedBy','createdAt']],
   BIZDATES:  ['BusinessDates', ['date','status','openedAt','closedAt','closedBy','roomsPosted','noShows']],
+  PAYMETHODS: ['PaymentMethods', ['code','name','kind','chargeCode','accountId','active']],
+  PACKAGES:  ['Packages', ['code','name','description','chargeCode','amount','perNight','active']],
   AUDIT:     ['AuditLog', ['time','user','action','entity','entityId','details']]
 };
 
@@ -67,10 +69,11 @@ const PERMISSIONS = [
   ['shifts.view',           'View all cashier shifts & variances',       true,  true,  false, false, false, false, true ],
   ['shifts.manage',         'Open / close own cashier shift',            true,  true,  true,  true,  false, false, false],
   ['system.manage',         'System administration: roles, email templates, app link', true,  false, false, false, false, false, false],
+  ['folio.refund',          'Refund a payment',                          true,  true,  false, false, false, false, false],
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.2';
+const APP_VERSION = '1.2.3';
 const SETTINGS_DEFAULT = {
   appName: 'Stayline',
   hotelName: 'Stayline Hotel',
@@ -83,6 +86,11 @@ const SETTINGS_DEFAULT = {
   businessDate: '',                    // set by setupDatabase(); advanced by night audit
   allowCheckoutWithBalance: 'false',   // checkout blocked while folios have a balance
   autoNoShowOnAudit: 'true',           // night audit marks un-arrived reservations as No-Show
+  defaultLanguage: 'en',               // en or ar (layout direction)
+  defaultCurrency: 'QAR',              // used when the hotel has no currency
+  auditorEmail: '',                    // receives the night audit and AR reports
+  auditorAutoSend: 'false',            // email the auditor after each night audit
+  intPosUrl: '', intTvUrl: '', intPhoneUrl: '', intCardUrl: '',   // integration addresses (system admin)
   appUrl: '',                          // link to the app, sent to new users (system admin)
   // Emails. Placeholders: {{name}} {{code}} {{minutes}} {{appName}} {{hotelName}} {{username}} {{tempPassword}} {{role}} {{appUrl}}
   otpSubject: 'Your verification code for {{appName}}',
@@ -93,7 +101,7 @@ const SETTINGS_DEFAULT = {
   welcomeBody: 'Hello {{name}},\n\nAn account has been created for you at {{hotelName}}.\n\nApp link: {{appUrl}}\nUsername: {{username}}\nTemporary password: {{tempPassword}}\nRole: {{role}}\n\nYou will be asked to choose a new password the first time you sign in.'
 };
 /** Settings only the system administrator can change (email templates and the app link). */
-const SYSTEM_SETTINGS = ['appUrl', 'welcomeSubject', 'welcomeBody', 'otpSubject', 'otpBody', 'doneSubject', 'doneBody'];
+const SYSTEM_SETTINGS = ['defaultLanguage', 'defaultCurrency', 'auditorEmail', 'auditorAutoSend', 'intPosUrl', 'intTvUrl', 'intPhoneUrl', 'intCardUrl', 'appUrl', 'welcomeSubject', 'welcomeBody', 'otpSubject', 'otpBody', 'doneSubject', 'doneBody'];
 
 const CHARGE_CODES_DEFAULT = [
   // [code, description, department, type, taxable]

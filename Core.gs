@@ -99,7 +99,7 @@ function permMap_(role) {
 }
 function publicSettings_() {
   const s = settings_();
-  return { appName: s.appName, hotelName: s.hotelName, logoUrl: s.logoUrl, currency: s.currency };
+  return { appName: s.appName, hotelName: s.hotelName, logoUrl: s.logoUrl, currency: s.currency || s.defaultCurrency, defaultLanguage: s.defaultLanguage };
 }
 function getPublicSettings() { return publicSettings_(); }
 

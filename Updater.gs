@@ -160,6 +160,7 @@ function updateFromGitHub(auto) {
 function doPost(e) {
   const out = (msg) => ContentService.createTextOutput(msg).setMimeType(ContentService.MimeType.TEXT);
   const props = PropertiesService.getScriptProperties();
+  if (e && e.parameter && e.parameter.integration === 'pos') return posInbound_(e, out);
   const key = props.getProperty('WEBHOOK_KEY');
   if (!key || !e || !e.parameter || e.parameter.key !== key) return out('Forbidden');
   let body = {};
@@ -186,4 +187,19 @@ function compareVersions_(a, b) {
     if (d) return d;
   }
   return 0;
+}
+
+/** POS sends a charge: POST ?integration=pos with header X-Stayline-Key, body {roomNo, code, amount, description}. */
+function posInbound_(e, out) {
+  const key = PropertiesService.getScriptProperties().getProperty('INTEGRATION_KEY');
+  const sent = (e.parameter && e.parameter.key) || '';
+  if (!key || sent !== key) return out('Forbidden');
+  let b = {};
+  try { b = JSON.parse((e.postData && e.postData.contents) || '{}'); } catch (x) { return out('Bad request'); }
+  try {
+    const r = postPosCharge_(b.roomNo, b.code, b.description, b.amount);
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, resNo: r.resNo, folioNo: r.folioNo })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.message })).setMimeType(ContentService.MimeType.JSON);
+  }
 }

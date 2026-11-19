@@ -1,6 +1,6 @@
 const fs = require('fs'), vm = require('vm'), crypto = require('crypto');
 const SRC = '../';
-const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','Recovery','Roles','Menu','Updater'];
+const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','Recovery','Roles','Billing','Menu','Updater'];
 const code = files.map(f => fs.readFileSync(SRC + f + '.gs', 'utf8')).join('\n;\n');
 
 // ---- in-memory Spreadsheet ----
@@ -198,10 +198,10 @@ if (require.main === module) {
   const rack = run("rackData(TOK, bizDate_(), 7)");
   ok(rack.rooms.length === 16 + 0 || rack.rooms.length > 10, 'rack returns ' + rack.rooms.length + ' rooms');
   // ---- advanced: migration, company accounts, guest alerts, shifts, late checkout, forecast, reports, housekeeping ----
-  ok(run('rows_(TBL.PERMS).length') === 32, 'permission matrix has 32 rows');
+  ok(run('rows_(TBL.PERMS).length') === 33, 'permission matrix has 33 rows');
   ok(run("rows_(TBL.CHARGES).some(c => c.code === 'LCO')"), 'late checkout charge code LCO present');
   run('migrateSchema_()'); run('migrateSchema_()');
-  ok(run('rows_(TBL.PERMS).length') === 32 && run("rows_(TBL.CHARGES).filter(c => c.code === 'LCO').length") === 1, 'migration is idempotent');
+  ok(run('rows_(TBL.PERMS).length') === 33 && run("rows_(TBL.CHARGES).filter(c => c.code === 'LCO').length") === 1, 'migration is idempotent');
   run("rows_(TBL.ROOMS).forEach(r => patch_(TBL.ROOMS, r._row, { housekeeping: 'Clean' }))");
 
   const acc = tryRun("saveAccount(TOK, { name: 'Acme Corp', code: 'ACME', creditLimit: 500 })");
@@ -306,5 +306,46 @@ if (require.main === module) {
   ok(!nu.e && nu.v.tempPassword.length >= 8, 'user without email: temporary password shown once to the admin');
   ok(run("runReport(TOK,'nightaudit','" + bd + "','" + bd + "').headers.length") === 9, 'night audit report has its columns');
   ok(run("runReport(TOK,'journal','" + bd + "','" + bd + "').rows.slice(-1)[0][0]") === 'TOTAL', 'journal ends with a total');
+  // billing hub, packages, search, guest history, integrations
+  const ihRes = run("(rows_(TBL.RES).find(r => r.status === 'In-House') || {}).resNo || ''");
+  ok(!!ihRes, 'an in-house stay exists for billing tests');
+  const ihGuest = run("(rows_(TBL.RES).find(r => r.resNo === '" + ihRes + "') || {}).guestId || ''");
+  const ihFolio = run("(rows_(TBL.FOLIOS).find(f => f.resNo === '" + ihRes + "' && f.status === 'Open') || {}).id || ''");
+  const ihRoom = run("(rows_(TBL.RES).find(r => r.resNo === '" + ihRes + "') || {}).roomNo || ''");
+  const ihName = run("(rows_(TBL.RES).find(r => r.resNo === '" + ihRes + "') || {}).guestName || ''");
+  const chg = run("rows_(TBL.CHARGES).find(c => c.type === 'Charge' && c.code !== 'TAX').code");
+  ok(!tryRun("savePackage(TOK, { code: 'BRK', name: 'Breakfast', chargeCode: '" + chg + "', amount: 50, perNight: true, active: true })").e, 'admin creates a per-night package');
+  ok(run("listPackages(TOK).some(p => p.code === 'BRK' && p.perNight)"), 'package is listed');
+  const pk = tryRun("postPackage(TOK, '" + ihRes + "', 'BRK')");
+  ok(!pk.e && pk.v.total === 50 * pk.v.nights && pk.v.nights >= 1, 'package posts amount times nights');
+  ok(!!tryRun("savePackage(TOK, { code: 'x', name: 'bad', chargeCode: 'NOPE', amount: 1 })").e, 'package needs a valid charge code');
+  const br = tryRun("billingRoom(TOK, '" + ihRoom + "')");
+  ok(!br.e && !!br.v.res && br.v.res.res.resNo === ihRes, 'billing screen shows the room stay');
+  ok(!br.e && br.v.charges.length > 0 && br.v.payments.length > 0 && br.v.packages.length > 0, 'billing offers charges, payments and packages');
+  ok(run("billingRooms(TOK).some(r => r.roomNo === '" + ihRoom + "' && r.stay === 'In-House')"), 'billing room list shows the occupied room');
+  ok(run("globalSearch(TOK, '" + ihRes + "').reservations.length") >= 1, 'search finds a reservation by its number');
+  ok(run("globalSearch(TOK, '" + ihRoom + "').rooms.length") >= 1 && run("globalSearch(TOK, '" + ihRoom + "').reservations.length") >= 1, 'search finds a room and its stay');
+  ok(run("globalSearch(TOK, '" + ihName.split(' ')[0].slice(0, 3) + "').guests.length") >= 1, 'search finds a guest by name');
+  ok(run("globalSearch(TOK, 'zzzz-no-match').reservations.length") === 0, 'search with no match returns nothing');
+  ok(run("guestHistory(TOK, '" + ihGuest + "').stays.length") >= 1, 'guest history lists the stays');
+  ok(!!tryRun("integrationTest(TOK, 'pos')").e, 'integration without an address reports not connected');
+  ok(!tryRun("postPosCharge_('" + ihRoom + "', '" + chg + "', 'Minibar', 20)").e, 'POS charge posts to the in-house room');
+  ok(!!tryRun("postPosCharge_('999', '" + chg + "', 'x', 20)").e, 'POS charge to an empty room is refused');
+  // payment methods, refunds, guest lists, auditor settings
+  const payCode = run("rows_(TBL.CHARGES).find(c => c.type === 'Payment' && c.active === true).code");
+  ok(!tryRun("savePaymentMethod(TOK, { code: 'CSH', name: 'Cash', kind: 'Cash', chargeCode: '" + payCode + "', active: true })").e, 'admin creates a cash payment method');
+  ok(!!tryRun("savePaymentMethod(TOK, { code: 'BAD', name: 'Bad', kind: 'Cash', chargeCode: 'ROOM', active: true })").e, 'payment method needs a payment charge code');
+  ok(!!tryRun("savePaymentMethod(CTOK, { code: 'CSH2', name: 'Cash', kind: 'Cash', chargeCode: '" + payCode + "', active: true })").e, 'cashier cannot create payment methods');
+  ok(run("listPaymentMethods(TOK).some(m => m.code === 'CSH')"), 'payment method is listed');
+  const payM = tryRun("paymentByMethod(TOK, '" + ihFolio + "', 'CSH', 40)");
+  ok(!payM.e, 'payment taken by method on the in-house folio');
+  const pid = run("(rows_(TBL.POSTINGS).filter(p => p.folioId === '" + ihFolio + "' && Number(p.amount) === -40 && p.voided !== true)[0] || {}).id || ''");
+  ok(!!pid, 'payment posting found');
+  ok(!tryRun("refundPayment(TOK, '" + pid + "', 15, 'guest changed mind')").e, 'partial refund of a payment');
+  ok(!!tryRun("refundPayment(TOK, '" + pid + "', 30, 'too much')").e, 'refund cannot exceed what is left');
+  ok(!!tryRun("refundPayment(CTOK, '" + pid + "', 5, 'x')").e, 'cashier cannot refund without permission');
+  ok(run("rows_(TBL.POSTINGS).filter(p => p.parentId === '" + pid + "').reduce((a, p) => a + Number(p.amount), 0)") === 15, 'refund is kept against the payment');
+  ok(run("frontLists(TOK).inHouse.length") >= 1 && run("Array.isArray(frontLists(TOK).arrivals) && Array.isArray(frontLists(TOK).departures)"), 'guest lists: in-house, arrivals and departures');
+  ok(run("publicSettings_().defaultLanguage") === 'en' && run("settings_().auditorAutoSend") === 'false', 'system defaults: language and auditor email are off');
   console.log('done');
 }
