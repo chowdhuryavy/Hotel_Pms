@@ -1,6 +1,6 @@
 const fs = require('fs'), vm = require('vm'), crypto = require('crypto');
 const SRC = '../';
-const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','FixedCharges','Documents','Backup','Recovery','Roles','Billing','Ledger','Admin','EodReports','FrontSearch','Menu','Updater'];
+const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','FixedCharges','Documents','Backup','Recovery','Roles','Billing','Ledger','Admin','EodReports','FrontSearch','Menu','Updater','Currency','GuestService','Minibar'];
 const code = files.map(f => fs.readFileSync(SRC + f + '.gs', 'utf8')).join('\n;\n');
 
 // ---- in-memory Spreadsheet ----
@@ -338,6 +338,19 @@ if (require.main === module) {
   const br = tryRun("billingRoom(TOK, '" + ihRoom + "')");
   ok(!br.e && !!br.v.res && br.v.res.res.resNo === ihRes, 'billing screen shows the room stay');
   ok(!br.e && br.v.charges.length > 0 && br.v.payments.length > 0 && br.v.packages.length > 0, 'billing offers charges, payments and packages');
+  // Multi-currency, minibar and guest service
+  ok(!!tryRun("saveCurrency(TOK, { code: 'QAR', name: 'Qatari Riyal', rate: 1 })").e, 'base currency cannot be given a rate');
+  ok(!tryRun("saveCurrency(TOK, { code: 'usd', name: 'US Dollar', rate: 3.64, active: true })").e, 'admin saves a foreign currency');
+  const fx = tryRun("postPaymentFx(TOK, '" + ihFolio + "', 'CASH', 'USD', 100, 'fxrid1')");
+  ok(!fx.e, 'payment in a foreign currency posts: ' + (fx.e || ''));
+  ok(run("(rows_(TBL.POSTINGS).find(p => String(p.description).indexOf('USD 100.00 at 3.64') >= 0) || {}).id || ''") !== '', 'the foreign payment records its amount and rate');
+  ok(!tryRun("saveMinibarItem(TOK, { code: 'WTR', name: 'Water', price: 10, chargeCode: '" + chg + "', active: true })").e, 'admin saves a minibar item');
+  const mb = tryRun("postMinibar(TOK, '" + ihRes + "', '" + ihFolio + "', 'WTR', 2, 'mbrid1')");
+  ok(!mb.e && mb.v.total === 20, 'minibar posts price times quantity');
+  const sr = tryRun("createServiceRequest(TOK, { roomNo: '" + ihRoom + "', category: 'Housekeeping', description: 'Extra towels', priority: 'Normal' }, 'srrid1')");
+  ok(!sr.e && !!sr.v.id, 'guest service request is created');
+  ok(!tryRun("updateServiceRequest(TOK, '" + (sr.v ? sr.v.id : '') + "', 'Done', '')").e, 'guest service request is marked done');
+  ok(!!tryRun("updateServiceRequest(TOK, '" + (sr.v ? sr.v.id : '') + "', 'Open', '')").e, 'a finished request cannot be reopened');
   ok(run("billingRooms(TOK).some(r => r.roomNo === '" + ihRoom + "' && r.stay === 'In-House')"), 'billing room list shows the occupied room');
   ok(run("globalSearch(TOK, '" + ihRes + "').reservations.length") >= 1, 'search finds a reservation by its number');
   ok(run("globalSearch(TOK, '" + ihRoom + "').rooms.length") >= 1 && run("globalSearch(TOK, '" + ihRoom + "').reservations.length") >= 1, 'search finds a room and its stay');

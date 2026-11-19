@@ -38,7 +38,10 @@ const TBL = {
   ARAGING:   ['ARAging', ['bizDate','code','name','current','d31','d61','d90','total','snapshotAt']],
   NIGHTRPT:  ['NightReports', ['bizDate','type','part','data','generatedAt','generatedBy']],
   FIXEDRULES: ['FixedRules', ['id','scope','target','code','description','amount','frequency','startDate','endDate','active','lastPostedOn','createdBy','createdAt']],
-  ROOMCHG:   ['RoomCharges', ['id','roomNo','bizDate','code','description','amount','ruleId','roomStatus','postedBy','createdAt']]
+  ROOMCHG:   ['RoomCharges', ['id','roomNo','bizDate','code','description','amount','ruleId','roomStatus','postedBy','createdAt']],
+  CURRENCIES: ['Currencies', ['code','name','rate','active','updatedAt']],
+  SVCREQ:    ['ServiceRequests', ['id','resNo','roomNo','guestName','category','description','priority','status','assignedTo','createdAt','createdBy','updatedAt','doneAt']],
+  MINIBAR:   ['MinibarItems', ['code','name','price','chargeCode','active']]
 };
 
 /** [permission, description, Admin, Manager, FrontDesk, Cashier, Housekeeping, Sales, Accountant] */
@@ -80,11 +83,13 @@ const PERMISSIONS = [
   ['shifts.manage',         'Open / close own cashier shift',            true,  true,  true,  true,  false, false, false],
   ['system.manage',         'System administration: roles, email templates, app link', true,  false, false, false, false, false, false],
   ['folio.refund',          'Refund a payment',                          true,  true,  false, false, false, false, false],
+  ['service.view',          'Guest service requests: view',              true,  true,  true,  true,  true,  false, false],
+  ['service.manage',        'Guest service requests: create and update', true,  true,  true,  false, true,  false, false],
   ...cfgPermRows_(),
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.107';
+const APP_VERSION = '1.2.108';
 const SETTINGS_DEFAULT = {
   maxLoginAttempts: 5,      // wrong passwords before the account is locked (system admin, minimum 5)
   inactivityMinutes: 30,    // idle minutes before sign-out (system admin)
@@ -177,6 +182,8 @@ function cfgPermRows_() {
     ['packages', 'packages', [true, false, false], false],
     ['payments', 'payment methods', [false, false, false], false],
     ['accounts', 'company accounts', [true, true, true], true],
+    ['minibar', 'minibar items', [true, false, false], false],
+    ['currencies', 'currencies and exchange rates', [true, false, false], false],
     ['settings', 'hotel details and branding', [false, false], false]
   ];
   const rows = [];

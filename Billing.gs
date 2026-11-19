@@ -73,6 +73,8 @@ function billingRoom(token, roomNo) {
     charges: codes.filter(c => c.type === CHARGE_TYPE && c.active),
     payments: codes.filter(c => c.type === PAY_TYPE && c.active),
     packages: listPackages(token).filter(p => p.active),
+    minibar: listMinibar(token).filter(x => x.active),
+    currencies: listCurrencies(token),
     types: codes.reduce((m, c) => { m[c.code] = c.type; return m; }, {}),
     canPost: permMap_(s.role)['folio.post'] === true };
   if (rs.length) out.res = getReservation(token, rs[0].resNo);

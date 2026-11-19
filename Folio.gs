@@ -69,7 +69,7 @@ function postCharge(token, folioId, code, description, amount, rid) {
   });
 }
 
-function postPayment(token, folioId, code, amount, rid) {
+function postPayment(token, folioId, code, amount, rid, note) {
   const s = auth_(token, 'folio.post');
   const amt = num_(amount);
   if (!(amt > 0)) throw new Error('Amount must be greater than zero.');
@@ -82,7 +82,7 @@ function postPayment(token, folioId, code, amount, rid) {
     const r = findRes_(f.resNo);
     if (RES_ACTIVE.indexOf(r.status) < 0) throw new Error('Payments can only be taken on Reserved or In-House stays.');
     const c = chargeCode_(code, PAY_TYPE);
-    postEntry_(r.resNo, r.roomNo, folioId, c.code, 'Payment: ' + c.description, -amt, s.username, bizDate_(), '');
+    postEntry_(r.resNo, r.roomNo, folioId, c.code, 'Payment: ' + c.description + (note ? ' · ' + note : ''), -amt, s.username, bizDate_(), '');
     audit_(s.username, 'PAYMENT', 'Reservation', r.resNo, c.code + ' ' + amt);
     const out = { balance: num_(balances_()[r.resNo] || 0) };
     idemPut_(s, rid, out);

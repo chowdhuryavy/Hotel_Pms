@@ -56,7 +56,7 @@ const READ_FN_RE = /^(get|list|run|front|billing|occupancy|availability|search|m
 const isNetErr_ = m => NET_ERR_RE.test(String(m || ''));
 /* Money-moving calls: kept and retried for up to 60 seconds if the connection drops. Each has a request id, so a retry
    cannot post twice (the server returns the saved result). */
-const RETRY_WRITE_FN = { checkoutPay: true, checkOut: true, postCharge: true, postPayment: true, createReservation: true, checkIn: true, saveSettings: true };
+const RETRY_WRITE_FN = { checkoutPay: true, checkOut: true, postCharge: true, postPayment: true, postPaymentFx: true, postMinibar: true, createServiceRequest: true, createReservation: true, checkIn: true, saveSettings: true };
 /* A button that opens a form opens it in its own tab (see openModal). Remember the last click, and whether it saved anything. */
 let CLICK_EXPR = null, CLICK_AT = 0, CLICK_WROTE = false, CLICK_LABEL = '';
 document.addEventListener('click', e => {
@@ -911,6 +911,78 @@ async function packageModal(code) {
     toast('Package saved'); closeModal(); refresh();
   });
 }
+async function minibarModal(code) {
+  const [items, cc] = await Promise.all([api('listMinibar'), api('listChargeCodes')]);
+  const m = items.find(x => x.code === code) || {};
+  const charges = cc.filter(c => c.type === 'Charge' && c.active);
+  openModal(code ? 'Edit minibar item' : 'New minibar item', formHtml('fMini', [
+    { name: 'code', label: 'Code', required: true, value: m.code || '' },
+    { name: 'name', label: 'Name', required: true, value: m.name || '' },
+    { name: 'chargeCode', label: 'Charge code', type: 'select', options: charges.map(c => [c.code, c.code + ' · ' + c.description]), value: m.chargeCode || '' },
+    { name: 'price', label: 'Price', type: 'number', step: '0.01', min: 0, required: true, value: m.price != null ? m.price : '' },
+    { name: 'active', label: 'Active', type: 'check', value: code ? !!m.active : true }
+  ], 'Save item'));
+  bindForm('fMini', async d => {
+    await api('saveMinibarItem', { code: d.code, name: d.name, chargeCode: d.chargeCode, price: Number(d.price) || 0, active: d.active === 'true' });
+    toast('Minibar item saved'); closeModal(); refresh();
+  });
+}
+async function currencyModal(code) {
+  const cd = await api('listCurrenciesAll');
+  const c = cd.currencies.find(x => x.code === code) || {};
+  openModal(code ? 'Edit currency' : 'New currency', formHtml('fCur', [
+    { name: 'code', label: 'Code (three letters, for example USD)', required: true, value: c.code || '', placeholder: 'USD' },
+    { name: 'name', label: 'Name', required: true, value: c.name || '' },
+    { name: 'rate', label: 'Rate: how much one unit is worth in ' + cd.base, type: 'number', step: '0.0001', min: 0, required: true, value: c.rate != null ? c.rate : '' },
+    { name: 'active', label: 'Active', type: 'check', value: code ? !!c.active : true }
+  ], 'Save currency'));
+  bindForm('fCur', async d => {
+    await api('saveCurrency', { code: d.code, name: d.name, rate: Number(d.rate) || 0, active: d.active === 'true' });
+    toast('Currency saved'); closeModal(); refresh();
+  });
+}
+
+/* ============================================================
+ * GUEST SERVICE: requests from guests (housekeeping extras, maintenance, room service, transport, wake-up calls)
+ * ============================================================ */
+let SVC_FILTER = 'Active';
+const SVC_CATS = ['Housekeeping', 'Maintenance', 'Room service', 'Amenities', 'Transport', 'Wake-up call', 'Concierge', 'Other'];
+async function pgService() {
+  setView(`<h1>Guest service</h1>
+    <div class="card toolbar"><label><span>Show</span><select onchange="svcFilter(this.value)">${['Active', 'Open', 'In progress', 'Done', 'Cancelled', 'All'].map(x => `<option${x === SVC_FILTER ? ' selected' : ''}>${x}</option>`).join('')}</select></label>
+      ${can('service.manage') ? '<div class="acts"><button class="btn" type="button" onclick="svcNew()">+ New request</button></div>' : ''}</div>
+    <div class="card" id="svcOut"><div class="loading">Loading…</div></div>`);
+  await svcLoad();
+}
+function svcFilter(v) { SVC_FILTER = v; svcLoad().catch(e => toast(e.message, true)); }
+async function svcLoad() {
+  const rows = await api('listServiceRequests', SVC_FILTER);
+  const manage = can('service.manage');
+  $('svcOut').innerHTML = table(['Room', 'Guest', 'Request', 'Type', 'Priority', 'Status', 'Logged', ''], rows.map(x => tr([
+    esc(x.roomNo), esc(x.guestName), esc(x.description), esc(x.category), x.priority === 'Urgent' ? '<b>Urgent</b>' : esc(x.priority), esc(x.status), esc(x.createdAt), manage ? svcActions(x) : ''])));
+}
+function svcActions(x) {
+  if (x.status === 'Done' || x.status === 'Cancelled') return '';
+  const b = (st, label, cls) => `<button class="btn sm${cls ? ' ' + cls : ''}" type="button" onclick="svcSet('${esc(x.id)}','${st}')">${label}</button>`;
+  return (x.status === 'Open' ? b('In progress', 'Start') : '') + b('Done', 'Done', 'ok') + b('Cancelled', 'Cancel', 'ghost');
+}
+async function svcSet(id, status) {
+  try { await api('updateServiceRequest', id, status, ''); toast('Request ' + status.toLowerCase()); svcLoad(); }
+  catch (e) { toast(e.message, true); }
+}
+function svcNew() {
+  openModal('New guest service request', formHtml('fSvc', [
+    { name: 'roomNo', label: 'Room number', required: true },
+    { name: 'category', label: 'Request type', type: 'select', options: SVC_CATS, value: 'Housekeeping' },
+    { name: 'priority', label: 'Priority', type: 'select', options: ['Normal', 'Urgent'], value: 'Normal' },
+    { name: 'description', label: 'What the guest asked for', type: 'textarea', required: true, wide: true }
+  ], 'Save request'));
+  bindForm('fSvc', async d => {
+    await api('createServiceRequest', d);
+    toast('Request logged'); closeModal(); svcLoad();
+  });
+}
+
 async function integTest(channel) {
   try { await api('integrationTest', channel); toast('Connected. Reply received.'); }
   catch (e) { toast(e.message, true); }
@@ -992,9 +1064,9 @@ async function postModal(room) {
   const r = d.res.res, folios = d.res.folios || [];
   const openFolios = folios.filter(f => f.status === 'Open');
   if (!openFolios.length) { toast('No open folio. Create one with + New folio.', true); return; }
-  const charges = d.charges || [], payments = d.payments || [], packages = d.packages || [];
+  const charges = d.charges || [], payments = d.payments || [], packages = d.packages || [], minibar = d.minibar || [], curs = d.currencies || [];
   const folioOpts = openFolios.map(f => `<option value="${esc(f.id)}">${esc(f.folioNo)} · ${esc(f.name)}</option>`).join('');
-  const kindTabs = [['charge', 'Charge'], ['payment', 'Payment'], ['package', 'Package']]
+  const kindTabs = [['charge', 'Charge'], ['payment', 'Payment'], ['package', 'Package'], ['minibar', 'Minibar']]
     .map(([k, l]) => `<button type="button" class="${POST_KIND === k ? 'on' : ''}" onclick="postKind('${k}','${esc(room)}')">${l}</button>`).join('');
   let form;
   if (POST_KIND === 'charge') {
@@ -1010,8 +1082,17 @@ async function postModal(room) {
     form = `<form onsubmit="postSubmit(event,'payment','${esc(r.resNo)}')" class="fgrid">
       <label class="wide"><span>Folio</span><select name="folio">${folioOpts}</select></label>
       <label class="wide"><span>Payment method</span><select name="code" required>${payments.map(c => `<option value="${esc(c.code)}">${esc(c.code)} · ${esc(c.description)}</option>`).join('')}</select></label>
-      <label><span>Amount</span><input name="amount" type="number" min="0.01" step="0.01" required></label>
+      <label><span>Currency</span><select name="cur" onchange="postFx(this.form)"><option value="">${esc(S.settings.currency || 'QAR')} (hotel currency)</option>${curs.map(c => `<option value="${esc(c.code)}">${esc(c.code)} · ${esc(c.name)} (1 = ${num(c.rate)} ${esc(S.settings.currency || 'QAR')})</option>`).join('')}</select></label>
+      <label><span>Amount (in the currency chosen)</span><input name="amount" type="number" min="0.01" step="0.01" required oninput="postFx(this.form)"></label>
+      <div class="wide post-total" id="postFx"></div>
       <div class="wide acts"><button class="btn ok" type="submit">Post payment</button></div></form>`;
+  } else if (POST_KIND === 'minibar') {
+    form = minibar.length ? `<form onsubmit="postSubmit(event,'minibar','${esc(r.resNo)}')" class="fgrid">
+      <label class="wide"><span>Folio</span><select name="folio">${folioOpts}</select></label>
+      <label class="wide"><span>Item</span><select name="code" required>${minibar.map(m => `<option value="${esc(m.code)}">${esc(m.name)} · ${num(m.price)}</option>`).join('')}</select></label>
+      <label><span>Quantity</span><input name="qty" type="number" min="1" max="50" step="1" value="1"></label>
+      <div class="wide acts"><button class="btn" type="submit">Post minibar</button></div></form>`
+      : '<p class="muted">No minibar items yet. Add them in Administration → Minibar items.</p>';
   } else {
     form = `<form onsubmit="postSubmit(event,'package','${esc(r.resNo)}')" class="fgrid">
       <label class="wide"><span>Folio</span><select name="folio">${folioOpts}</select></label>
@@ -1023,6 +1104,14 @@ async function postModal(room) {
 }
 function postLoad(e) { e.preventDefault(); const room = String(new FormData(e.target).get('room') || '').trim(); go('post', room); }
 function postKind(k, room) { POST_KIND = k; postModal(room); }
+/* Shows what a foreign-currency payment comes to in the hotel currency */
+function postFx(form) {
+  const box = $('postFx'); if (!box || !form) return;
+  const cur = form.cur ? form.cur.value : '', amt = Number(form.amount.value) || 0;
+  const c = ((POST_D && POST_D.currencies) || []).find(x => x.code === cur);
+  if (!c || !amt) { box.textContent = ''; return; }
+  box.innerHTML = esc(cur) + ' ' + num(amt) + ' = <b>' + esc(S.settings.currency || 'QAR') + ' ' + num(amt * c.rate) + '</b> at ' + esc(String(c.rate));
+}
 function postTotal(form) {
   if (!form || !form.qty) return;
   const q = Number(form.qty.value) || 0, u = Number(form.unit.value) || 0;
@@ -1038,8 +1127,11 @@ async function postSubmit(e, kind, resNo) {
       const out = await api('postCharge', folio, code, desc, qty * unit);
       toast('Charge posted · balance ' + money(out.balance));
     } else if (kind === 'payment') {
-      const out = await api('postPayment', folio, code, Number(f.get('amount')));
+      const out = await api('postPaymentFx', folio, code, f.get('cur') || '', Number(f.get('amount')));
       toast('Payment posted · balance ' + money(out && out.balance));
+    } else if (kind === 'minibar') {
+      const out = await api('postMinibar', resNo, folio, code, Number(f.get('qty')) || 1);
+      toast('Minibar posted · ' + money(out.total));
     } else {
       await api('postPackage', resNo, code, folio);
       toast('Package posted');
@@ -1263,6 +1355,7 @@ const ICON_PATHS = {
   groups: '<circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1M15 20v-.5a4 4 0 0 1 4-4h1"/>',
   hkmobile: '<path d="M3 20h18"/><path d="M6 20V10a6 6 0 0 1 12 0v10"/><path d="M12 4v2"/>',
   housekeeping: '<path d="M3 20h18"/><path d="M6 20V10a6 6 0 0 1 12 0v10"/><path d="M12 4v2"/>',
+  service: '<path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/>',
   cashier: '<rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M16 15h2"/>',
   post: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   billing: '<path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h4"/>',
@@ -1302,6 +1395,7 @@ const NAV = [
   { k: 'housekeeping', l: 'Housekeeping', p: ['rooms.view'] },
   { k: 'hkmobile', l: 'Room attendant', p: ['housekeeping.update'] },
   { k: 'cashier', l: 'Cashier', p: ['folio.view'] },
+  { k: 'service', l: 'Guest service', p: ['service.view'] },
   { k: 'post', l: 'Posting', p: ['folio.post'] },
   { k: 'billing', l: 'Billing (rooms)', p: ['folio.view'] },
   { k: 'shifts', l: 'Cashier shifts', p: ['shifts.manage', 'shifts.view'] },
@@ -1385,7 +1479,7 @@ const PAGES = {
   f: pgFormRoute,
   dashboard: pgDashboard, frontdesk: pgFrontDesk, post: pgPost, arrivals: () => pgFrontList('arrivals'), departures: () => pgFrontList('departures'), inhouse: () => pgFrontList('inhouse'), rack: pgRack, reservations: pgReservations, res: pgRes,
   newres: pgNewRes, guests: pgGuests, guest: pgGuest, groups: pgGroups, group: pgGroup,
-  housekeeping: pgHousekeeping, hkmobile: pgHkTablet, cashier: pgCashier, nightaudit: pgNightAudit, roomhistory: pgRoomHistory, nightrun: pgNightRun, nightreport: pgNightReport, fixed: pgFixed, rates: pgRates,
+  housekeeping: pgHousekeeping, hkmobile: pgHkTablet, cashier: pgCashier, service: pgService, nightaudit: pgNightAudit, roomhistory: pgRoomHistory, nightrun: pgNightRun, nightreport: pgNightReport, fixed: pgFixed, rates: pgRates,
   reports: pgReports, eod: pgEod, log: pgLog, admin: () => pgAdmin('prop'), sysadmin: () => pgAdmin('sys'), ar: pgAR, password: pgPassword, search: pgSearch, billing: pgBilling, lists: pgLists, roomhistory: pgRoomHistory,
   accounts: pgAccounts, account: pgAccount, shifts: pgShifts
 };
@@ -2756,7 +2850,7 @@ async function pgLog() {
  * ADMINISTRATION
  * ============================================================ */
 // [key, label, permission, scope]. 'prop' = property admin (hotel operations); 'sys' = system administrator only.
-const ADM_TABS = [['users', 'Staff users', 'users.manage', 'prop'], ['settings', 'Hotel settings', 'cfg.settings.view', 'prop'], ['types', 'Room types', 'cfg.roomtypes.view', 'prop'], ['rooms', 'Rooms', 'cfg.rooms.view', 'prop'], ['packages', 'Packages', 'cfg.packages.view', 'prop'], ['payments', 'Payment methods', 'cfg.payments.view', 'prop'],
+const ADM_TABS = [['users', 'Staff users', 'users.manage', 'prop'], ['settings', 'Hotel settings', 'cfg.settings.view', 'prop'], ['types', 'Room types', 'cfg.roomtypes.view', 'prop'], ['rooms', 'Rooms', 'cfg.rooms.view', 'prop'], ['packages', 'Packages', 'cfg.packages.view', 'prop'], ['minibar', 'Minibar items', 'cfg.minibar.view', 'prop'], ['currencies', 'Currencies', 'cfg.currencies.view', 'prop'], ['payments', 'Payment methods', 'cfg.payments.view', 'prop'],
   ['padmins', 'Property admins', 'system.manage', 'sys'], ['padscreens', 'Property admin screens', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['menu', 'Menu layout', 'system.manage', 'sys'], ['emails', 'Email messages', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys'], ['security', 'Sign-in security', 'system.manage', 'sys'], ['updates', 'App version', 'system.manage', 'sys']];
 let SEC_ROLES = [];
 async function pgAdmin(scope) {
@@ -2831,6 +2925,18 @@ async function pgAdmin(scope) {
     ], 'Save system settings', false) +
     `<h3>Integrations</h3><p class="muted">Each system receives JSON posts with the header X-Stayline-Key, whose value is the INTEGRATION_KEY script property. Save an address, then test it. A system must answer with status 200.</p>
     <div class="acts"><button class="btn ghost" type="button" onclick="integTest('pos')">Test POS</button><button class="btn ghost" type="button" onclick="integTest('tv')">Test television</button><button class="btn ghost" type="button" onclick="integTest('phone')">Test telephone</button><button class="btn ghost" type="button" onclick="integTest('card')">Test card terminal</button></div>`;
+  } else if (ADM === 'minibar') {
+    const [items, cc] = await Promise.all([api('listMinibar'), api('listChargeCodes')]);
+    body = `<div class="head-row"><h3>Minibar items</h3><div class="acts">${can('cfg.minibar.edit') ? '<button class="btn" onclick="minibarModal(\'\')">+ Item</button>' : ''}</div></div>
+      <p class="muted">An item has a price and a charge code. Staff post items from a room's posting window (Minibar), and the charge is taxed when its charge code is taxable.</p>` +
+      table(['Code', 'Name', 'Charge code', 'Price', 'Active', ''], items.map(m => tr([esc(m.code), esc(m.name), esc(m.chargeCode), num(m.price), m.active ? 'Yes' : 'No',
+        can('cfg.minibar.edit') ? `<button class="btn sm" onclick="minibarModal('${esc(m.code)}')">Edit</button>` : ''])));
+  } else if (ADM === 'currencies') {
+    const cd = await api('listCurrenciesAll');
+    body = `<div class="head-row"><h3>Currencies</h3><div class="acts">${can('cfg.currencies.edit') ? '<button class="btn" onclick="currencyModal(\'\')">+ Currency</button>' : ''}</div></div>
+      <p class="muted">The hotel currency is <b>${esc(cd.base)}</b>. A rate is how many ${esc(cd.base)} one unit of the currency is worth. A payment in another currency is converted at this rate when it is posted.</p>` +
+      table(['Code', 'Name', 'Rate to ' + cd.base, 'Active', ''], cd.currencies.map(c => tr([esc(c.code), esc(c.name), num(c.rate), c.active ? 'Yes' : 'No',
+        can('cfg.currencies.edit') ? `<button class="btn sm" onclick="currencyModal('${esc(c.code)}')">Edit</button>` : ''])));
   } else if (ADM === 'security') {
     const [roles, cur] = await Promise.all([api('listRoles'), api('getLoginSecurity')]);
     SEC_ROLES = roles.map(r => r.name);
