@@ -563,7 +563,7 @@ function bindForm(id, fn) {
 const chk = v => v === 'true';
 
 /* Dialogs that open in their own browser tab (see tabOpen_). Only these names are allowed from a link. */
-const TAB_OPEN_OK = ['admSection', 'userModal', 'typeModal', 'roomModal', 'roleModal', 'permModal', 'paymentMethodModal', 'packageModal', 'planModal', 'rateModal', 'codeModal'];
+const TAB_OPEN_OK = ['admSection', 'emailSmtpModal', 'emailResendModal', 'userModal', 'typeModal', 'roomModal', 'roleModal', 'permModal', 'paymentMethodModal', 'packageModal', 'planModal', 'rateModal', 'codeModal'];
 /** Opens a form in a new browser tab, signed in through a one-time link. The tab opens at once so the browser allows it. */
 /* A form action is a call to one page function, e.g. userModal("U1"). Navigation and saving functions are excluded. */
 const TAB_EXPR_OK_RE = /^(?!(?:closeModal|act|appConfirm|appAlert|logout|refresh|go|tabRun_|tabOpen_|postModal|postKind|pwModal|logout)\b)[A-Za-z_$][\w$]*\([^]*\)\s*;?$/;
@@ -2982,27 +2982,18 @@ async function pgAdmin(scope) {
       + `<div class="acts"><button class="btn ghost" type="button" onclick="testEmail()">Send the reset and password emails to me as a test</button></div>`;
   } else if (ADM === 'email') {
     const e = await api('getEmailConfig');
-    const secret = (name, label, isSet, hint) => `<label class="wide field"><span>${label}</span><input name="${name}" type="password" autocomplete="new-password" placeholder="${isSet ? 'Saved. Type a new one to change it' : esc(hint)}"></label>`;
-    body = `<h3>Email sending (SMTP)</h3><p class="muted">When this is on, every email (sign-in codes, reset codes, welcome and password emails, night audit reports) goes through your SMTP server. If SMTP is off and Resend is on, Resend is used. If both are off, mail goes out from the Google account the app runs under.</p>
-      <p class="muted">Apps Script cannot connect to an SMTP server directly, so the SMTP details are passed over HTTPS to a small mail relay you run (see <code>mail-relay/README.md</code>). The relay address and its secret come from that setup.</p>` +
-      `<form id="fEmail" class="fgrid">` +
-      fieldHtml({ name: 'active', label: 'Send email through my SMTP server', type: 'check', value: e.active }) +
-      fieldHtml({ name: 'host', label: 'SMTP server (for example smtp.office365.com)', value: e.host, wide: true }) +
-      fieldHtml({ name: 'port', label: 'Port', type: 'number', value: e.port }) +
-      fieldHtml({ name: 'security', label: 'Connection security', type: 'select', value: e.security, options: [['starttls', 'STARTTLS (usually port 587)'], ['ssl', 'SSL/TLS (usually port 465)'], ['none', 'None (not recommended)']] }) +
-      fieldHtml({ name: 'user', label: 'SMTP username', value: e.user, wide: true }) +
-      secret('password', 'SMTP password', e.passSet, 'Enter the SMTP password') +
-      (e.passSet ? fieldHtml({ name: 'clearPassword', label: 'Remove the saved SMTP password', type: 'check', value: false }) : '') +
-      fieldHtml({ name: 'from', label: 'From address (emails are sent from this address)', value: e.from, wide: true }) +
-      fieldHtml({ name: 'relayUrl', label: 'Mail relay address (https://…)', value: e.relayUrl, wide: true }) +
-      secret('relaySecret', 'Mail relay secret', e.secretSet, 'Enter the relay secret') +
-      `<h4 style="margin:18px 0 6px">Resend (used when SMTP is off)</h4><p class="muted">Resend sends through its API. The from address must be on a domain you have verified in Resend. The API key is saved encrypted in the database and is never shown again.</p>` +
-      fieldHtml({ name: 'resendActive', label: 'Send email through Resend', type: 'check', value: e.resendActive }) +
-      fieldHtml({ name: 'resendFrom', label: 'Resend from address (on your verified domain)', value: e.resendFrom, wide: true }) +
-      secret('resendApiKey', 'Resend API key', e.resendKeySet, 'Enter the Resend API key') +
-      (e.resendKeySet ? fieldHtml({ name: 'clearResendKey', label: 'Remove the saved Resend API key', type: 'check', value: false }) : '') +
-      `<h4 style="margin:18px 0 6px">Test</h4>` + fieldHtml({ name: 'testTo', label: 'Send the test email to (leave blank to use your own address)', value: '', wide: true }) +
-      `<div class="actions"><button class="btn ghost" type="button" onclick="testEmail(this.form.testTo.value)">Send test email</button><button class="btn" type="submit">Save email sending</button></div></form>`;
+    const using = e.active ? 'SMTP' : e.resendActive ? 'Resend' : 'the Google account';
+    body = `<h3>Email sending</h3>
+      <p class="muted">Emails (sign-in codes, reset codes, welcome and password emails, night audit reports) are sent through <b>${using}</b>. SMTP is used first when it is on, then Resend, then the Google account.</p>
+      <div class="conn-tiles">
+        <div class="conn-tile"><div><b>SMTP</b><small>${e.active ? 'On' : 'Off'} · ${esc(e.host || 'not set')}</small>
+          <div class="acts" style="margin-top:8px"><button class="btn sm" type="button" onclick="tabOpen_(&#39;emailSmtpModal&#39;,[])">Set up SMTP</button></div></div></div>
+        <div class="conn-tile"><div><b>Resend</b><small>${e.resendActive ? 'On' : 'Off'} · ${esc(e.resendFrom || 'not set')}</small>
+          <div class="acts" style="margin-top:8px"><button class="btn sm" type="button" onclick="tabOpen_(&#39;emailResendModal&#39;,[])">Set up Resend</button></div></div></div>
+      </div>
+      <h4 style="margin:18px 0 6px">Test</h4>
+      <form id="fEmailTest" class="fgrid">${fieldHtml({ name: 'testTo', label: 'Send the test email to (blank = your own address)', value: '', wide: true })}
+        <div class="actions"><button class="btn" type="button" onclick="testEmail(this.form.testTo.value)">Send test email</button></div></form>`;
   } else if (ADM === 'types') {
     const ts = await api('listRoomTypes');
     body = `<div class="head-row"><h3>Room types</h3><div class="acts">${can('cfg.roomtypes.edit') ? '<button class="btn" onclick="tabOpen_(&#39;typeModal&#39;,[])">+ Room type</button>' : ''}</div></div>` +
@@ -3041,13 +3032,6 @@ async function pgAdmin(scope) {
     await api('saveSettings', { appUrl: d.appUrl, welcomeSubject: d.welcomeSubject, welcomeBody: d.welcomeBody, otpSubject: d.otpSubject,
       otpBody: d.otpBody, doneSubject: d.doneSubject, doneBody: d.doneBody });
     toast('Email messages saved');
-  });
-  if (ADM === 'email') bindForm('fEmail', async d => {
-    const out = await api('saveEmailConfig', { active: d.active === 'true', host: d.host, port: Number(d.port), security: d.security,
-      user: d.user, password: d.password, clearPassword: d.clearPassword === 'true', from: d.from, relayUrl: d.relayUrl, relaySecret: d.relaySecret,
-      resendActive: d.resendActive === 'true', resendFrom: d.resendFrom, resendApiKey: d.resendApiKey, clearResendKey: d.clearResendKey === 'true' });
-    toast(out.active ? 'Email sending saved: SMTP is on' : out.resendActive ? 'Email sending saved: Resend is on' : 'Email sending saved: Google account');
-    pgAdmin('sys');   // redraws, so the saved hints show and typed secrets clear
   });
   if (ADM === 'security') bindForm('fSec', async d => {
     const picked = SEC_ROLES.filter((n, i) => d['r' + i] === 'true');
@@ -3176,6 +3160,45 @@ async function menuReset() {
     MENU_DRAFT = null; buildNav(); toast('Menu reset to default');
     go('sysadmin');
   } catch (e) { toast(e.message, true); }
+}
+/* Email sending: one dialog for SMTP and one for Resend, each saving only its own settings */
+function secretField_(name, label, isSet, hint) {
+  return `<label class="wide field"><span>${label}</span><input name="${name}" type="password" autocomplete="new-password" placeholder="${isSet ? 'Saved. Type a new one to change it' : esc(hint)}"></label>`;
+}
+function emailSmtpModal() {
+  api('getEmailConfig').then(e => {
+    openModal('SMTP settings', formHtml('fSmtp', [
+      { name: 'active', label: 'Send email through SMTP', type: 'check', value: e.active },
+      { name: 'host', label: 'SMTP server (for example smtp.office365.com)', value: e.host, wide: true },
+      { name: 'port', label: 'Port', type: 'number', value: e.port },
+      { name: 'security', label: 'Connection security', type: 'select', value: e.security, options: [['starttls', 'STARTTLS (usually port 587)'], ['ssl', 'SSL/TLS (usually port 465)'], ['none', 'None (not recommended)']] },
+      { name: 'user', label: 'SMTP username', value: e.user, wide: true },
+      { raw: secretField_('password', 'SMTP password', e.passSet, 'Enter the SMTP password') },
+      ...(e.passSet ? [{ name: 'clearPassword', label: 'Remove the saved SMTP password', type: 'check', value: false }] : []),
+      { name: 'from', label: 'From address', value: e.from, wide: true },
+      { name: 'relayUrl', label: 'Mail relay address (https://…)', value: e.relayUrl, wide: true },
+      { raw: secretField_('relaySecret', 'Mail relay secret', e.secretSet, 'Enter the relay secret') }
+    ], 'Save SMTP'));
+    bindForm('fSmtp', async d => {
+      await api('saveSmtpConfig', { active: d.active === 'true', host: d.host, port: Number(d.port), security: d.security, user: d.user,
+        password: d.password, clearPassword: d.clearPassword === 'true', from: d.from, relayUrl: d.relayUrl, relaySecret: d.relaySecret });
+      closeModal(); toast('SMTP saved'); refresh();
+    });
+  });
+}
+function emailResendModal() {
+  api('getEmailConfig').then(e => {
+    openModal('Resend settings', formHtml('fResend', [
+      { name: 'resendActive', label: 'Send email through Resend (used when SMTP is off)', type: 'check', value: e.resendActive },
+      { name: 'resendFrom', label: 'From address (on a domain verified in Resend)', value: e.resendFrom, wide: true },
+      { raw: secretField_('resendApiKey', 'Resend API key', e.resendKeySet, 'Enter the Resend API key') },
+      ...(e.resendKeySet ? [{ name: 'clearResendKey', label: 'Remove the saved Resend API key', type: 'check', value: false }] : [])
+    ], 'Save Resend'));
+    bindForm('fResend', async d => {
+      await api('saveResendConfig', { resendActive: d.resendActive === 'true', resendFrom: d.resendFrom, resendApiKey: d.resendApiKey, clearResendKey: d.clearResendKey === 'true' });
+      closeModal(); toast('Resend saved'); refresh();
+    });
+  });
 }
 async function testEmail(to) {
   try { const r = await api('sendEmailTest', String(to || '')); toast('Test email sent to ' + r.sentTo); }

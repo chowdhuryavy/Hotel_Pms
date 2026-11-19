@@ -148,11 +148,16 @@ function getEmailConfig(token) {
     resendActive: c.resendActive, resendFrom: c.resendFrom, resendKeySet: !!c.resendEnc };
 }
 
-/** Saves the SMTP settings. A blank password or relay secret keeps the saved one. */
-function saveEmailConfig(token, d) {
+const SMTP_FIELDS = ['active', 'host', 'port', 'security', 'user', 'password', 'clearPassword', 'from', 'relayUrl', 'relaySecret'];
+const RESEND_FIELDS = ['resendActive', 'resendFrom', 'resendApiKey', 'clearResendKey'];
+const isTrue_ = v => v === true || v === 'true';
+const isEmail_ = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+/** Saves the SMTP form only. A blank password or relay secret keeps the saved one. */
+function saveSmtpConfig(token, d) {
   const s = auth_(token, 'system.manage');
   d = d || {};
-  const active = d.active === true || d.active === 'true';
+  const active = isTrue_(d.active);
   const port = d.port === undefined || d.port === '' ? 587 : Math.round(Number(d.port));
   const security = String(d.security || 'starttls');
   const v = {
@@ -165,14 +170,8 @@ function saveEmailConfig(token, d) {
     relayUrl: String(d.relayUrl || '').trim()
   };
   if (SMTP_SECURITY.indexOf(security) < 0) throw new Error('Choose the connection security: STARTTLS, SSL/TLS or none.');
-  v.resendActive = d.resendActive === true || d.resendActive === 'true' ? 'true' : 'false';
-  v.resendFrom = String(d.resendFrom || '').trim();
-  if (v.resendFrom && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.resendFrom)) throw new Error('The Resend from address must be an email address.');
-  const resendHasKey = !!rawSetting_('resendApiKey') || !!String(d.resendApiKey || '').trim();
-  if (v.resendActive === 'true' && !v.resendFrom) throw new Error('Enter the Resend from address (it must be on a domain verified in Resend).');
-  if (v.resendActive === 'true' && !resendHasKey) throw new Error('Enter the Resend API key.');
   if (!(port >= 1 && port <= 65535)) throw new Error('The SMTP port must be a number from 1 to 65535.');
-  if (v.smtpFrom && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.smtpFrom)) throw new Error('The from address must be an email address.');
+  if (v.smtpFrom && !isEmail_(v.smtpFrom)) throw new Error('The from address must be an email address.');
   if (v.relayUrl && !/^https:\/\/[^\s]+$/i.test(v.relayUrl)) throw new Error('The mail relay address must start with https://.');
   if (active) {
     if (!v.smtpHost) throw new Error('Enter the SMTP server name.');
@@ -183,12 +182,39 @@ function saveEmailConfig(token, d) {
     Object.keys(v).forEach(k => upsertSetting_(k, v[k]));
     const pr = PropertiesService.getScriptProperties();
     if (d.password) pr.setProperty(SMTP_PASSWORD_PROP, String(d.password));
-    if (d.clearPassword === true || d.clearPassword === 'true') pr.deleteProperty(SMTP_PASSWORD_PROP);
+    if (isTrue_(d.clearPassword)) pr.deleteProperty(SMTP_PASSWORD_PROP);
     if (d.relaySecret) pr.setProperty(RELAY_SECRET_PROP, String(d.relaySecret));
-    const newKey = String(d.resendApiKey || '').trim();
-    if (newKey) upsertSetting_('resendApiKey', encryptSetting_(newKey));
-    if (d.clearResendKey === true || d.clearResendKey === 'true') upsertSetting_('resendApiKey', '');
     audit_(s.username, 'EMAIL_SETTINGS_SAVED', 'Settings', 'smtp', active ? 'SMTP on' : 'SMTP off');
   });
+  return getEmailConfig(token);
+}
+
+/** Saves the Resend form only. A blank API key keeps the saved one. */
+function saveResendConfig(token, d) {
+  const s = auth_(token, 'system.manage');
+  d = d || {};
+  const active = isTrue_(d.resendActive);
+  const from = String(d.resendFrom || '').trim();
+  const newKey = String(d.resendApiKey || '').trim();
+  if (from && !isEmail_(from)) throw new Error('The Resend from address must be an email address.');
+  if (active && !from) throw new Error('Enter the Resend from address (it must be on a domain verified in Resend).');
+  if (active && !rawSetting_('resendApiKey') && !newKey) throw new Error('Enter the Resend API key.');
+  withLock_(() => {
+    upsertSetting_('resendActive', active ? 'true' : 'false');
+    upsertSetting_('resendFrom', from);
+    if (newKey) upsertSetting_('resendApiKey', encryptSetting_(newKey));
+    if (isTrue_(d.clearResendKey)) upsertSetting_('resendApiKey', '');
+    audit_(s.username, 'EMAIL_SETTINGS_SAVED', 'Settings', 'resend', active ? 'Resend on' : 'Resend off');
+  });
+  return getEmailConfig(token);
+}
+
+/** Routes a save to the SMTP or the Resend form, by the fields it carries. */
+function saveEmailConfig(token, d) {
+  d = d || {};
+  const hasSmtp = SMTP_FIELDS.some(k => d[k] !== undefined);
+  const hasResend = RESEND_FIELDS.some(k => d[k] !== undefined);
+  if (hasSmtp) saveSmtpConfig(token, d);
+  if (hasResend) saveResendConfig(token, d);
   return getEmailConfig(token);
 }

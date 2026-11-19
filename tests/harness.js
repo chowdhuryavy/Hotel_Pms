@@ -587,5 +587,14 @@ if (require.main === module) {
   ok(run("(function(){ const n = mailbox.length; const r = sendEmailTest(TOK, 'tester@example.org'); return r.sentTo.indexOf('@example.org') > 0 && mailbox[mailbox.length - 1].to === 'tester@example.org' && mailbox.length === n + 1; })()"), 'test email goes to the address typed in');
   ok(!!tryRun("sendEmailTest(TOK, 'not-an-email')").e, 'test email rejects an invalid address');
   ok(run("(function(){ const r = sendEmailTest(TOK, ''); return mailbox[mailbox.length - 1].to === 'admin@example.com'; })()"), 'blank test address uses the admin email');
+  // SMTP and Resend forms each save only their own settings
+  ok(!tryRun("saveResendConfig(TOK, {resendActive: true, resendFrom: 'hotel@hotel.com', resendApiKey: 're_form_key_1'})").e, 'Resend form saves');
+  ok(!tryRun("saveSmtpConfig(TOK, {active: false, host: 'mail.h.com', port: 587, security: 'starttls', from: 'a@b.co', relayUrl: 'https://r.example.com'})").e, 'SMTP form saves');
+  ok(run("getEmailConfig(TOK).resendActive === true && getEmailConfig(TOK).resendKeySet === true"), 'saving the SMTP form leaves Resend on and its key saved');
+  ok(!tryRun("saveSmtpConfig(TOK, {active: true, host: 'mail.h.com', port: 587, security: 'starttls', user: 'u@h.com', from: 'a@b.co', relayUrl: 'https://r.example.com'})").e, 'SMTP switched on from its form');
+  ok(run("getEmailConfig(TOK).resendFrom === 'hotel@hotel.com' && getEmailConfig(TOK).host === 'mail.h.com'"), 'saving SMTP does not change the Resend from address');
+  ok(!tryRun("saveResendConfig(TOK, {resendActive: true, resendFrom: 'hotel@hotel.com'})").e && run("getEmailConfig(TOK).active === true"), 'saving the Resend form leaves SMTP on');
+  ok(!!tryRun("saveResendConfig(TOK, {resendActive: true, resendFrom: ''})").e, 'Resend form needs a from address when on');
+  ok(!tryRun("saveSmtpConfig(TOK, {active: false, host: 'mail.h.com', port: 587, security: 'starttls', from: 'a@b.co', relayUrl: 'https://r.example.com'})").e, 'SMTP switched back off');
   console.log('done');
 }

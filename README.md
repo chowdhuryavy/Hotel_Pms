@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.134**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.135**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.135: Email sending has two buttons, Set up SMTP and Set up Resend. Each opens its own form and saves only its own settings. The test email section stays on the same screen.
 
 Release notes for 1.2.134: The Email sending screen has a "Send the test email to" field, so the test can go to any address. Leave it blank to use your own address.
 
