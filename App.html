@@ -189,11 +189,17 @@ function netDescribe_(d) {
   if (d.server === 'slow') return ['The app server is slow', 'The server is taking a long time to answer. Wait a moment, then press Retry.'];
   return ['The app server cannot be reached', 'This is usually temporary: the service may be busy, or the network is blocking it. The app keeps trying every 10 seconds. If it continues, try another connection.'];
 }
+let NET_DIAG_BUSY = false;
 async function netDiagnose_() {
-  const d = await netProbe_();
-  const [title, msg] = netDescribe_(d);
-  if (d.server === 'ok') netRecovered_();
-  const again = await appConfirm(title, msg, { ok: d.server === 'ok' ? 'Close' : 'Retry', cancel: 'Close', tone: d.server === 'ok' ? 'ok' : 'warn' });
+  if (NET_DIAG_BUSY) return;
+  NET_DIAG_BUSY = true;
+  let d = { server: 'unreachable' }, again = false;
+  try {
+    d = await netProbe_();
+    const [title, msg] = netDescribe_(d);
+    if (d.server === 'ok') netRecovered_();
+    again = await appConfirm(title, msg, { ok: d.server === 'ok' ? 'Close' : 'Retry', cancel: 'Close', tone: d.server === 'ok' ? 'ok' : 'warn' });
+  } finally { NET_DIAG_BUSY = false; }
   if (again && d.server !== 'ok') netDiagnose_();
 }
 function netStartWatch_() {
@@ -291,19 +297,24 @@ function toast(msg, bad) {
   t._h = setTimeout(() => { t.className = 'toast'; }, bad ? 5000 : 3400);
 }
 /* Styled dialog. Returns a promise: true for OK, false for Cancel (or Escape / clicking outside when there is a Cancel). */
+/* Only one dialog is on screen at a time: a new one closes the old one (its answer is 'no'). */
+let DLG_OPEN = null;
 function appDialog_(o) {
   return new Promise(resolve => {
+    if (DLG_OPEN) DLG_OPEN(false);
     const tone = o.tone || (o.danger ? 'bad' : 'info');
     const ico = { info: 'i', ok: '✓', warn: '!', bad: '✕' }[tone] || 'i';
     const bg = document.createElement('div');
     bg.className = 'dlg-bg';
     bg.innerHTML = `<div class="dlg ${tone}" role="dialog" aria-modal="true" aria-labelledby="dlgT">` +
+      `<button type="button" class="dlg-x" data-r="0" aria-label="Close">&times;</button>` +
       `<div class="dlg-ico" aria-hidden="true">${ico}</div><h4 id="dlgT">${esc(o.title || '')}</h4>` +
       `<p>${esc(o.message || '')}</p><div class="dlg-acts">` +
       (o.cancel ? `<button class="btn ghost" data-r="0">${esc(o.cancel)}</button>` : '') +
       `<button class="btn${o.danger ? ' danger' : ''}" data-r="1">${esc(o.ok || 'OK')}</button></div></div>`;
     document.body.appendChild(bg);
     const done = v => {
+      if (DLG_OPEN === done) DLG_OPEN = null;
       document.removeEventListener('keydown', onKey, true);
       bg.classList.add('out');
       setTimeout(() => bg.remove(), 180);
@@ -318,6 +329,7 @@ function appDialog_(o) {
       if (b) done(b.dataset.r === '1');
       else if (e.target === bg && o.cancel) done(false);
     });
+    DLG_OPEN = done;
     document.addEventListener('keydown', onKey, true);
     setTimeout(() => { const b = bg.querySelector('[data-r="1"]'); if (b) b.focus(); }, 30);
   });
