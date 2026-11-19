@@ -355,6 +355,8 @@ function toast(msg, bad) {
 let DLG_OPEN = null;
 function appDialog_(o) {
   return new Promise(resolve => {
+    // No dialog is shown while nobody is signed in (a late message after sign-out must not leave a layer on the sign-in page)
+    if (!S.token) { resolve(false); return; }
     if (DLG_OPEN) DLG_OPEN(false);
     const tone = o.tone || (o.danger ? 'bad' : 'info');
     const ico = { info: 'i', ok: '✓', warn: '!', bad: '✕' }[tone] || 'i';
@@ -674,10 +676,15 @@ function sessionEnd(msg) {
   $('login').classList.remove('hidden');
   $('loginErr').textContent = msg || '';
   // Clear every dialog and the form dialog left open, so no blurred layer stays over the sign-in page
+  clearDialogs_();
+  setTimeout(clearDialogs_, 0);
+  setTimeout(clearDialogs_, 600);
+  ACTIVE_TAB = 'page';
+}
+function clearDialogs_() {
   document.querySelectorAll('.dlg-bg').forEach(n => n.remove());
   DLG_OPEN = null;
   $('modal').classList.add('hidden'); $('mBody').innerHTML = '';
-  ACTIVE_TAB = 'page';
 }
 async function logout() {
   // A cashier with an open shift is reminded to close it (cash count and cashier report) before signing out
