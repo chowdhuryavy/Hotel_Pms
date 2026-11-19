@@ -1353,7 +1353,7 @@ const PAGES = {
   f: pgFormRoute,
   dashboard: pgDashboard, frontdesk: pgFrontDesk, post: pgPost, arrivals: () => pgFrontList('arrivals'), departures: () => pgFrontList('departures'), inhouse: () => pgFrontList('inhouse'), rack: pgRack, reservations: pgReservations, res: pgRes,
   newres: pgNewRes, guests: pgGuests, guest: pgGuest, groups: pgGroups, group: pgGroup,
-  housekeeping: pgHousekeeping, hkmobile: pgHkTablet, cashier: pgCashier, nightaudit: pgNightAudit, fixed: pgFixed, rates: pgRates,
+  housekeeping: pgHousekeeping, hkmobile: pgHkTablet, cashier: pgCashier, nightaudit: pgNightAudit, nightrun: pgNightRun, nightreport: pgNightReport, fixed: pgFixed, rates: pgRates,
   reports: pgReports, eod: pgEod, log: pgLog, admin: () => pgAdmin('prop'), sysadmin: () => pgAdmin('sys'), ar: pgAR, password: pgPassword, search: pgSearch, billing: pgBilling, lists: pgLists,
   accounts: pgAccounts, account: pgAccount, shifts: pgShifts
 };
@@ -1369,7 +1369,8 @@ function parseHash_(hash) {
    so each one names the permissions that allow it. */
 const DETAIL_PAGES_ = {
   res: ['reservations.view'], reservations: ['reservations.view'], guest: ['guests.view'], group: ['reservations.view', 'groups.manage'],
-  account: ['accounts.view', 'ar.view'], billing: ['folio.view'], post: ['folio.post'], newres: ['reservations.create']
+  account: ['accounts.view', 'ar.view'], billing: ['folio.view'], post: ['folio.post'], newres: ['reservations.create'],
+  nightrun: ['nightaudit.run'], nightreport: ['reports.view']
 };
 function pageAllowed_(page) {
   if (page === 'password' || page === 'f') return true;   // 'f' is a form route opened in its own tab
@@ -2211,13 +2212,55 @@ async function pgCashier() {
 /* ============================================================
  * NIGHT AUDIT
  * ============================================================ */
+/* Night audit: two choices, the report and the night run */
 async function pgNightAudit() {
-  const [info, hist] = await Promise.all([api('businessDateInfo'), api('listBizDates')]);
   setView(`<h1>Night audit</h1>
+    <div class="na-menu">
+      ${can('reports.view') ? '<button class="card na-tile" type="button" onclick="go(\'nightreport\')"><b>Night audit report</b><span class="muted">Every report for a business date, with search</span></button>' : ''}
+      ${can('nightaudit.run') ? '<button class="card na-tile" type="button" onclick="go(\'nightrun\')"><b>Night run</b><span class="muted">Check the day and close the business date</span></button>' : ''}
+    </div>`);
+}
+/* Night audit report: any report for a business date (the previous day by default), with search */
+async function pgNightReport() {
+  const rt = await api('reportTypes');
+  const types = Array.isArray(rt) && rt.length ? rt : [['nightaudit', 'Night audit report']];
+  const d = addDaysIso(S.bizDate, -1);
+  setView(`<h1>Night audit report</h1>
+    <p><button class="btn ghost sm" type="button" onclick="go('nightaudit')">&larr; Night audit</button></p>
+    <form class="card toolbar" onsubmit="nrRun(event)">
+      <label><span>Business date</span><input type="date" name="date" value="${d}" required></label>
+      <label><span>Report</span><select name="type">${types.map(([k, l]) => `<option value="${k}"${k === 'nightaudit' ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+      <button class="btn" type="submit">Show report</button>
+    </form>
+    <div class="card toolbar"><label><span>Search (name, room, reservation, any text)</span><input id="nrSearch" placeholder="Type to filter the rows" oninput="nrFilter(this.value)"></label>
+      ${can('reports.export') ? '<div class="acts"><button class="btn ghost" type="button" onclick="repPdf()">PDF</button><button class="btn ghost" type="button" onclick="repCsv()">CSV / Excel</button></div>' : ''}</div>
+    <div class="card" id="repOut"><div class="loading">Running…</div></div>`);
+  await nrLoad('nightaudit', d);
+}
+function nrRun(e) {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  nrLoad(f.get('type'), f.get('date')).catch(err => toast(err.message, true));
+}
+async function nrLoad(type, date) {
+  if (!date) return;
+  await repLoad({ type: type, from: date, to: date });
+  nrFilter($('nrSearch') ? $('nrSearch').value : '');
+}
+/* Shows only the rows that contain the text */
+function nrFilter(q) {
+  const t = String(q || '').trim().toLowerCase();
+  document.querySelectorAll('#repOut tbody tr').forEach(row => {
+    row.style.display = !t || row.innerText.toLowerCase().indexOf(t) >= 0 ? '' : 'none';
+  });
+}
+async function pgNightRun() {
+  const [info, hist] = await Promise.all([api('businessDateInfo'), api('listBizDates')]);
+  setView(`<h1>Night run</h1><p><button class="btn ghost sm" type="button" onclick="go('nightaudit')">&larr; Night audit</button></p>
     <div class="kpis">${kpi('Business date', esc(info.bizDate))}${kpi('In-house', info.inHouse)}${kpi('Departures today', info.departuresToday)}
       ${kpi('Arrivals today', info.arrivalsToday)}${kpi('Past-due arrivals', info.pastDue)}${kpi('Dates closed', info.closedDates)}</div>
     ${info.warnings.length ? `<div class="card warn"><h3>Before you close the day</h3><ul>${info.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>` : '<div class="card"><p class="muted">No warnings. Ready to close the day.</p></div>'}
-    ${can('reports.export') ? '<div class="acts"><button class="btn ghost" onclick="go(\'reports\',{type:\'nightaudit\',from:S.bizDate,to:S.bizDate})">Night audit report</button><button class="btn ghost" onclick="eodPdf()">End-of-day flash (PDF)</button></div>' : ''}
+    ${can('reports.export') ? '<div class="acts"><button class="btn ghost" onclick="eodPdf()">End-of-day flash (PDF)</button></div>' : ''}
     <div class="card"><h3>Run night audit for ${esc(info.bizDate)}</h3>
       <ol class="muted" style="line-height:1.7">
         <li>Posts one room charge (and tax) for every guest staying the night.</li>

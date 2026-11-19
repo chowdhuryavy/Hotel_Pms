@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.87**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.88**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.88: Night audit in the sidebar shows two buttons. Night audit report opens every night audit report for a business date (the previous day by default), with a report picker and a search that filters the rows by name, room, reservation or any text. Night run opens the existing close-the-day page.
 
 Release notes for 1.2.87: Fixed the blank Save button. While saving, the button keeps its label, shows Saving… and a spinner, and goes back to its normal label afterwards. Other buttons that show a spinner get it back too; their spinner had been hidden by a later style rule.
 
