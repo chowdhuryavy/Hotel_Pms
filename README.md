@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.38**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.39**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.39: On phones the header stays on top when the menu opens, and the menu starts below it, so the sidebar's full hotel name and app name are visible.
 
 Release notes for 1.2.38: The dashboard greets the user by name with a live clock and business date. It adds an in-house room-type donut chart and a today's movement chart. The sidebar header shows the full hotel name, with the app name beneath. Once the night audit closes a business date, its postings are frozen: voids, transfers and splits on that date are refused.
 
