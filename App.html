@@ -62,7 +62,10 @@ const api = (fn, ...a) => {
     }
     throw e;
   });
-  return attempt(0).finally(() => { progressEnd_(); spinEnd_(spinBtn); });
+  return attempt(0).then(v => {
+    if (!READ_FN_RE.test(fn)) STAMP_LAST = null;   // our own save moved the stamp: do not treat it as another user's change
+    return v;
+  }).finally(() => { progressEnd_(); spinEnd_(spinBtn); });
 };
 /* ---------- New version: the open app checks the server now and then; a small pop-up offers Refresh ---------- */
 const PAGE_VERSION_ = (document.querySelector('meta[name="app-version"]') || {}).content || '';
@@ -444,6 +447,30 @@ function startApp() {
   const page = ok ? want.page : firstPage(), param = ok ? want.param : null;
   history.replaceState(null, '', routeHash_(page, param));
   renderPage_(page, param);
+  watchChanges_();
+}
+
+/* Real-time: every save moves the server's change stamp. This checks it every 15 seconds while the app is
+   visible (a small call), and when it moves, the current page reloads and a notice shows. */
+let STAMP_LAST = null, STAMP_TIMER = null, STAMP_BUSY = false;
+function watchChanges_() {
+  if (STAMP_TIMER) return;
+  STAMP_TIMER = setInterval(async () => {
+    if (document.hidden || !S.token || STAMP_BUSY) return;
+    STAMP_BUSY = true;
+    try {
+      const r = await rpc('changeStamp', S.token);
+      if (STAMP_LAST !== null && r.stamp !== STAMP_LAST) onDataChanged_();
+      STAMP_LAST = r.stamp;
+    } catch (e) { /* offline or session ended: try again on the next tick */ }
+    finally { STAMP_BUSY = false; }
+  }, 15000);
+}
+function onDataChanged_() {
+  const modalOpen = !$('modal').classList.contains('hidden');
+  if (modalOpen) { toast('Updated by another user. Close this window to see the latest data.'); return; }   // never replace a form being filled
+  toast('Updated by another user. Refreshing…');
+  renderPage_(S.page, S.param);
 }
 
 /* ---------- Search ---------- */

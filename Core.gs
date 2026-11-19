@@ -60,10 +60,25 @@ function patch_(t, row, changes) {
     if (c > 0) s.getRange(row, c).setValue(changes[k]);
   });
 }
+/* Runs a database write under the script lock. When the write succeeds, the change stamp moves,
+   so every open app sees that something was posted and reloads its current page. */
 function withLock_(fn) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
-  try { return fn(); } finally { lock.releaseLock(); }
+  try {
+    const out = fn();
+    dataChanged_();
+    return out;
+  } finally { lock.releaseLock(); }
+}
+/** Moves the change stamp. Called after every successful database write. */
+function dataChanged_() {
+  try { PropertiesService.getScriptProperties().setProperty('CHANGE_STAMP', String(Date.now())); } catch (e) { Logger.log('Change stamp: ' + e.message); }
+}
+/** Cheap check the open app makes every few seconds: the stamp moves when anything is saved. */
+function changeStamp(token) {
+  auth_(token);
+  return { stamp: PropertiesService.getScriptProperties().getProperty('CHANGE_STAMP') || '0' };
 }
 function audit_(user, action, entity, entityId, details) {
   append_(TBL.AUDIT, {
