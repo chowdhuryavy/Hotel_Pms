@@ -138,11 +138,14 @@ setTimeout(updateCheck_, 4000);
 /* ---------- Connection indicator (system administrator): is the app really talking to the server and the database? ---------- */
 let CONN = { state: 'checking' }, CONN_TIMER = null;
 const CONN_LABEL_ = { ok: 'Connected', slow: 'Slow', db: 'Database error', down: 'No server', offline: 'Offline', checking: 'Checking…' };
-async function connCheck_() {
+async function connCheck_(force) {
   if (!S.token) return;
+  if (!force && CONN.checkedAt && Date.now() - new Date(CONN.checkedAt).getTime() < 120000) return;   // recent result: no need to ask again
   const t0 = Date.now();
   try {
-    const h = await withTimeout_(rpc('healthCheck', S.token), 15000);
+    let h;
+    try { h = await withTimeout_(rpc('healthCheck', S.token), 25000); }
+    catch (e1) { if (/timed out/i.test(String(e1.message || e1)) || !navigator.onLine) throw e1; await new Promise(r => setTimeout(r, 2000)); h = await withTimeout_(rpc('healthCheck', S.token), 25000); }
     const ms = Date.now() - t0;
     CONN = Object.assign({}, h, { totalMs: ms, checkedAt: new Date() });
     CONN.state = h.database !== 'ok' ? 'db' : (ms > 3000 || h.dbMs > 2000 ? 'slow' : 'ok');
@@ -166,13 +169,13 @@ function connRows_() {
   ];
 }
 function connPanelHtml_() {
-  return `<div class="card conn-panel"><div class="head-row"><h3>Connection</h3><div class="acts"><button class="btn ghost sm" onclick="connCheck_().then(()=>renderPage_('sysadmin'))">Check now</button></div></div>
+  return `<div class="card conn-panel"><div class="head-row"><h3>Connection</h3><div class="acts"><button class="btn ghost sm" onclick="connCheck_(true).then(()=>renderPage_('sysadmin'))">Check now</button></div></div>
     <div class="conn-grid">${connRows_().map(([k, v]) => `<div><span class="muted">${esc(k)}</span><b class="conn-v">${esc(v)}</b></div>`).join('')}</div>
     <p class="muted" style="margin:10px 0 0">Status: <span class="conn ${CONN.state || 'checking'}" style="cursor:default"><span class="conn-dot"></span><span class="conn-txt">${esc(CONN_LABEL_[CONN.state] || 'Checking…')}</span></span>. Checked each time this page opens.</p></div>`;
 }
 
 /* ---------- Connection: detect, diagnose and recover ---------- */
-let NET_TIMER = null, NET_RETRY = false;
+let NET_TIMER = null, NET_RETRY = false, NET_MISSES = 0;
 const withTimeout_ = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('Request timed out')), ms))]);
 function netBanner_(tone, text) {
   let bar = document.getElementById('netbar');
@@ -185,7 +188,7 @@ function netBanner_(tone, text) {
 async function netProbe_() {
   if (!navigator.onLine) return { browser: 'offline', server: 'skipped' };
   const t0 = Date.now();
-  try { await withTimeout_(rpc('getPublicSettings'), 10000); return { browser: 'online', server: 'ok', ms: Date.now() - t0 }; }
+  try { await withTimeout_(rpc('getPublicSettings'), 25000); return { browser: 'online', server: 'ok', ms: Date.now() - t0 }; }
   catch (e) {
     const m = String((e && e.message) || e);
     return { browser: 'online', server: /timed out/i.test(m) ? 'slow' : 'unreachable', detail: m };
@@ -214,8 +217,9 @@ function netStartWatch_() {
   if (NET_TIMER) return;
   NET_TIMER = setInterval(async () => {
     const d = await netProbe_();
-    if (d.server === 'ok') netRecovered_();
-    else netBanner_('bad', d.browser === 'offline' ? 'Offline. Waiting for the connection…' : 'The server is not reachable. Retrying every 10 seconds…');
+    if (d.server === 'ok') { NET_MISSES = 0; netRecovered_(); return; }
+    if (++NET_MISSES < 2) return;   // one slow answer is not a problem: only show the banner after two in a row
+    netBanner_('bad', d.browser === 'offline' ? 'Offline. Waiting for the connection…' : 'The server is slow to answer. Retrying every 10 seconds…');
   }, 10000);
 }
 function netStopWatch_() { if (NET_TIMER) { clearInterval(NET_TIMER); NET_TIMER = null; } }
@@ -370,6 +374,8 @@ function openModal(title, html) {
   }
   $('mTitle').textContent = title; $('mBody').innerHTML = html; $('modal').classList.remove('hidden');
 }
+/* Hides the dialog without closing a tab (used when a page is drawn) */
+function hideModal_() { const m = $('modal'); if (m) m.classList.add('hidden'); const b = $('mBody'); if (b) b.innerHTML = ''; }
 function closeModal() {
   if (window.STAY_TAB) {
     // Close the tab; if the browser keeps it open, return to the first page instead
@@ -441,6 +447,7 @@ async function tabRun_(payload) {
 /** In a tab opened by tabOpen_: runs the dialog named in the address, once. */
 function runTabOpen_() {
   const p = S.param;
+  if (VIEW_PENDING) { setTimeout(runTabOpen_, 60); return; }   // wait for the page's own first draw, so it cannot overwrite the form
   if (p && p.expr) {
     S.param = Object.assign({}, p, { expr: null });
     if (TAB_EXPR_OK_RE.test(p.expr)) { try { (0, eval)(p.expr); } catch (e) { toast(e.message, true); } }
@@ -1210,7 +1217,7 @@ function renderPage_(page, param) {
   }
   if (location.hash !== routeHash_(page, param)) history.replaceState(null, '', routeHash_(page, param));
   S.page = page; S.param = param || null;
-  closeModal();
+  hideModal_();   // not closeModal(): in a tab that would close the window
   document.body.classList.remove('menu-open');
   document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('on', a.dataset.p === page));
   const label = (NAV.find(n => n.k === page) || {}).l || 'Change password';
@@ -2296,7 +2303,7 @@ async function pgAdmin(scope) {
   const tabs = ADM_TABS.filter(t => t[3] === scope && can(t[2]));
   if (!tabs.length) { setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1><div class="card">You do not have access to this area.</div>`); return; }
   if (!tabs.find(t => t[0] === ADM)) ADM = tabs[0][0];
-  if (scope === 'sys' && can('system.manage')) await connCheck_();
+  if (scope === 'sys' && can('system.manage')) connCheck_();   // shows its result when it arrives; the page does not wait
   const bar = `<div class="tabs">${tabs.map(([k, l]) => `<button class="btn ghost${ADM === k ? ' on' : ''}" onclick="admTabOpen('${k}')">${l}${ADM_FORM_TABS.indexOf(k) >= 0 && !window.STAY_TAB ? ' <span class="tab-ext" aria-hidden="true">↗</span>' : ''}</button>`).join('')}</div>`;
   let body = '';
   if (ADM === 'users') {

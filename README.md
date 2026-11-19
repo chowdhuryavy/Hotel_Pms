@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.65**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.66**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.66: Fixed the admin tabs opened in a new tab showing a blank page or jumping to Staff users: drawing a page no longer closes the tab, and the tab action waits for the page to finish drawing. The connection check is cached for two minutes, retried once, and no longer blocks the System admin page. The background probe waits up to 25 seconds and shows a connection warning only after two misses in a row, so a slow cold start of the server no longer shows an error.
 
 Release notes for 1.2.65: Every button that opens a form now opens it in its own new tab as a full page, across the front desk, reservations, folios, cashier, housekeeping, rates, groups and admin. The same button action runs in the new tab. Every admin tab (Staff users, Hotel settings, Room types and so on) opens in its own tab, with a ↗ mark. Buttons that save do not open a second tab. Tabs of the tab bar navigate inside the tab that is open.
 
