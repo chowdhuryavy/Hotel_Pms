@@ -5,18 +5,21 @@
  * that was cleared. So "Mark all read" and "Clear" stick: an alert returns only when its count changes.
  */
 function notifItems_(bd) {
-  const res = rows_(TBL.RES);
-  const bal = balances_();
-  const arrivals = res.filter(r => r.status === 'Reserved' && r.arrival === bd).length;
-  const pastDue = res.filter(r => r.status === 'Reserved' && r.arrival < bd).length;
-  const deptDue = res.filter(r => r.status === 'In-House' && r.departure === bd && Number(bal[r.resNo] || 0) > 0.005).length;
-  const dirty = rows_(TBL.ROOMS).filter(x => x.housekeeping === 'Dirty').length;
-  return [
-    { key: 'arr', perm: 'reservations.view', count: arrivals, title: 'Arrivals today', text: arrivals + ' reservation(s) due to arrive today', page: 'arrivals' },
-    { key: 'pd', perm: 'frontdesk.checkin', count: pastDue, title: 'Past-due arrivals', text: pastDue + ' reservation(s) not checked in after their arrival date', page: 'frontdesk' },
-    { key: 'dep', perm: 'frontdesk.checkout', count: deptDue, title: 'Departures with a balance', text: deptDue + ' guest(s) leaving today with an unpaid balance', page: 'departures' },
-    { key: 'dirty', perm: 'rooms.view', count: dirty, title: 'Dirty rooms', text: dirty + ' room(s) waiting for housekeeping', page: 'housekeeping' }
-  ].filter(x => x.count > 0);
+  // The same for every user, so it is computed once per saved change (cached by the change stamp), then filtered per user
+  return cachedRead_('notif:' + bd, () => {
+    const res = rows_(TBL.RES);
+    const bal = balances_();
+    const arrivals = res.filter(r => r.status === 'Reserved' && r.arrival === bd).length;
+    const pastDue = res.filter(r => r.status === 'Reserved' && r.arrival < bd).length;
+    const deptDue = res.filter(r => r.status === 'In-House' && r.departure === bd && Number(bal[r.resNo] || 0) > 0.005).length;
+    const dirty = rows_(TBL.ROOMS).filter(x => x.housekeeping === 'Dirty').length;
+    return [
+      { key: 'arr', perm: 'reservations.view', count: arrivals, title: 'Arrivals today', text: arrivals + ' reservation(s) due to arrive today', page: 'arrivals' },
+      { key: 'pd', perm: 'frontdesk.checkin', count: pastDue, title: 'Past-due arrivals', text: pastDue + ' reservation(s) not checked in after their arrival date', page: 'frontdesk' },
+      { key: 'dep', perm: 'frontdesk.checkout', count: deptDue, title: 'Departures with a balance', text: deptDue + ' guest(s) leaving today with an unpaid balance', page: 'departures' },
+      { key: 'dirty', perm: 'rooms.view', count: dirty, title: 'Dirty rooms', text: dirty + ' room(s) waiting for housekeeping', page: 'housekeeping' }
+    ].filter(x => x.count > 0);
+  });
 }
 /** The user's read and cleared counts. Stored per user. */
 function notifState_(s) {

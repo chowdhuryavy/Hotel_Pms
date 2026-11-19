@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.185**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.186**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.186: Faster on every page. The bell's alert counts are worked out once per saved change and shared by all users, instead of reading all reservations and balances on each page load.
 
 Release notes for 1.2.185: Faster loading. The system health check no longer re-checks every table on each visit, and each request opens each table once. A page that is loading shows only its skeleton, not the top bar as well.
 
