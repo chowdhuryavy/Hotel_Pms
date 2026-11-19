@@ -597,9 +597,9 @@ const NAV = [
   { k: 'dashboard', l: 'Dashboard', p: ['dashboard.view'] },
   { k: 'search', l: 'Search', p: ['reservations.view'] },
   { k: 'frontdesk', l: 'Front desk', p: ['frontdesk.checkin', 'frontdesk.checkout'] },
-  { k: 'arrivals', l: 'Arrivals', p: ['reservations.view'], sub: true },
-  { k: 'departures', l: 'Departures', p: ['reservations.view'], sub: true },
-  { k: 'inhouse', l: 'In-house guests', p: ['reservations.view'], sub: true },
+  { k: 'arrivals', l: 'Arrivals', p: ['reservations.view'], hidden: true },
+  { k: 'departures', l: 'Departures', p: ['reservations.view'], hidden: true },
+  { k: 'inhouse', l: 'In-house guests', p: ['reservations.view'], hidden: true },
   { k: 'rack', l: 'Room rack', p: ['rack.view'] },
   { k: 'lists', l: 'Guest lists', p: ['reservations.view'] },
   { k: 'reservations', l: 'Reservations', p: ['reservations.view'] },
@@ -634,7 +634,7 @@ function navDefault_() {
   const out = []; let g = null;
   NAV.forEach(n => {
     if (n.h) { g = { name: n.h, items: [] }; out.push(g); return; }
-    if (g && n.k) g.items.push(n);
+    if (g && n.k && !n.hidden) g.items.push(n);
   });
   return out;
 }

@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.19**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.20**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.20: Arrivals, Departures and In-house guests appear only in the Front desk sub-header, not in the sidebar.
 
 Release notes for 1.2.19: occasional "Network error" from Google's script runner is handled. Page loads retry automatically; saves are not repeated, and the message asks you to check whether the save went through. A dropped connection at start-up reloads the page instead of showing "Database not set up".
 
