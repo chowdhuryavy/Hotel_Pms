@@ -115,7 +115,7 @@
   </script>
 
   <script>
-<?!= include('App') ?>
+    (0, eval)(new TextDecoder().decode(Uint8Array.from(atob("<?= include64('App') ?>"), c => c.charCodeAt(0))));
   </script>
 </body>
 </html>
