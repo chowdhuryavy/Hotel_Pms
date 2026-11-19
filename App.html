@@ -2673,15 +2673,19 @@ function repCsv() {
 
 /* Download and print buttons shared by every report */
 function repButtons_() {
-  return '<select class="rep-fmt" id="repFmt" aria-label="Download format"><option value="pdf">PDF</option><option value="xls">Excel</option><option value="csv">CSV</option></select>' +
-    '<button class="btn ghost" type="button" onclick="repDownload()">Download</button><button class="btn ghost" type="button" onclick="repPrint()">Print</button>';
+  return '<button class="btn ghost" type="button" onclick="repPreview()">Preview</button>' +
+    '<button class="btn ghost" type="button" onclick="repPrint()">Print</button>' +
+    '<button class="btn ghost" type="button" onclick="repPdf()">PDF</button>' +
+    '<button class="btn ghost" type="button" onclick="repXls()">Excel</button>' +
+    '<button class="btn ghost" type="button" onclick="repCsv()">CSV</button>';
 }
-/* Downloads the report currently shown, in the chosen format */
-function repDownload() {
-  const f = $('repFmt') ? $('repFmt').value : 'pdf';
-  if (f === 'xls') return repXls();
-  if (f === 'csv') return repCsv();
-  return repPdf();
+/* Preview: the selected report in a dialog (buttons left out) */
+function repPreview() {
+  if (!LAST || !$('repOut')) return;
+  const c = $('repOut').cloneNode(true);
+  c.querySelectorAll('.acts').forEach(n => n.remove());
+  c.removeAttribute('id');
+  openModal('Preview · ' + dmy(LAST.title || LAST.type || ''), '<div class="rep-preview">' + c.innerHTML + '</div><div class="actions"><button class="btn ghost" type="button" onclick="repPrint()">Print</button><button class="btn" type="button" onclick="closeModal()">Close</button></div>');
 }
 /* Excel: the report as a workbook sheet (opens in Excel and LibreOffice) */
 function repXls() {

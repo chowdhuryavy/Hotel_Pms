@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.103**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.104**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.104: Each report action is now its own single button that acts on the selected report: Preview (opens the report in a dialog), Print, PDF, Excel and CSV.
 
 Release notes for 1.2.103: One Download button (with a format choice) and one Print button act on the selected report, replacing the four buttons.
 
