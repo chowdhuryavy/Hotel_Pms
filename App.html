@@ -619,6 +619,37 @@ function brand() {
   $('loginTitle').textContent = s.appName || '';
   $('loginHotel').textContent = s.hotelName || '';
   document.title = s.appName || '';
+  setTabIcon_(s.logoUrl || '');
+}
+/* The browser tab and home-screen icon. Phone browsers need a PNG, so the logo is drawn to one here.
+   With no logo saved, the default icon (the first link in the page head) is used. */
+function setTabIcon_(logoSrc) {
+  const def = document.querySelector('link[rel="icon"]');
+  const base = def ? def.href : '';
+  const setLink_ = (rel, href) => {
+    let l = document.querySelector('link[rel="' + rel + '"]');
+    if (!l) { l = document.createElement('link'); l.rel = rel; document.head.appendChild(l); }
+    l.href = href;
+    if (rel === 'icon') l.type = 'image/png';
+  };
+  const draw = img => {
+    try {
+      const c = document.createElement('canvas'); c.width = 192; c.height = 192;
+      const x = c.getContext('2d');
+      x.fillStyle = '#0f3d3e';
+      x.beginPath(); if (x.roundRect) x.roundRect(0, 0, 192, 192, 36); else x.rect(0, 0, 192, 192); x.fill();
+      x.drawImage(img, 28, 28, 136, 136);
+      const url = c.toDataURL('image/png');
+      setLink_('icon', url); setLink_('apple-touch-icon', url);
+    } catch (e) { /* the browser blocked the logo (for example a picture on another site): keep the default */ }
+  };
+  const img = new Image();
+  if (logoSrc) {
+    img.onload = () => draw(img);
+    img.onerror = () => { if (base) useDefault_(); };
+    img.src = logoSrc;
+  } else if (base) useDefault_();
+  function useDefault_() { const d = new Image(); d.onload = () => draw(d); d.src = base; }
 }
 async function doLogin(e) {
   e.preventDefault();
