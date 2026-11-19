@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.91**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.92**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.92: New reservation links to the other profiles. Guest step has + New guest profile; Stay & rate has + New company profile, which returns to the reservation with the new company selected. Company is now a dropdown of company profiles (None = guest pays).
 
 Release notes for 1.2.91: Adds the server part of Room history, which was left out of 1.2.90, so the page now loads its data.
 

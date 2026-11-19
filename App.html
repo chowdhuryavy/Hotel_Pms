@@ -1920,6 +1920,8 @@ function voidModal(postingId) {
 async function pgNewRes() {
   if (!NR.arrival) { NR.arrival = S.bizDate; NR.departure = addDaysIso(S.bizDate, 1); NR.plan = 'BAR'; }
   const plans = await api('listRatePlans');
+  const accts = can('accounts.view') ? await api('listAccounts') : [];
+  const companies = (Array.isArray(accts) ? accts : []).filter(a => a.active);
   let html = `<h1>New reservation</h1>
   <div class="card"><h3>1. Dates & availability</h3>
     <form class="toolbar" onsubmit="nrSearch(event)">
@@ -1936,7 +1938,7 @@ async function pgNewRes() {
     NR.roomList = (((NR.avail || []).find(t => t.type === NR.type)) || {}).rooms || [];
     const q = await api('quoteRates', NR.type, NR.plan || 'BAR', NR.arrival, NR.departure);
     const g = NR.guest || {};
-    html += `<div class="card"><h3>2. Guest</h3>
+    html += `<div class="card"><h3>2. Guest</h3><div class="acts" style="margin-bottom:10px">${can('guests.manage') ? '<button class="btn ghost sm" type="button" onclick="guestModal()">+ New guest profile</button>' : ''}</div>
       <form class="toolbar" onsubmit="nrGuestSearch(event)">
         <label><span>Find existing guest</span><input name="q" placeholder="Name, phone, email, ID" style="min-width:260px"></label>
         <button class="btn ghost" type="submit">Search</button>
@@ -1949,6 +1951,7 @@ async function pgNewRes() {
         <span>${esc(NR.type)} · ${nightsOf_()} night(s)</span>
         <span>Total <b>${money(q.total)}</b></span><span>Average <b>${money(q.average)}</b> / night</span>
       </div>
+      <div class="acts" style="margin-bottom:10px">${can('cfg.accounts.edit') ? '<button class="btn ghost sm" type="button" onclick="accountModal(&#39;&#39;,&#39;newres&#39;)">+ New company profile</button>' : ''}</div>
       <div class="toolbar"><label><span>Filter free rooms</span><input id="nrRoomFilter" placeholder="Room number, e.g. 20" oninput="nrRoomFilter(this.value)"></label>
         <span class="muted">${NR.roomList.length} free ${esc(NR.type)} room(s) for these dates</span></div>
       ${formHtml('fNR', [
@@ -1963,7 +1966,7 @@ async function pgNewRes() {
         { name: 'adults', label: 'Adults', type: 'number', min: 1, value: NR.adults || 1 },
         { name: 'rateOverride', label: 'Fixed nightly rate (optional)', type: 'number', step: '0.01' },
         { name: 'channel', label: 'Channel', type: 'select', options: ['Direct', 'Phone', 'Email', 'Booking.com', 'Expedia', 'Corporate', 'Other'] },
-        { name: 'company', label: 'Company' },
+        { name: 'company', label: 'Company', type: 'select', options: [['', 'None (guest pays)']].concat(companies.map(a => [a.name, a.name + (a.code ? ' · ' + a.code : '')])), value: NR.company || '' },
         { name: 'notes', label: 'Notes / special requests', type: 'textarea', wide: true }
       ], 'Confirm reservation', false)}
     </div>`;
@@ -3353,7 +3356,7 @@ async function pgAccounts() {
       list.map(a => tr([esc(a.code), esc(a.name), esc(a.contact) || '—', Number(a.creditLimit) ? num(a.creditLimit) : 'No limit', balCell(a.balance),
         a.active ? pill('Active') : pill('Inactive'), lnkTo('account', a.id, 'Open'), delBtn_('account', a.id, 'cfg.accounts.delete')])))}</div>`);
 }
-function accountModal(id) {
+function accountModal(id, back) {
   const load = id ? api('getAccount', id).then(d => d.account) : Promise.resolve({});
   load.then(x => {
     openModal(id ? 'Edit company account' : 'New company account', formHtml('fAc', [
@@ -3366,7 +3369,8 @@ function accountModal(id) {
     ], 'Save account'));
     bindForm('fAc', async d => {
       const aid = await api('saveAccount', Object.assign({}, d, { id: id || '', active: d.active === 'true' }));
-      toast('Account saved'); closeModal(); go('account', aid);
+      toast('Account saved'); closeModal();
+      if (back === 'newres') { NR.company = d.name; go('newres'); } else go('account', aid);
     });
   }).catch(e => toast(e.message, true));
 }
