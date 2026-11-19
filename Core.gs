@@ -513,11 +513,20 @@ function appNameScript_(cb) {
   return ContentService.createTextOutput(cb + '(' + JSON.stringify({ appName: name, logoUrl: logo }) + ');')
     .setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
+/* Runs fn once for this app version; the mark is kept for six hours. A failed run is not marked, so it tries again. */
+function onceForVersion_(name, fn) {
+  const cache = CacheService.getScriptCache();
+  const key = 'once_' + name + '_' + APP_VERSION;
+  if (cache.get(key)) return;
+  fn();
+  cache.put(key, '1', 21600);
+}
 function doGet(e) {
   const cb = e && e.parameter && e.parameter.nameFor;
   if (cb) return /^[A-Za-z_$][\w$]*$/.test(cb) ? appNameScript_(cb) : ContentService.createTextOutput('');
-  try { ensureAutoUpdate_(); } catch (e) { Logger.log('Auto update timer: ' + e.message); }
-  try { ensureBackupTrigger_(); } catch (e) { Logger.log('Backup timer: ' + e.message); }
+  // The timers are checked once per version (the check itself is a slow call to Google), not on every page load
+  try { onceForVersion_('auto', () => ensureAutoUpdate_()); } catch (e) { Logger.log('Auto update timer: ' + e.message); }
+  try { onceForVersion_('backup', () => ensureBackupTrigger_()); } catch (e) { Logger.log('Backup timer: ' + e.message); }
   try { ensureAllTabsOnce_(); } catch (e) { Logger.log('Tabs check: ' + e.message); }
   let name = '', logo = '';
   try { const st = settings_(); name = st.appName || name; logo = st.logoUrl || ''; } catch (e) { /* database not set up yet */ }
