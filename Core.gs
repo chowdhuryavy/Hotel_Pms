@@ -480,7 +480,8 @@ function doGet(e) {
   t.appName = name;
   t.appVersion = APP_VERSION;
   t.execUrl = ScriptApp.getService().getUrl();   // the web app's own address, used by the update Refresh button
-  return t.evaluate().setTitle(name).addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  // ALLOWALL lets the Vercel page show this app in its frame. Without it Google blocks the frame.
+  return t.evaluate().setTitle(name).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL).addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 /** Inlines a file (Styles) into Index as HTML. */
 function include(name) {

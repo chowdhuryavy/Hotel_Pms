@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.141**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.142**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.142: The app page can be shown in the Vercel frame. Google had blocked the frame, which showed a blank page.
 
 Release notes for 1.2.141: The Vercel page reads the app name from the Settings sheet (no name is typed into the page), and its "Open in a new tab" link opens the Vercel address. The name is served by the app as a small script (`?nameFor=`) that returns only the name.
 
