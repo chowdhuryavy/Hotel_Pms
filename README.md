@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.94**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.95**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.95: Night audit reports added for a full night audit, even where there is no data yet: revenue by department, taxable charges and tax, expected departures, past-due arrivals, rooms out of order, 7-day forecast, occupancy by room type, guest ledger and group ledger. Every report shows its columns when it has no rows.
 
 Release notes for 1.2.94: Night audit report now shows every report as a button. New reports: in-house by nationality, group in-house, in-house by company, VIP guests in house, payments by method, check-ins, check-outs, rate variance (actual rate against the published rate for the same nights), complimentary and discounts (postings whose code or description says comp, discount, waiver or courtesy), folio ledger and room ledger.
 

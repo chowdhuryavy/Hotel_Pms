@@ -28,7 +28,16 @@ const REPORT_TYPES = [
   ['ratevar', 'Rate variance (actual rate vs published rate)'],
   ['complimentary', 'Complimentary & discounts'],
   ['folioledger', 'Folio ledger (every folio and its balance)'],
-  ['roomledger', 'Room ledger (charges, payments and balance by room)']
+  ['roomledger', 'Room ledger (charges, payments and balance by room)'],
+  ['deptrevenue', 'Revenue by department'],
+  ['tax', 'Taxable charges & tax'],
+  ['expdep', 'Expected departures (business date)'],
+  ['pastdue', 'Past-due arrivals (not checked in)'],
+  ['ooo', 'Rooms out of order or out of service'],
+  ['forecast', 'Forecast: next 7 days (arrivals, departures, rooms sold)'],
+  ['roomtypeocc', 'Occupancy by room type (business date)'],
+  ['guestledger', 'Guest ledger (balance by guest)'],
+  ['groupledger', 'Group ledger (balance by group)']
 ];
 
 /** A report is one table, or several sections (the end-of-day report). */
@@ -204,6 +213,90 @@ function buildReport_(type, from, to) {
       .map(k => [k, agg[k].charges, agg[k].payments, agg[k].charges - agg[k].payments]);
     rows.push(['TOTAL', rows.reduce((a, x) => a + x[1], 0), rows.reduce((a, x) => a + x[2], 0), rows.reduce((a, x) => a + x[3], 0)]);
     return { title: 'Room ledger · ' + f + (t !== f ? ' to ' + t : ''), headers: ['Room', 'Charges', 'Payments', 'Net'], rows: rows };
+  }
+  if (type === 'deptrevenue') {
+    const codes = {};
+    rows_(TBL.CHARGES).forEach(c => { codes[c.code] = c; });
+    const agg = {};
+    posts.filter(p => inRange(p.bizDate) && Number(p.amount) >= 0).forEach(p => {
+      const c = codes[p.code] || { department: '(unassigned)' };
+      const k = String(c.department || '(unassigned)');
+      agg[k] = (agg[k] || 0) + Number(p.amount);
+    });
+    const rows = Object.keys(agg).sort().map(k => [k, agg[k]]);
+    rows.push(['TOTAL', rows.reduce((a, x) => a + x[1], 0)]);
+    return { title: 'Revenue by department · ' + f + (t !== f ? ' to ' + t : ''), headers: ['Department', 'Charges'], rows: rows };
+  }
+  if (type === 'tax') {
+    const codes = {};
+    rows_(TBL.CHARGES).forEach(c => { codes[c.code] = c; });
+    const rate = Number(settings_().taxRate) || 0;
+    const agg = {};
+    posts.filter(p => inRange(p.bizDate) && Number(p.amount) >= 0 && codes[p.code] && codes[p.code].taxable === true).forEach(p => {
+      agg[p.code] = (agg[p.code] || 0) + Number(p.amount);
+    });
+    const rows = Object.keys(agg).sort().map(k => [k, (codes[k] || {}).description || k, agg[k], Math.round(agg[k] * rate * 100) / 100]);
+    rows.push(['TOTAL', '', rows.reduce((a, x) => a + x[2], 0), rows.reduce((a, x) => a + x[3], 0)]);
+    return { title: 'Taxable charges & tax (' + Math.round(rate * 100) + '%) · ' + f + (t !== f ? ' to ' + t : ''), headers: ['Code', 'Description', 'Taxable base', 'Tax'], rows: rows };
+  }
+  if (type === 'expdep') {
+    const rows = res.filter(x => x.status === 'In-House' && x.departure === bd)
+      .map(x => [String(x.roomNo), x.guestName, x.resNo, x.arrival, x.departure, x.company]);
+    rows.sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+    return { title: 'Expected departures · ' + bd, headers: ['Room', 'Guest', 'Res #', 'Arrival', 'Departure', 'Company'], rows: rows };
+  }
+  if (type === 'pastdue') {
+    const rows = res.filter(x => x.status === 'Reserved' && x.arrival < bd)
+      .map(x => [String(x.roomNo || ''), x.guestName, x.resNo, x.arrival, x.departure, x.company]);
+    rows.sort((a, b) => String(a[3]).localeCompare(String(b[3])));
+    return { title: 'Past-due arrivals · ' + bd, headers: ['Room', 'Guest', 'Res #', 'Arrival', 'Departure', 'Company'], rows: rows };
+  }
+  if (type === 'ooo') {
+    const rows = rows_(TBL.ROOMS).filter(x => x.status && x.status !== 'Active')
+      .map(x => [String(x.roomNo), x.type, x.status, x.statusReason || '']);
+    rows.sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+    return { title: 'Out of order / out of service · ' + bd, headers: ['Room', 'Type', 'Status', 'Reason'], rows: rows };
+  }
+  if (type === 'forecast') {
+    const rows = [];
+    for (let i = 0; i < 7; i++) {
+      const d = addDays_(bd, i);
+      const arr = res.filter(x => x.arrival === d && ['Reserved', 'In-House'].indexOf(x.status) >= 0).length;
+      const dep = res.filter(x => x.departure === d && ['Reserved', 'In-House'].indexOf(x.status) >= 0).length;
+      const sold = res.filter(x => ['Reserved', 'In-House'].indexOf(x.status) >= 0 && x.arrival <= d && d < x.departure).length;
+      rows.push([d, arr, dep, sold, rooms ? Math.round(sold / rooms * 1000) / 10 : 0]);
+    }
+    return { title: 'Forecast from ' + bd, headers: ['Date', 'Arrivals', 'Departures', 'Rooms sold', 'Occupancy %'], rows: rows };
+  }
+  if (type === 'roomtypeocc') {
+    const types = {};
+    roomsAll_().filter(x => x.status === 'Active').forEach(x => { types[x.type] = types[x.type] || { total: 0, sold: 0 }; types[x.type].total++; });
+    res.filter(x => x.status === 'In-House').forEach(x => { if (types[x.roomType]) types[x.roomType].sold++; });
+    const rows = Object.keys(types).sort().map(k => [k, types[k].total, types[k].sold, types[k].total ? Math.round(types[k].sold / types[k].total * 1000) / 10 : 0]);
+    return { title: 'Occupancy by room type · ' + bd, headers: ['Room type', 'Rooms', 'In-house', 'Occupancy %'], rows: rows };
+  }
+  if (type === 'guestledger') {
+    const bal = balances_();
+    const rows = res.filter(x => ['In-House', 'Departed', 'Reserved'].indexOf(x.status) >= 0)
+      .map(x => [x.guestName, x.resNo, String(x.roomNo || ''), x.status, Math.round((Number(bal[x.resNo]) || 0) * 100) / 100])
+      .filter(x => Math.abs(x[4]) >= 0.005);
+    rows.sort((a, b) => b[4] - a[4]);
+    rows.push(['TOTAL', '', '', '', rows.reduce((a, x) => a + x[4], 0)]);
+    return { title: 'Guest ledger · ' + bd, headers: ['Guest', 'Res #', 'Room', 'Status', 'Balance'], rows: rows };
+  }
+  if (type === 'groupledger') {
+    const bal = balances_();
+    const groups = {};
+    rows_(TBL.GROUPS).forEach(g => { groups[g.id] = g; });
+    const agg = {};
+    res.filter(x => x.groupId && ['In-House', 'Departed', 'Reserved'].indexOf(x.status) >= 0).forEach(x => {
+      const k = String(x.groupId);
+      agg[k] = agg[k] || { name: (groups[k] || {}).name || k, rooms: 0, balance: 0 };
+      agg[k].rooms++; agg[k].balance += Number(bal[x.resNo]) || 0;
+    });
+    const rows = Object.keys(agg).sort().map(k => [agg[k].name, agg[k].rooms, Math.round(agg[k].balance * 100) / 100]);
+    rows.push(['TOTAL', rows.reduce((a, x) => a + x[1], 0), rows.reduce((a, x) => a + x[2], 0)]);
+    return { title: 'Group ledger · ' + bd, headers: ['Group', 'Rooms', 'Balance'], rows: rows };
   }
   if (type === 'inhouse') {
     const rows = res.filter(r => r.status === 'In-House')
