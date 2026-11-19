@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.24**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.25**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.25: Billing room screen has a bottom action bar: Post, Payment, Folio, Reservation, Check out and Options (guest history, move, extend, copy). The bar appears only on screens that set one.
 
 Release notes for 1.2.24: Loading screen: the saved style and message now apply at sign-in and after saving in Settings; six new styles (Ring, Glow, Slide in, Wave dots, Spin 3D, Drop), all with the app logo. Header: removed the accent line beside the hotel name and the background behind the sidebar logo button.
 

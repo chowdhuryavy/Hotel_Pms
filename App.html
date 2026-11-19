@@ -330,6 +330,16 @@ function billingFilter(q) {
   const t = String(q || '').trim().toLowerCase();
   $('bTable').innerHTML = billingTable_(BILL.filter(r => JSON.stringify(r).toLowerCase().indexOf(t) >= 0));
 }
+/* Options for the room's stay, opened from the bottom bar. Each choice respects the user's permissions. */
+function billOptions_(resNo, roomNo, guestId) {
+  const rows = [
+    [can('reservations.view'), 'Guest history', `guestHistoryModal('${guestId}')`],
+    [can('reservations.modify'), 'Move room', `moveModal('${resNo}')`],
+    [can('reservations.modify'), 'Extend stay', `extendModal('${resNo}')`],
+    [can('reservations.create'), 'Copy reservation', `copyModal('${resNo}')`]
+  ].filter(x => x[0]);
+  openModal('Options · Room ' + roomNo, `<div class="opt-list">${rows.map(x => `<button type="button" class="btn ghost block" onclick="closeModal();${x[2]}">${x[1]}</button>`).join('')}</div>`);
+}
 async function pgBillingRoom(roomNo) {
   const d = await api('billingRoom', roomNo);
   const head = `<h1>Room ${esc(roomNo)} <small>billing</small></h1><p><button class="btn ghost sm" onclick="go('billing')">&larr; All rooms</button></p>`;
@@ -354,6 +364,16 @@ async function pgBillingRoom(roomNo) {
     return `<div class="card"><div class="head-row"><h3>Folio ${f.folioNo} · ${esc(f.name)} ${pill(f.status)}</h3><div>${acts}${city}</div></div>` +
       table(['Date', 'Code', 'Description', 'Amount', '', ''], rows) + `<p><b>Folio balance:</b> ${balCell(f.balance)}</p></div>`;
   }).join('');
+  const rn = esc(roomNo), rid = esc(r.resNo);
+  const inHouse = r.status === 'In-House';
+  setBottomBar_([
+    can('folio.post') ? abBtn_('post', 'Post', `go('post','${rn}')`, 'pri') : '',
+    can('folio.post') ? abBtn_('pay', 'Payment', `POST_KIND='payment';go('post','${rn}')`) : '',
+    d.canPost ? abBtn_('folio', 'Folio', `addFolioModal('${rid}')`) : '',
+    can('reservations.view') ? abBtn_('res', 'Reservation', `go('res','${rid}')`) : '',
+    inHouse && can('frontdesk.checkout') ? abBtn_('out', 'Check out', `coAct('${rid}')`, 'ok') : '',
+    abBtn_('more', 'Options', `billOptions_('${rid}','${rn}','${esc(r.guestId)}')`)
+  ].join(''));
   setView(`${head}<div class="card"><div class="head-row"><div><h2>${esc(d.res.guestName)}</h2>
     <p class="muted">${lnk(r.resNo)} · ${pill(r.status)} · ${esc(r.arrival)} to ${esc(r.departure)} · ${esc(r.roomType)}${r.company ? ' · ' + esc(r.company) : ''}</p></div>
     <div class="acts"><button class="btn ghost" onclick="guestHistoryModal('${esc(r.guestId)}')">Guest history</button>
@@ -802,7 +822,27 @@ function go(page, param) {
   if (location.hash !== h) { location.hash = h; return; }   // the hashchange listener draws the page
   renderPage_(page, param);
 }
+/* Bottom action bar: each page sets its own buttons, and renderPage_ clears them when the page changes. */
+function setBottomBar_(html) {
+  let bar = document.getElementById('actbar');
+  if (!bar) { bar = document.createElement('nav'); bar.id = 'actbar'; bar.className = 'actbar'; bar.setAttribute('aria-label', 'Quick actions'); document.body.appendChild(bar); }
+  bar.innerHTML = html || '';
+  bar.classList.toggle('show', !!html);
+  document.body.classList.toggle('has-actbar', !!html);
+}
+const AB_ICON_ = {
+  post: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>',
+  pay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6 15h4"/></svg>',
+  folio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg>',
+  res: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 3v3M16 3v3"/></svg>',
+  out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>'
+};
+function abBtn_(icon, label, onclick, cls) {
+  return `<button type="button" class="ab ${cls || ''}" onclick="${onclick}"><span class="ab-i">${AB_ICON_[icon]}</span><span>${label}</span></button>`;
+}
 function renderPage_(page, param) {
+  setBottomBar_('');
   if (S.user && S.user.mustChange) page = 'password';        // a temporary password must be changed first
   if (!PAGES[page]) page = firstPage();
   else if (!pageAllowed_(page)) {
