@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.175**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.176**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.176: The blur and the change-password box now show correctly (their styles were outside the style block).
 
 Release notes for 1.2.175: A temporary password must be changed first. The app behind is blurred and only the change-password box works, with a Sign out option.
 
