@@ -613,15 +613,6 @@ function brand() {
   $('loginTitle').textContent = s.appName || '';
   $('loginHotel').textContent = s.hotelName || '';
   document.title = s.appName || '';
-  setFavicon_(s);
-}
-/* The browser tab shows the hotel's logo, when one is set. Otherwise the default icon stays. */
-function setFavicon_(s) {
-  const url = String((s && s.logoUrl) || '');
-  if (!/^(https:\/\/|data:image\/)/i.test(url)) return;
-  let link = document.querySelector('link[rel="icon"]');
-  if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
-  if (link.href !== url) link.href = url;
 }
 async function doLogin(e) {
   e.preventDefault();

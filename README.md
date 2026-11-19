@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.116**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.117**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.117: The browser tab keeps the Stayline app icon. The hotel logo is no longer used for the tab.
 
 Release notes for 1.2.116: The desktop sign-in page has a richer look: a decorative ring and gradient title on the left, a card with a soft shadow, a larger sign-in button with a hover lift, and a glow behind the form. The phone layout is unchanged.
 
