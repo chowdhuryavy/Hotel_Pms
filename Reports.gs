@@ -16,6 +16,7 @@ const REPORT_TYPES = [
   ['ledger', 'Posting ledger'],
   ['cancel', 'Cancellations & no-shows'],
   ['ar', 'City ledger (company accounts)'],
+  ['arhistory', 'AR aging history (saved each night audit)'],
   ['shifts', 'Cashier shifts & cash variance'],
   ['housekeeping', 'Housekeeping status & assignments']
 ];
@@ -123,6 +124,15 @@ function buildReport_(type, from, to) {
     const rows = res.filter(r => (r.status === 'Cancelled' || r.status === 'No-Show') && inRange(r.arrival))
       .map(r => [r.arrival, r.resNo, r.guestName, r.status, r.cancelReason || '', r.channel]);
     return { title: 'Cancellations & no-shows', headers: ['Arrival', 'Res #', 'Guest', 'Status', 'Reason', 'Channel'], rows: rows };
+  }
+  if (type === 'arhistory') {
+    // Saved by each night audit: the city-ledger aging as of that business date
+    const snaps = (ss_().getSheetByName(TBL.ARAGING[0]) ? rows_(TBL.ARAGING) : []).filter(x => inRange(String(x.bizDate).slice(0, 10)))
+      .sort((x, y) => String(y.bizDate).localeCompare(String(x.bizDate)) || String(x.code).localeCompare(String(y.code)));
+    const rows = snaps.map(x => [String(x.bizDate).slice(0, 10), x.code, x.name, num_(x.current), num_(x.d31), num_(x.d61), num_(x.d90), num_(x.total)]);
+    const tot = rows.reduce((a, r) => a.map((v, i) => i < 3 ? v : num_(v + r[i])), ['TOTAL', '', '', 0, 0, 0, 0, 0]);
+    return { title: 'AR aging history · ' + f + ' to ' + t, headers: ['Business date', 'Code', 'Company', 'Current (0-30)', '31-60', '61-90', 'Over 90', 'Total'],
+      rows: rows.concat(rows.length ? [tot] : []) };
   }
   if (type === 'ar') {
     const rows = rows_(TBL.ACCOUNTS).map(a => [a.code, a.name, a.active === true ? 'Active' : 'Inactive', num_(a.creditLimit), accountBalance_(a.id)])

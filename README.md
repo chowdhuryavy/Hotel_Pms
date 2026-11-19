@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.57**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.58**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.58: New report "AR aging history" lists the city-ledger aging saved by each night audit, by business date and company, with totals. It is in the Reports page and can be exported to PDF or CSV.
 
 Release notes for 1.2.57: The night-audit checklist has a live progress bar with a percentage and the step just completed. After a successful audit the app moves to the new business date at once: the session is saved, the page behind the checklist refreshes and the dashboard shows the new date.
 
