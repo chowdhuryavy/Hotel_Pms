@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.109**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.110**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.110: The sign-in page shows the logo, app name and hotel name centred in the sign-in box. The left panel is simpler: its bullet list is removed and its text is centred.
 
 Release notes for 1.2.109: Guest service requests can be assigned to an active staff member from the list, and unassigned again. The IP gate (ip-gate folder) is tested for allowed and blocked addresses; it still needs deploying to Cloudflare.
 

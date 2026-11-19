@@ -28,22 +28,15 @@
     <aside class="login-art" aria-hidden="true">
       <span class="orb o1"></span><span class="orb o2"></span><span class="orb o3"></span>
       <div class="art-inner">
-        <div id="loginLogo" class="art-logo"></div>
         <h2 class="art-title">Every stay, in one place.</h2>
         <p class="art-text">Reservations, front desk, housekeeping, billing and night audit, run from one secure system.</p>
-        <ul class="art-list">
-          <li>Reservations and room rack</li>
-          <li>Front desk, folios and payments</li>
-          <li>Housekeeping and group blocks</li>
-          <li>Night audit and daily reports</li>
-        </ul>
         <p class="art-foot">Secure sign-in · Role-based access · Full audit trail</p>
       </div>
     </aside>
     <div class="login-panel">
       <form class="login-box" onsubmit="doLogin(event)">
         <div class="login-head">
-          <span class="login-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-6h6v6"/><path d="M8 11h.01M16 11h.01M12 11h.01"/></svg></span>
+          <div id="loginLogo" class="login-logo" aria-hidden="true"></div>
           <h1 id="loginTitle"><?= appName ?></h1>
           <p class="muted" id="loginHotel"></p>
         </div>
