@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.35**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.36**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.36: The update pop-up's Refresh button now reloads the app properly. It loads the newest version from the top window, with a fallback if the browser blocks that.
 
 Release notes for 1.2.35: The new-version pop-up now reads "New update available. Version X is available. Please refresh to update."
 

@@ -79,8 +79,21 @@ function updateShow_(v) {
   let box = document.getElementById('updbox');
   if (!box) { box = document.createElement('div'); box.id = 'updbox'; box.className = 'updbox'; box.setAttribute('role', 'status'); document.body.appendChild(box); }
   box.innerHTML = `<span class="upd-ico" aria-hidden="true">↻</span><span class="upd-txt"><b>New update available</b><span>Version ${esc(v)} is available. Please refresh to update.</span></span>
-    <span class="upd-acts"><button type="button" class="btn sm" onclick="location.reload()">Refresh</button><button type="button" class="btn ghost sm" onclick="updateLater_()">Later</button></span>`;
+    <span class="upd-acts"><button type="button" class="btn sm" onclick="updateRefresh_()">Refresh</button><button type="button" class="btn ghost sm" onclick="updateLater_()">Later</button></span>`;
   requestAnimationFrame(() => box.classList.add('show'));
+}
+/* Refresh: loads the newest version of the app. The app runs inside Google's frame, so the reload is
+   sent to the top window with a new address (the fresh version is never served from the old cache). */
+function updateRefresh_() {
+  const u = new URL(location.href);
+  u.searchParams.set('v', String(Date.now()));
+  let done = false;
+  window.addEventListener('pagehide', () => { done = true; }, { once: true });
+  try { window.top.location.href = u.href; } catch (e) { /* the frame cannot navigate the top window */ }
+  setTimeout(() => {
+    if (done) return;
+    try { window.open(u.href, '_top'); } catch (e) { location.href = u.href; }
+  }, 900);
 }
 function updateLater_() {
   UPD_SNOOZE = Date.now() + 30 * 60 * 1000;   // ask again in 30 minutes
