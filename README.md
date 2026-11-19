@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.40**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.41**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.41: "Send code" and "Resend code" on the forgot-password screen show a spinner while the email is sent.
 
 Release notes for 1.2.40: Emails have a branded header with the hotel logo (from Settings), the hotel name and the app name, and a cleaner layout. Emails use the logo link from Settings; a logo that is not a web link shows the hotel's initial instead.
 
