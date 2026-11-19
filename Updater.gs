@@ -144,10 +144,14 @@ function updateFromGitHub(auto, targetSha) {
   deps.forEach(d => {
     try { pointDeployment_(d.deploymentId, version, desc); } catch (e) { failed.push(e.message); }
   });
-  p.setProperty('CONTENT_HASH', hash);
-  p.setProperty('LAST_SHA', sha);
-  if (targetSha) p.setProperty('PINNED_SHA', targetSha);
-  p.deleteProperty('PENDING_SHA');
+  // Only a fully moved update counts as applied. If a web app link could not be moved, the update stays
+  // pending, so the next run tries again instead of reporting "nothing to update" while the link runs old code.
+  if (!failed.length) {
+    p.setProperty('CONTENT_HASH', hash);
+    p.setProperty('LAST_SHA', sha);
+    if (targetSha) p.setProperty('PINNED_SHA', targetSha);
+    p.deleteProperty('PENDING_SHA');
+  }
 
   let msg = (auto ? 'Automatic update: ' : 'Update: ') + desc + ' is now version ' + version + '.';
   if (deps.length) msg += ' ' + (deps.length - failed.length) + ' web app link(s) now run it – reload the app.';
