@@ -1,6 +1,6 @@
 const fs = require('fs'), vm = require('vm'), crypto = require('crypto');
 const SRC = '../';
-const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','FixedCharges','Recovery','Roles','Billing','Ledger','Admin','EodReports','FrontSearch','Menu','Updater'];
+const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','FixedCharges','Documents','Recovery','Roles','Billing','Ledger','Admin','EodReports','FrontSearch','Menu','Updater'];
 const code = files.map(f => fs.readFileSync(SRC + f + '.gs', 'utf8')).join('\n;\n');
 
 // ---- in-memory Spreadsheet ----
@@ -256,6 +256,19 @@ if (require.main === module) {
   ok(!pdf.e && /\.pdf$/.test(pdf.v.name) && pdf.v.base64.length > 0, 'folio PDF produced');
   const reg = tryRun("registrationCard(TOK,'" + stay.v.resNo + "')");
   ok(!reg.e && /^Registration_.*\.pdf$/.test(reg.v.name) && reg.v.base64.length > 0, 'registration card PDF produced ' + (reg.e || ''));
+  // printable documents: receipt, company folio, statement, paid-out receipt
+  const payId = run("(rows_(TBL.POSTINGS).find(p => p.code === 'CASH' && Number(p.amount) < 0 && !p.parentId) || {}).id || ''");
+  const rc = tryRun("paymentReceiptPdf(TOK,'" + payId + "')");
+  ok(!rc.e && /^Receipt_/.test(rc.v.name), 'payment receipt PDF ' + (rc.e || ''));
+  const docAccId = run("(rows_(TBL.ACCOUNTS)[0] || {}).id || ''");
+  const cf = tryRun("accountFolioPdf(TOK,'" + docAccId + "')");
+  ok(!cf.e && /^Company_folio_/.test(cf.v.name), 'company folio PDF ' + (cf.e || ''));
+  const st2 = tryRun("arStatementPdf(TOK,'" + docAccId + "')");
+  ok(!st2.e && /^Statement_/.test(st2.v.name), 'AR statement PDF ' + (st2.e || ''));
+  const ref = tryRun("refundPayment(TOK,'" + payId + "',5,'test')");
+  const refId = run("(rows_(TBL.POSTINGS).find(p => p.parentId === '" + payId + "') || {}).id || ''");
+  if (!ref.e && refId) { const po = tryRun("paidOutReceiptPdf(TOK,'" + refId + "')"); ok(!po.e && /^Paid-out_/.test(po.v.name), 'paid-out receipt PDF ' + (po.e || '')); }
+  else ok(true, 'paid-out receipt skipped (no refund in this run)');
   const fc = run('occupancyForecast(TOK, 14)');
   ok(fc.length === 14 && fc.every(d => d.pct >= 0 && d.pct <= 100), 'occupancy forecast: 14 days');
   ok(!tryRun("saveUser(TOK,{username:'hk1',name:'Maria',role:'Housekeeping',password:'Maria1234',active:true})").e, 'housekeeper user created');

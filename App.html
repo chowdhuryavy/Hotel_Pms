@@ -71,8 +71,8 @@ const api = (fn, ...a) => {
       }
       netFailed_();
       throw new Error(READ_FN_RE.test(fn)
-        ? 'The connection to Google was interrupted. The app will reconnect automatically.'
-        : 'The connection to Google was interrupted. Check whether it was saved before you try again.');
+        ? 'The connection was interrupted. The app will reconnect automatically.'
+        : 'The connection was interrupted. Check whether it was saved before you try again.');
     }
     throw e;
   });
@@ -186,8 +186,8 @@ async function netProbe_() {
 function netDescribe_(d) {
   if (d.browser === 'offline') return ['Your device is offline', 'Check Wi‑Fi or mobile data. The app reconnects automatically when the connection returns.'];
   if (d.server === 'ok') return ['Connection is working', `The app server answered in ${d.ms} ms. The page has been refreshed. If you were saving something, check it was saved.`];
-  if (d.server === 'slow') return ['The app server is slow', 'Google is taking a long time to answer. Wait a moment, then press Retry.'];
-  return ['The app server cannot be reached', 'This is usually temporary: Google may be busy, or the network is blocking it. The app keeps trying every 10 seconds. If it continues, try another connection.'];
+  if (d.server === 'slow') return ['The app server is slow', 'The server is taking a long time to answer. Wait a moment, then press Retry.'];
+  return ['The app server cannot be reached', 'This is usually temporary: the service may be busy, or the network is blocking it. The app keeps trying every 10 seconds. If it continues, try another connection.'];
 }
 async function netDiagnose_() {
   const d = await netProbe_();
@@ -215,7 +215,7 @@ function netFailed_() {
   netStartWatch_();
 }
 function netCard_() {
-  return `<div class="card net-card"><h3>Connection problem</h3><p class="muted">The app could not reach Google. This page reloads by itself when the connection returns.</p>
+  return `<div class="card net-card"><h3>Connection problem</h3><p class="muted">The app could not reach the server. This page reloads by itself when the connection returns.</p>
     <div class="acts"><button class="btn" type="button" onclick="netDiagnose_()">Diagnose and retry</button></div></div>`;
 }
 window.addEventListener('offline', () => netFailed_());
@@ -230,7 +230,7 @@ function waitSplash_() {
   // Stays up until the first page has its data. Google can take a while, so the message says so.
   const tick = () => {
     const el = Date.now() - t0;
-    if (slowNote < 1 && el > 6000) { slowNote = 1; splashMsg('Still loading from Google. The first load can take a little longer…'); }
+    if (slowNote < 1 && el > 6000) { slowNote = 1; splashMsg('Still preparing your hotel. The first load can take a little longer…'); }
     if (slowNote < 2 && el > 15000) { slowNote = 2; splashMsg('Slow connection. Still loading your hotel…'); }
     if ((!VIEW_PENDING && PROGRESS_N === 0) || el > 60000) hideSplash();
     else setTimeout(tick, 150);
@@ -599,7 +599,9 @@ async function pgBillingRoom(roomNo) {
       const split = isCh && open && can('folio.edit') ? `<button class="btn sm ghost" onclick="splitModal('${esc(p.id)}')">Split</button>` : '';
       const move = isCh && open && can('folio.transfer') ? `<button class="btn sm ghost" onclick="transferModal('${esc(p.id)}')">Move</button>` : '';
       const desc = p.voided ? '<s>' + esc(p.description) + '</s> <span class="pill">void</span>' : (p.parentId ? '<span class="muted">&nbsp;&nbsp;↳ ' + esc(p.description) + '</span>' : esc(p.description));
-      return tr([esc(p.bizDate), esc(p.code), desc, num(p.amount), refund + voidBtn, edit + split + move], p.voided ? 'muted' : '');
+      const receipt = !p.voided && !p.parentId && Number(p.amount) < 0 ? `<button class="btn sm ghost" onclick="printReceipt('${esc(p.id)}')">Receipt</button>` : '';
+      const paidOut = !p.voided && p.parentId && Number(p.amount) > 0 ? `<button class="btn sm ghost" onclick="printPaidOut('${esc(p.id)}')">Paid-out receipt</button>` : '';
+      return tr([esc(p.bizDate), esc(p.code), desc, num(p.amount), receipt + paidOut + refund + voidBtn, edit + split + move], p.voided ? 'muted' : '');
     });
     const city = can('ar.post') && f.status === 'Open' && f.balance > 0 ? `<button class="btn sm ghost" onclick="closeCityModal('${esc(f.id)}', ${Number(f.balance)})">Close to city ledger</button>` : '';
     const acts = d.canPost && f.status === 'Open' ? `<div class="acts"><button class="btn sm" onclick="chargeModal('${esc(f.id)}')">Charge</button>
@@ -2195,6 +2197,9 @@ async function pgAdmin(scope) {
       { name: 'hotelName', label: 'Hotel name', value: s.hotelName, required: true },
       { name: 'ownerName', label: 'Owner or designer (shown under the hotel name)', value: s.ownerName || '' },
       { name: 'hotelAddress', label: 'Address', value: s.hotelAddress, wide: true },
+      { name: 'hotelPhone', label: 'Phone', value: s.hotelPhone || '' },
+      { name: 'hotelEmail', label: 'Email', type: 'email', value: s.hotelEmail || '' },
+      { name: 'hotelAppUrl', label: 'Hotel app URL (printed on documents)', type: 'url', value: s.hotelAppUrl || '', wide: true, placeholder: 'https://…' },
       { name: 'loadingMessage', label: 'Loading screen message', value: s.loadingMessage, wide: true },
       { name: 'logoUrl', label: 'Logo (https link, or upload below)', value: s.logoUrl, wide: true },
       { name: 'logoPicker', raw: logoPickerHtml(s.logoUrl) },
@@ -2264,7 +2269,7 @@ async function pgAdmin(scope) {
   }
   setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1>${scope === 'sys' ? connPanelHtml_() : ''}<p class="muted">${scope === 'sys' ? 'System administrator only: property admin accounts, roles and permissions, system settings and email templates.' : 'Hotel operations: staff users, hotel settings, rooms, packages and payment methods.'}</p>${bar}<div class="card">${body}</div>`);
   if (ADM === 'settings' && can('cfg.settings.edit')) bindForm('fSt', async d => {
-    const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, ownerName: d.ownerName, hotelAddress: d.hotelAddress, logoUrl: d.logoUrl, currency: d.currency,
+    const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, ownerName: d.ownerName, hotelAddress: d.hotelAddress, hotelPhone: d.hotelPhone, hotelEmail: d.hotelEmail, hotelAppUrl: d.hotelAppUrl, logoUrl: d.logoUrl, currency: d.currency,
       taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit, loadingMessage: d.loadingMessage });
     S.settings = Object.assign({}, S.settings, { appName: out.appName, hotelName: out.hotelName, ownerName: d.ownerName, logoUrl: out.logoUrl, currency: out.currency, loadingScreen: d.loadingScreen, loadingMessage: d.loadingMessage });
     brand(); toast('Settings saved');
@@ -2297,7 +2302,7 @@ async function pgAdmin(scope) {
 }
 /* Hotel details the user can see but not change (set by the system administrator's configuration permissions). */
 function readOnlySettingsHtml_(s) {
-  const rows = [['App name', s.appName], ['Hotel name', s.hotelName], ['Address', s.hotelAddress], ['Loading message', s.loadingMessage],
+  const rows = [['App name', s.appName], ['Hotel name', s.hotelName], ['Address', s.hotelAddress], ['Phone', s.hotelPhone], ['Email', s.hotelEmail], ['Hotel app URL', s.hotelAppUrl], ['Loading message', s.loadingMessage],
     ['Logo', s.logoUrl ? 'Set' : 'Not set'], ['Currency', s.currency], ['Tax rate', (Number(s.taxRate) * 100).toFixed(2) + '%'],
     ['Check-in time', s.checkInTime], ['Check-out time', s.checkOutTime], ['Allow check-out with balance', String(s.allowCheckoutWithBalance)],
     ['Auto no-show on night audit', String(s.autoNoShowOnAudit)], ['Business date', s.businessDate]];
@@ -2496,7 +2501,7 @@ async function pgARStatement(accId) {
   const d = await api('arStatement', accId);
   const a = d.account, b = d.buckets;
   setView(`<h1>${esc(a.name)} <small>${esc(a.code)} · receivable</small></h1>
-    <p><button class="btn ghost sm" onclick="go('ar')">&larr; All companies</button> <button class="btn ghost sm" onclick="go('account','${esc(a.id)}')">Company account</button></p>
+    <p><button class="btn ghost sm" onclick="go('ar')">&larr; All companies</button> <button class="btn ghost sm" onclick="go('account','${esc(a.id)}')">Company account</button> <button class="btn ghost sm" onclick="printArStatement('${esc(a.id)}')">Statement PDF</button> <button class="btn ghost sm" onclick="printAccountFolio('${esc(a.id)}')">Company folio PDF</button></p>
     <div class="grid2">
       <div class="card"><h3>Balance owed ${balCell(d.balance)}</h3>
         ${kv([['Current (0–30 days)', num(b.current)], ['31–60 days', num(b.d31)], ['61–90 days', num(b.d61)], ['Over 90 days', num(b.d90)], ['Credit limit', a.creditLimit ? num(a.creditLimit) : 'No limit']])}
@@ -2772,6 +2777,17 @@ function printFolio(resNo) {
     document.body.appendChild(a); a.click(); a.remove();
   }).catch(e => toast(e.message, true));
 }
+function downloadPdf_(fn, ...args) {
+  return api(fn, ...args).then(f => {
+    const a = document.createElement('a');
+    a.href = 'data:application/pdf;base64,' + f.base64; a.download = f.name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }).catch(e => toast(e.message, true));
+}
+function printReceipt(postingId) { return downloadPdf_('paymentReceiptPdf', postingId); }
+function printPaidOut(postingId) { return downloadPdf_('paidOutReceiptPdf', postingId); }
+function printArStatement(accId) { return downloadPdf_('arStatementPdf', accId); }
+function printAccountFolio(accId) { return downloadPdf_('accountFolioPdf', accId); }
 function printRegCard(resNo) {
   api('registrationCard', resNo).then(f => {
     const a = document.createElement('a');

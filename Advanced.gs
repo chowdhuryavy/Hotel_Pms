@@ -138,76 +138,7 @@ function listShifts(token) {
       variance: x.variance === '' ? 0 : num_(x.variance), status: x.status }));
 }
 
-/* ============================ PRINTABLE FOLIO (PDF) ============================ */
-function exportFolioPdf(token, resNo) {
-  const s = auth_(token, 'folio.view');
-  const d = getReservation(token, resNo);
-  const st = settings_();
-  const esc = x => String(x == null ? '' : x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const m = v => Number(v || 0).toFixed(2);
-  const r = d.res;
-  let body = '';
-  (d.folios || []).forEach(f => {
-    const rows = f.postings.map(p => '<tr style="' + (p.voided ? 'color:#999;text-decoration:line-through' : '') + '"><td>' + esc(p.bizDate) + '</td><td>' +
-      esc(p.code) + '</td><td>' + esc(p.description) + '</td><td style="text-align:right">' + m(p.amount) + '</td><td>' + (p.voided ? 'VOID' : '') + '</td></tr>').join('');
-    body += '<h3>Folio ' + f.folioNo + ' · ' + esc(f.name) + ' (' + esc(f.status) + ')</h3>' +
-      '<table><tr><th>Date</th><th>Code</th><th>Description</th><th>Amount</th><th></th></tr>' + rows + '</table>' +
-      '<p><b>Folio balance: ' + m(f.balance) + ' ' + esc(st.currency) + '</b></p>';
-  });
-  const html = '<html><head><style>body{font-family:Arial,sans-serif;font-size:11px}h1{font-size:18px;margin:0}' +
-    'table{border-collapse:collapse;width:100%;margin:6px 0}td,th{border:1px solid #999;padding:4px}th{background:#e6efef;text-align:left}</style></head><body>' +
-    hotelLogoHtml_(st) +
-    '<h1>' + esc(st.hotelName) + '</h1>' + (st.hotelAddress ? '<div>' + esc(st.hotelAddress) + '</div>' : '') +
-    '<h2>Guest folio · ' + esc(r.resNo) + '</h2>' +
-    '<table><tr><td><b>Guest</b></td><td>' + esc(d.guestName) + '</td><td><b>Room</b></td><td>' + esc(d.room.roomNo) + ' · ' + esc(d.room.type) + '</td></tr>' +
-    '<tr><td><b>Arrival</b></td><td>' + esc(r.arrival) + '</td><td><b>Departure</b></td><td>' + esc(r.departure) + '</td></tr>' +
-    '<tr><td><b>Status</b></td><td>' + esc(r.status) + '</td><td><b>Plan</b></td><td>' + esc(r.plan) + '</td></tr></table>' +
-    body + '<h2>Total balance: ' + m(d.balance) + ' ' + esc(st.currency) + '</h2>' +
-    '<p>Printed ' + fmtTs_(new Date()) + ' by ' + esc(s.name) + '</p></body></html>';
-  const blob = HtmlService.createHtmlOutput(html).getAs('application/pdf');
-  audit_(s.username, 'FOLIO_PRINTED', 'Reservation', resNo, '');
-  return { name: 'Folio_' + resNo + '.pdf', base64: Utilities.base64Encode(blob.getBytes()) };
-}
-
-/* ============================ REGISTRATION CARD (PDF) ============================ */
-/** Guest registration card printed at check-in: guest details, stay, rates and signature lines. */
-function registrationCard(token, resNo) {
-  const s = auth_(token, 'reservations.view');
-  const d = getReservation(token, resNo);
-  const r = d.res, g = d.guest || {}, st = settings_();
-  const esc = x => String(x == null ? '' : x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const m = v => Number(v || 0).toFixed(2);
-  const nights = Math.max(0, Math.round((new Date(r.departure) - new Date(r.arrival)) / 86400000));
-  const rateRows = (d.rates || []).map(x => '<tr><td>' + esc(x.date) + '</td><td style="text-align:right">' + m(x.rate) + '</td></tr>').join('') ||
-    '<tr><td colspan="2">Rate as quoted at booking</td></tr>';
-  const field = (label, value) => '<td class="lbl">' + esc(label) + '</td><td class="val">' + esc(value || '') + '</td>';
-  const html = '<html><head><style>body{font-family:Arial,sans-serif;font-size:11px;color:#111}h1{font-size:17px;margin:0}' +
-    'h2{font-size:13px;margin:14px 0 4px;color:#0f3d3e}table{border-collapse:collapse;width:100%}' +
-    'td{border:1px solid #999;padding:5px}td.lbl{background:#eef4f3;width:17%;font-weight:bold}td.val{width:33%}' +
-    '.sig td{height:42px;vertical-align:bottom}.small{font-size:9.5px;color:#444;margin-top:8px}</style></head><body>' +
-    hotelLogoHtml_(st) +
-    '<h1>' + esc(st.hotelName) + '</h1>' + (st.hotelAddress ? '<div>' + esc(st.hotelAddress) + '</div>' : '') +
-    '<h2>GUEST REGISTRATION CARD · ' + esc(r.resNo) + '</h2>' +
-    '<table><tr>' + field('Guest name', d.guestName) + field('Title', g.title) + '</tr>' +
-    '<tr>' + field('Nationality', g.nationality) + field('Date of birth', g.dob) + '</tr>' +
-    '<tr>' + field('ID type', g.idType) + field('ID / passport no.', g.idNo) + '</tr>' +
-    '<tr>' + field('Phone', g.phone) + field('Email', g.email) + '</tr>' +
-    '<tr>' + field('Company', g.company || r.company) + field('Channel', r.channel) + '</tr></table>' +
-    '<h2>STAY</h2><table>' +
-    '<tr>' + field('Arrival', r.arrival) + field('Departure', r.departure) + '</tr>' +
-    '<tr>' + field('Nights', nights) + field('Adults', r.adults) + '</tr>' +
-    '<tr>' + field('Room', d.room.roomNo) + field('Room type', d.room.type) + '</tr>' +
-    '<tr>' + field('Rate plan', r.plan) + field('Status', r.status) + '</tr></table>' +
-    '<h2>NIGHTLY RATES</h2><table><tr><th style="text-align:left">Night</th><th style="text-align:right">Rate (' + esc(st.currency) + ')</th></tr>' + rateRows + '</table>' +
-    '<h2>GUEST DECLARATION</h2>' +
-    '<div class="small">I confirm the details above are correct. I agree to the hotel\'s terms of stay. I am responsible for all charges on my folio, and charges to any company or account I have authorised. Valuables may be placed in the in-room safe; the hotel is not liable for unlocked valuables.</div>' +
-    '<table class="sig" style="margin-top:14px"><tr><td style="width:50%">Guest signature</td><td>Date</td></tr>' +
-    '<tr><td>Registered by (' + esc(s.name) + ')</td><td>' + esc(st.businessDate || '') + '</td></tr></table>' +
-    '</body></html>';
-  const blob = HtmlService.createHtmlOutput(html).getAs('application/pdf');
-  audit_(s.username, 'REG_CARD_PRINTED', 'Reservation', resNo, '');
-  return { name: 'Registration_' + resNo + '.pdf', base64: Utilities.base64Encode(blob.getBytes()) };
-}
+/* Printable documents (folio, registration card, company folio, statements, receipts): see Documents.gs */
 
 /* ============================ HOUSEKEEPING ASSIGNMENT ============================ */
 function setRoomAssignment(token, roomNo, name) {

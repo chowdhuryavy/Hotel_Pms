@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.54**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.55**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.55: All printed documents share one professional layout, with the hotel logo, name, address, phone, email and hotel app URL at the top and the app link in the footer. Documents: guest folio, registration card, company (AR) folio, AR statement with ageing, payment receipt and paid-out receipt (refunds). Print buttons are on the folio payment rows and the AR statement page. Settings → Hotel now has Phone, Email and Hotel app URL, which print on every document. Connection messages no longer mention Google.
 
 Release notes for 1.2.54: The database tabs in the Google Sheet are grouped by area (reservations and guests, rooms and rates, charges and payments, night audit and reports, administration, logs) in that order, each group with its own tab colour. Tab names are unchanged. Setup places them automatically; Stayline → Organise tabs does it again at any time.
 
