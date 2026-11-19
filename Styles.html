@@ -29,7 +29,10 @@
   .brand-name{font-weight:700;font-size:16px}
   .brand-sub{font-size:12px;opacity:.75}
   .nav{overflow:auto;padding:8px 0;flex:1}
-  .nav a{display:block;padding:9px 18px;color:#cfe3e1;cursor:pointer;border-left:3px solid transparent}
+  .nav a{display:flex;align-items:center;gap:12px;padding:9px 18px;color:#cfe3e1;cursor:pointer;border-left:3px solid transparent}
+  .nav a .ni{display:inline-flex;flex:none;opacity:.9}
+  .nav a .ni svg{width:18px;height:18px}
+  .nav a.on .ni{opacity:1;color:var(--accent)}
   .nav a:hover{background:rgba(255,255,255,.08)}
   .nav a.on{background:rgba(255,255,255,.14);border-left-color:var(--accent);color:#fff;font-weight:600}
   .nav .grp{padding:12px 18px 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.55}
@@ -58,7 +61,20 @@
   .acct-btns{margin-top:10px;display:flex;gap:6px;flex-wrap:wrap}
   .account .btn.ghost{color:#fff;border-color:rgba(255,255,255,.35)}
   .account .btn.ghost:hover{background:rgba(255,255,255,.12)}
-  body.sb-collapsed .sidebar{margin-left:-240px}
+  /* Desktop, menu collapsed: a narrow icon rail. Every page icon stays visible and clickable. */
+  @media (min-width:901px){
+    body.sb-collapsed .sidebar{width:68px;margin-left:0;overflow:hidden}
+    body.sb-collapsed .brand{padding:14px 0;display:flex;justify-content:center}
+    body.sb-collapsed .brand-txt,body.sb-collapsed .licbox,body.sb-collapsed .account,body.sb-collapsed .ver{display:none}
+    body.sb-collapsed .nav .grp{display:block;height:1px;margin:10px 14px;padding:0;background:rgba(255,255,255,.16);font-size:0;color:transparent;border:0}
+    body.sb-collapsed .nav .grp span,body.sb-collapsed .nav .grp .caret{display:none}
+    body.sb-collapsed .grp-wrap .grp-items,body.sb-collapsed .grp-wrap.closed .grp-items{display:block}
+    body.sb-collapsed .nav a{justify-content:center;padding:11px 0;border-left-width:0}
+    body.sb-collapsed .nav a:hover{padding-left:0}
+    body.sb-collapsed .nav a.sub{padding-left:0}
+    body.sb-collapsed .nav a .nl{display:none}
+    body.sb-collapsed .nav a.on{box-shadow:inset 3px 0 0 var(--accent)}
+  }
   .sidebar{transition:margin-left .25s ease}
   .who{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:16px;flex:1;min-width:0}
   .qs{flex:1;max-width:520px;margin:0 auto;min-width:0}
@@ -605,7 +621,7 @@
   .ab.ok .ab-i{background:var(--ok-soft)}
   body.has-actbar .view{padding-bottom:96px}
   .opt-list{display:grid;gap:8px}
-  @media (min-width:900px){ .actbar{left:240px} body.sb-collapsed .actbar{left:0} }
+  @media (min-width:900px){ .actbar{left:240px} body.sb-collapsed .actbar{left:68px} }
   /* Busy buttons: the label hides and the spinner shows in its place */
   .btn.spin-on,.btn.spin-on:hover,.btn.spin-on:focus{color:transparent!important;pointer-events:none}
   .ab.spin-on{pointer-events:none}
@@ -699,6 +715,22 @@
   .donut-legend{list-style:none;padding:0;margin:0;flex:1;min-width:150px;display:grid;gap:6px;font-size:13px}
   .donut-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:8px}
   @media (max-width:700px){ .donut{justify-content:center} }
+  /* Dashboard icons, gauge and meter */
+  .kpi-ico{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:var(--hover);color:var(--p1);margin-bottom:10px}
+  .kpi-ico svg{width:18px;height:18px}
+  .h-ico{width:16px;height:16px;vertical-align:-3px;margin-right:7px;color:var(--p1)}
+  .quick-btn .qicon{width:22px;height:22px;display:block;margin:0 auto 6px;color:inherit;opacity:.95}
+  .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:16px}
+  .grid3 > *{min-width:0}
+  @media (max-width:1100px){ .grid3{grid-template-columns:1fr 1fr} .grid3 > .gauge-card{grid-column:1 / -1} }
+  @media (max-width:700px){ .grid3{grid-template-columns:1fr} }
+  .gauge{position:relative;max-width:260px;margin:4px auto 0}
+  .gauge-svg{width:100%;height:auto;display:block}
+  .g-track{fill:none;stroke:var(--line);stroke-width:14;stroke-linecap:round}
+  .g-val{fill:none;stroke:var(--brand-2);stroke-width:14;stroke-linecap:round}
+  .gauge-n{position:absolute;left:0;right:0;bottom:4px;text-align:center;font-size:30px;font-weight:800;font-variant-numeric:tabular-nums}
+  .meter{height:10px;border-radius:99px;background:var(--line);overflow:hidden;margin:16px 0 8px}
+  .meter i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--brand-2),var(--accent));transition:width .8s ease}
   /* Dashboard welcome and live clock */
   .welcome{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;background:linear-gradient(120deg,rgba(42,157,150,.18),rgba(242,177,52,.10)),var(--card);margin-bottom:16px}
   .wl-hi{font-size:22px;font-weight:800;letter-spacing:.2px}

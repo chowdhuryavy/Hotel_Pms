@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.45**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.46**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.46: Every page in the sidebar has an icon. On desktop the sidebar collapses to an icon rail whose icons still open their pages. The dashboard KPI tiles, quick actions and card headings have icons, and a new occupancy gauge with a meter sits beside the room-type and movement charts.
 
 Release notes for 1.2.45: The update pop-up's Refresh button saves the current page before reloading, reloads in place, and falls back to a normal reload if the browser ignores the first attempt. The page is restored after the reload even if the address hash was lost.
 
