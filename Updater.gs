@@ -1,13 +1,14 @@
 /**
  * Stayline – Updater.gs
- * Keeps this Apps Script project in step with the GitHub repo. When new code is pushed to the branch,
- * the project picks it up within about 5 minutes (after installAutoUpdate has been run once):
- * the files are loaded, a new version is made and the web app moves to it. Nobody has to deploy.
+ * Keeps this Apps Script project in step with the GitHub repo. A push to the branch calls the
+ * web app through a GitHub webhook: the files are loaded, a new version is made and the web app
+ * moves to it. Nobody has to deploy or press anything.
  *
  * Script properties (Project Settings → Script properties):
  *   GITHUB_TOKEN   fine-grained token with read-only "Contents" access to the repo (required)
  *   GITHUB_REPO    owner/repo (optional, default chowdhuryavy/Hotel_Pms)
  *   GITHUB_BRANCH  branch to follow (optional, default "main")
+ *   WEBHOOK_KEY    long random text; the GitHub webhook URL must end with ?key=<this text>
  *
  * One-time setup: script.google.com → Settings → turn on "Google Apps Script API".
  */
@@ -150,37 +151,31 @@ function updateFromGitHub(auto) {
   return msg;
 }
 
-/** Runs every 5 minutes (installed by installAutoUpdate). Updates only when the branch has a new commit. */
-function autoUpdate() {
+/**
+ * GitHub webhook endpoint. GitHub calls this web app on every push, so an update starts
+ * as soon as code is pushed to the branch. No timer is needed.
+ * The web app URL must end with ?key=... where the key is the WEBHOOK_KEY script property.
+ * Pushes to other branches, and GitHub's test ping, are ignored.
+ */
+function doPost(e) {
+  const out = (msg) => ContentService.createTextOutput(msg).setMimeType(ContentService.MimeType.TEXT);
+  const props = PropertiesService.getScriptProperties();
+  const key = props.getProperty('WEBHOOK_KEY');
+  if (!key || !e || !e.parameter || e.parameter.key !== key) return out('Forbidden');
+  let body = {};
+  try { body = JSON.parse((e.postData && e.postData.contents) || '{}'); } catch (x) { return out('Bad request'); }
+  const branch = props.getProperty('GITHUB_BRANCH') || 'main';
+  if (!body.ref) return out('Ignored (not a push)');
+  if (body.ref !== 'refs/heads/' + branch) return out('Ignored (not the ' + branch + ' branch)');
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(1000)) return;
+  if (!lock.tryLock(10000)) return out('Busy: an update is already running');
   try {
-    const p = PropertiesService.getScriptProperties();
-    if (!p.getProperty('GITHUB_TOKEN')) return;
-    const sha = headSha_(updaterConfig_());
-    if (sha && (sha !== p.getProperty('LAST_SHA') || p.getProperty('PENDING_SHA'))) {
-      console.log(updateFromGitHub(true));
-    }
-  } catch (e) {
-    console.error('Stayline automatic update failed: ' + e.message);
+    return out(updateFromGitHub(true));
+  } catch (err) {
+    return out('Update failed: ' + err.message);
   } finally {
     lock.releaseLock();
   }
-}
-
-/** Turns on automatic updates. Run once (also from Stayline → Turn on automatic updates). */
-function installAutoUpdate() {
-  removeAutoUpdate();
-  ScriptApp.newTrigger('autoUpdate').timeBased().everyMinutes(5).create();
-  return 'Automatic updates are on: code pushed to GitHub goes live within about 5 minutes.';
-}
-
-/** Turns automatic updates off. */
-function removeAutoUpdate() {
-  ScriptApp.getProjectTriggers().forEach(t => {
-    if (t.getHandlerFunction() === 'autoUpdate') ScriptApp.deleteTrigger(t);
-  });
-  return 'Automatic updates are off. Use "Update from GitHub" to update by hand.';
 }
 
 /** Compares dotted versions: returns >0 if a is newer than b, <0 if older, 0 if equal. */

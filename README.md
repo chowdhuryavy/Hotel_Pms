@@ -4,9 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.1.6**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.1.7**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
 
-Release notes for 1.1.6: new sign-in page (split layout with animated brand panel, password show/hide, Caps Lock warning, loading state, remembered username).
+Release notes for 1.1.7: a push to GitHub updates the app directly through a GitHub webhook (no timer).
 
 Release notes for 1.1.5: login page layout fix (version label no longer overlaps the card).
 
@@ -71,16 +71,16 @@ Example: FrontDesk checks guests in and out and posts charges. Only Manager and 
 
 ### Updating from GitHub
 
-Stayline is kept in the GitHub repo `chowdhuryavy/Hotel_Pms`. Each push to `main` goes live automatically: once the automatic check is on, the project looks at GitHub every 5 minutes. If there is a new commit with app changes, it loads the files, makes a new version and moves the web app to it. Pushes that change only README or other non-app files do nothing. Every update is logged in Apps Script (Executions).
+Stayline is kept in the GitHub repo `chowdhuryavy/Hotel_Pms`. Every push to `main` updates the app automatically: GitHub calls the web app through a webhook, the app loads the new files, makes a new version and moves the web app to it. No timer or button is needed. Pushes that change only README or other non-app files do nothing. Each update is logged in Apps Script (Executions).
 
 One-time setup:
-1. Create a fine-grained GitHub token with read-only **Contents** access to `Hotel_Pms`.
-2. In Apps Script: Project Settings → Script properties, add `GITHUB_TOKEN` (the token). `GITHUB_REPO` and `GITHUB_BRANCH` are optional (defaults `chowdhuryavy/Hotel_Pms` and `main`).
-3. Settings (gear icon) → turn on **Google Apps Script API**.
-4. Reload the sheet and choose **Stayline → Update from GitHub**. Approve the permissions when asked.
-5. Choose **Stayline → Turn on automatic updates**.
+1. Create a fine-grained GitHub token with read-only **Contents** access to `Hotel_Pms`. Save it as `GITHUB_TOKEN` in Script properties.
+2. Make up a long random text and save it as `WEBHOOK_KEY` in Script properties.
+3. Turn on **Google Apps Script API** (script.google.com → Settings).
+4. Deploy the web app once (Deploy → New deployment → Web app, Execute as **Me**, Who has access **Anyone**).
+5. In GitHub: repo `Hotel_Pms` → Settings → Webhooks → **Add webhook**. Payload URL: your web app URL followed by `?key=` and the `WEBHOOK_KEY` text. Content type: **application/json**. Events: **Just the push event**. Save.
 
-**Stayline → Turn off automatic updates** stops the checks. **Update from GitHub** still works by hand at any time.
+Stayline → **Update from GitHub** still works by hand at any time.
 
 ### Upgrading an existing database
 
