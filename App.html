@@ -1650,8 +1650,14 @@ async function pgDashboard() {
   const canReports = can('reports.view');
   const from7 = addDaysIso(S.bizDate, -6);
   // One server call returns every widget's data (saves three round trips)
-  const dd = await api('dashboardData', from7, S.bizDate);
-  const b = dd.board, f = dd.flash, fc = dd.forecast, na = dd.nightaudit;
+  // The four parts load together; a part that fails shows its own message
+  const part = (on, fn) => on ? fn().catch(e => ({ error: e.message })) : Promise.resolve(null);
+  const [b, f, fc, na] = await Promise.all([
+    part(canBoard, () => api('dashboardBoard')),
+    part(canReports, () => api('dashboardFlash', from7, S.bizDate)),
+    part(can('dashboard.view'), () => api('dashboardForecast')),
+    part(canReports, () => api('dashboardNight', from7, S.bizDate))
+  ]);
   const note = x => `<div class="card err">${esc(x.error)}</div>`;
   const occ = f && !f.error ? ((f.rows.find(r => r[0] === 'Occupancy %') || [])[1] || '0%') : '—';
   const kpis = !b ? '' : b.error ? note(b) : `<div class="kpis">${kpi('In-house', b.inHouse.length, 'inhouse')}${kpi('Arrivals', b.arrivals.length, 'arrivals')}${kpi('Departures', b.departures.length, 'departures')}

@@ -209,6 +209,24 @@ function occupancyForecast(token, days) {
 }
 
 /** Everything the dashboard shows, in one server call (each part keeps its own permission check). */
+/* The dashboard's four parts, each its own call, so they load together rather than one after another */
+function dashboardBoard(token) {
+  const p = permMap_(auth_(token));
+  if (!(p['frontdesk.checkin'] === true || p['frontdesk.checkout'] === true)) return null;
+  try { return frontDeskBoard(token); } catch (e) { return { error: e.message }; }
+}
+function dashboardFlash(token, from7, bd) {
+  if (permMap_(auth_(token))['reports.view'] !== true) return null;
+  try { return runReport(token, 'flash', '', ''); } catch (e) { return { error: e.message }; }
+}
+function dashboardForecast(token) {
+  if (permMap_(auth_(token))['dashboard.view'] !== true) return null;
+  try { return occupancyForecast(token, 14); } catch (e) { return { error: e.message }; }
+}
+function dashboardNight(token, from7, bd) {
+  if (permMap_(auth_(token))['reports.view'] !== true) return null;
+  try { return runReport(token, 'nightaudit', from7, bd); } catch (e) { return { error: e.message }; }
+}
 function dashboardData(token, from7, bd) {
   const s = auth_(token);
   const p = permMap_(s);
