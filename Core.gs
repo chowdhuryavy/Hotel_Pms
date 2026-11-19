@@ -58,9 +58,11 @@ function rows_(t) {
     .filter(o => String(o[h[0]]) !== '');
 }
 function append_(t, obj) {
+  SETTINGS_MEMO_ = null;
   sh_(t).appendRow(t[1].map(h => (obj[h] === undefined ? '' : obj[h])));
 }
 function patch_(t, row, changes) {
+  SETTINGS_MEMO_ = null;
   const s = sh_(t);
   Object.keys(changes).forEach(k => {
     const c = t[1].indexOf(k) + 1;
@@ -117,7 +119,13 @@ function audit_(user, action, entity, entityId, details) {
 }
 
 /* ============================ SETTINGS ============================ */
+/* Settings are read from the sheet once per request. Every write to the sheet clears this (see patch_ and append_). */
+let SETTINGS_MEMO_ = null;
 function settings_() {
+  if (!SETTINGS_MEMO_) SETTINGS_MEMO_ = readSettings_();
+  return Object.assign({}, SETTINGS_MEMO_);
+}
+function readSettings_() {
   const m = Object.assign({}, SETTINGS_DEFAULT);
   // a blank value in the sheet keeps the default (so an empty App name still shows Stayline)
   rows_(TBL.SETTINGS).forEach(r => { if (r.key && r.value !== '' && r.value != null) m[r.key] = r.value; });
