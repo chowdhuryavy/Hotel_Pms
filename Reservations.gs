@@ -282,3 +282,34 @@ function removeAccompany(token, id) {
     return { ok: true };
   });
 }
+
+/**
+ * Room history: stays that have checked out, by the date of checkout. Filter by a date range,
+ * a room number, or a guest name / reservation number. Latest checkout first.
+ */
+function roomHistory(token, f) {
+  auth_(token, 'reservations.view');
+  f = f || {};
+  const bd = bizDate_();
+  const from = isDate_(f.from) ? f.from : addDays_(bd, -30);
+  const to = isDate_(f.to) ? f.to : bd;
+  if (to < from) throw new Error('"To" must be on or after "From".');
+  const room = String(f.roomNo || '').trim();
+  const q = String(f.q || '').trim().toLowerCase();
+  const guests = {};
+  rows_(TBL.GUESTS).forEach(g => { guests[g.id] = g; });
+  return rows_(TBL.RES)
+    .filter(r => r.status === 'Departed')
+    .map(r => ({ r: r, out: r.checkedOutAt ? String(r.checkedOutAt).slice(0, 10) : String(r.departure || '') }))
+    .filter(x => x.out >= from && x.out <= to)
+    .filter(x => !room || String(x.r.roomNo) === room)
+    .filter(x => {
+      if (!q) return true;
+      const g = guests[x.r.guestId] || {};
+      return [x.r.guestName, x.r.resNo, g.firstName, g.lastName, g.phone, x.r.company].join(' ').toLowerCase().indexOf(q) >= 0;
+    })
+    .sort((a, b) => (a.out < b.out ? 1 : a.out > b.out ? -1 : String(a.r.roomNo).localeCompare(String(b.r.roomNo), undefined, { numeric: true })))
+    .slice(0, 300)
+    .map(x => ({ resNo: x.r.resNo, roomNo: String(x.r.roomNo || ''), roomType: x.r.roomType || '', guestName: x.r.guestName || '',
+      company: x.r.company || '', arrival: x.r.arrival || '', departure: x.r.departure || '', checkedOut: x.out, plan: x.r.plan || '' }));
+}
