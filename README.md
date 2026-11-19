@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.55**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.56**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.56: The night-audit checklist ticks each step as it completes and stays open until you press Done. The tick list no longer stops if the server sends no fixed-charge or AR-aging figures, and the business date moves on at once after a successful run.
 
 Release notes for 1.2.55: All printed documents share one professional layout, with the hotel logo, name, address, phone, email and hotel app URL at the top and the app link in the footer. Documents: guest folio, registration card, company (AR) folio, AR statement with ageing, payment receipt and paid-out receipt (refunds). Print buttons are on the folio payment rows and the AR statement page. Settings → Hotel now has Phone, Email and Hotel app URL, which print on every document. Connection messages no longer mention Google.
 

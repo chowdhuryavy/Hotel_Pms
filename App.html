@@ -1971,26 +1971,32 @@ async function naRun() {
     naChecks_();
     return;
   }
+  // The audit is saved now. Move the date on at once, then tick each step in turn.
+  S.bizDate = r.next || S.bizDate;
+  buildNav();
+  const fx = r.fixed || { count: 0, total: 0 }, ag = r.aging || { companies: 0, total: 0 };
   const ticks = [
-    ['post', 'ok', r.roomsPosted + ' rooms · ' + money(r.roomRevenue)],
-    ['fixed', 'ok', r.fixed.count + ' charge(s) · ' + money(r.fixed.total)],
-    ['noshow', 'ok', r.noShows + ' no-show(s)'],
-    ['shifts', 'ok', r.shiftsClosed + ' shift(s) closed'],
-    ['aging', 'ok', r.aging.companies + ' companies · ' + money(r.aging.total)],
-    ['close', 'ok', r.closed + ' closed'],
-    ['advance', 'ok', 'Business date is now ' + r.next],
+    ['post', 'ok', (r.roomsPosted || 0) + ' rooms · ' + money(r.roomRevenue || 0)],
+    ['fixed', 'ok', (fx.count || 0) + ' charge(s) · ' + money(fx.total || 0)],
+    ['noshow', 'ok', (r.noShows || 0) + ' no-show(s)'],
+    ['shifts', 'ok', (r.shiftsClosed || 0) + ' shift(s) closed'],
+    ['aging', 'ok', (ag.companies || 0) + ' companies · ' + money(ag.total || 0)],
+    ['close', 'ok', (r.closed || '') + ' closed'],
+    ['advance', 'ok', 'Business date is now ' + (r.next || '')],
     ['email', r.emailed ? 'ok' : 'warn', r.emailed ? 'Sent' : 'Not sent (no auditor email, or auto-send is off)']
   ];
   for (const t of ticks) {
     naSet_('nas-' + t[0], t[1], t[2]);
-    await new Promise(res => setTimeout(res, 350));
+    await new Promise(res => setTimeout(res, 300));
   }
-  closeModal();
-  S.bizDate = r.next;
-  buildNav();
-  toast('Closed ' + r.closed + ' · ' + r.roomsPosted + ' rooms posted · ' + r.noShows + ' no-shows · next ' + r.next);
-  refresh();
+  // Stays open until the manager presses Done, so the ticks can be read
+  const box = $('naChecks');
+  const act = $('naGo') ? $('naGo').parentElement : null;
+  if (act) act.innerHTML = '<button class="btn" type="button" onclick="naDone_()">Done</button>';
+  else if (box) box.insertAdjacentHTML('afterend', '<div class="acts"><button class="btn" type="button" onclick="naDone_()">Done</button></div>');
+  toast('Night audit complete · ' + (r.closed || '') + ' closed');
 }
+function naDone_() { closeModal(); refresh(); }
 
 /* ============================================================
  * FIXED CHARGES (scheduled daily, weekly or monthly; posted by the night run)
