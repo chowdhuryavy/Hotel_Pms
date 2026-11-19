@@ -1,11 +1,14 @@
 <style>
-  :root{
-    --brand:#0f3d3e; --brand-2:#1d7874; --accent:#f2b134; --bg:#f4f7f6; --card:#ffffff;
-    --text:#14232b; --muted:#66757d; --line:#dde5e3; --ok:#1b8a4b; --bad:#c0392b; --warn:#c77700;
-    --c-res:#cfe8ff; --c-in:#c9f2d6; --c-dep:#e5e7eb; --c-ooo:#f6d6d2;
+  /* Dark is the default theme. Set data-theme="white" on <html> for the white theme. */
+  :root, :root[data-theme="dark"]{
+    --brand:#082628; --brand-2:#2a9d96; --accent:#f2b134; --bg:#0c1719; --card:#142327;
+    --text:#e4eeec; --muted:#8fa6a3; --line:#27403f; --ok:#3ccf7a; --bad:#ef6b5e; --warn:#f2b134;
+    --c-res:#1f3550; --c-in:#1d4a33; --c-dep:#2b3338; --c-ooo:#4a2622; --shadow:0 10px 26px rgba(0,0,0,.35);
   }
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){ --bg:#0c1719; --card:#142327; --text:#e4eeec; --muted:#8fa6a3; --line:#27403f; --brand:#082628; --c-res:#1f3550; --c-in:#1d4a33; --c-dep:#2b3338; --c-ooo:#4a2622; }
+  :root[data-theme="white"]{
+    --brand:#0f3d3e; --brand-2:#1d7874; --accent:#e0a526; --bg:#f3f6f8; --card:#ffffff;
+    --text:#17252d; --muted:#5b6b75; --line:#dbe3e8; --ok:#16814a; --bad:#c0392b; --warn:#b76e00;
+    --c-res:#dbeafe; --c-in:#d1f5df; --c-dep:#e5e7eb; --c-ooo:#fbdcd8; --shadow:0 10px 26px rgba(15,61,62,.10);
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
@@ -66,20 +69,14 @@
   .top-hotel{display:flex;flex-direction:column;line-height:1.25;min-width:0;flex:none}
   .top-hotel-name{font-weight:800;font-size:16px;color:var(--text);letter-spacing:.2px}
   .top-hotel-sub{font-size:10.5px;color:var(--brand-2);letter-spacing:1.2px;text-transform:uppercase;font-weight:700}
-  .bizchip{display:inline-flex;flex-direction:column;align-items:flex-start;padding:6px 14px;border-radius:12px;background:linear-gradient(135deg,rgba(242,177,52,.20),rgba(242,177,52,.08));border:1px solid rgba(242,177,52,.55);white-space:nowrap;flex:none;box-shadow:0 2px 8px rgba(242,177,52,.12)}
-  .bizchip span{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700}
-  .bizchip b{font-size:15px;font-variant-numeric:tabular-nums;color:var(--text)}
   /* phones: hotel name, search and date stay on one row */
   @media (max-width:700px){
     .topbar{padding:8px 10px;gap:8px}
     .who{gap:8px;flex-wrap:nowrap;align-items:center}
-    .top-hotel{flex:0 1 auto;min-width:0}
-    .top-hotel-name{max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
     .qs{flex:1 1 0;max-width:none;min-width:0}
     .qs input{padding:8px 10px 8px 34px;background-position:12px center;font-size:13px}
     body.rtl .qs input{padding:8px 34px 8px 10px;background-position:right 12px center}
-    .bizchip{display:none}
-  }
+    }
   .view{padding:20px;max-width:1320px;width:100%}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
@@ -97,6 +94,24 @@
   .btn.danger{background:var(--bad)}
   .btn:active{transform:scale(.97)}
   .fd-tabs{margin:4px 0 14px}
+  .theme-btn{flex:none;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--text);cursor:pointer;display:grid;place-items:center;transition:transform .2s ease,background .2s ease}
+  .theme-btn:hover{transform:rotate(18deg)}
+  .theme-btn svg{width:18px;height:18px}
+  .chart{width:100%;height:auto;display:block}
+  .chart rect{transform-box:fill-box;transform-origin:bottom;animation:bar-grow .7s cubic-bezier(.2,.8,.2,1) both}
+  .chart .svg-val,.chart .svg-lbl{font-size:11px;fill:var(--muted)}
+  .chart .svg-axis{stroke:var(--line);stroke-width:1}
+  @keyframes bar-grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+  .quick{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .quick-btn{display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:14px;width:100%;transition:transform .18s ease,box-shadow .18s ease}
+  .quick-btn:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+  .quick-btn .qi{font-weight:800;font-size:14px}
+  .quick-btn small{font-weight:400;opacity:.8;margin-top:3px}
+  .post-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:12px}
+  .seg button{border:0;background:var(--card);color:var(--muted);padding:9px 16px;cursor:pointer;font-weight:600;transition:background .2s ease,color .2s ease}
+  .seg button.on{background:var(--brand-2);color:#fff}
+  @media (max-width:900px){ .post-grid{grid-template-columns:1fr} }
   .menu-grp{margin-bottom:12px}
   .menu-name{font:inherit;font-weight:700;font-size:15px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--card);color:var(--text);min-width:200px}
   .menu-items{list-style:none;margin:10px 0 0;padding:0}
@@ -410,13 +425,15 @@
   .avatar-wrap.side .user-menu{top:auto;bottom:56px;left:0;right:auto}
   .avatar-wrap.top{display:none}
   .avatar-wrap.top .user-menu{right:0;top:50px;left:auto;bottom:auto}
-  .top-hotel{display:flex;flex-direction:column;line-height:1.2;min-width:0;margin-right:auto}
-  .top-hotel-name{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
-  .top-hotel-sub{font-size:11px;color:var(--muted);letter-spacing:.4px;text-transform:uppercase}
-  .bizchip{display:inline-flex;flex-direction:column;align-items:flex-end;padding:6px 12px;border-radius:12px;background:rgba(242,177,52,.14);border:1px solid rgba(242,177,52,.45);white-space:nowrap}
-  .bizchip span{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
-  .bizchip b{font-size:13px}
-  @media (max-width:900px){ .top-hotel-sub{display:none} .top-hotel-name{max-width:150px} .bizchip{padding:4px 8px} .bizchip span{display:none} }
+  /* Hotel name block in the header: name with an accent bar, and a small tracked sub line */
+  .top-hotel{display:flex;align-items:center;gap:11px;min-width:0;margin-right:auto;flex:0 1 auto}
+  .top-hotel::before{content:"";width:4px;height:34px;border-radius:4px;background:linear-gradient(180deg,var(--accent),var(--brand-2));flex:none}
+  .top-hotel-txt{display:flex;flex-direction:column;min-width:0;line-height:1.15}
+  .top-hotel-name{font-weight:800;font-size:16.5px;letter-spacing:.2px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+  .top-hotel-sub{display:inline-flex;align-items:center;gap:6px;margin-top:4px;width:max-content;max-width:100%;font-size:9.5px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:var(--brand-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.92}
+  .top-hotel-sub::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(242,177,52,.18);flex:none}
+  @media (max-width:900px){ .top-hotel-name{max-width:170px;font-size:15px} .top-hotel-sub{font-size:9px;letter-spacing:1.4px} }
+  @media (max-width:420px){ .top-hotel-name{max-width:120px} .top-hotel::before{height:28px} }
   body.rtl .avatar-wrap.top .user-menu{left:0;right:auto}
   body.rtl .avatar-wrap.side .user-menu{right:0;left:auto}
   body.rtl .sidebar{left:auto;right:-250px}
