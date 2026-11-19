@@ -941,12 +941,13 @@ function userModal(id) {
     openModal(id ? 'Edit user' : 'New user', formHtml('fUs', [
       { name: 'username', label: 'Username', required: true, value: u.username || '' },
       { name: 'name', label: 'Full name', value: u.name || '' },
+      { name: 'email', label: 'Email (used for password reset)', value: u.email || '' },
       { name: 'role', label: 'Role', type: 'select', options: ['Admin', 'Manager', 'FrontDesk', 'Cashier', 'Housekeeping', 'Sales', 'Accountant'], value: u.role || 'FrontDesk' },
       { name: 'password', label: id ? 'New password (blank = keep)' : 'Password (min 8)', type: 'password', required: !id },
       { name: 'active', label: 'Active', type: 'check', value: id ? !!u.active : true }
     ], 'Save user'));
     bindForm('fUs', async d => {
-      await api('saveUser', { id: id || '', username: d.username, name: d.name, role: d.role, password: d.password || '', active: d.active === 'true' });
+      await api('saveUser', { id: id || '', username: d.username, name: d.name, email: d.email, role: d.role, password: d.password || '', active: d.active === 'true' });
       toast('User saved'); closeModal(); refresh();
     });
   }).catch(e => toast(e.message, true));
@@ -982,16 +983,135 @@ async function roomModal() {
 /* ============================================================
  * PASSWORD
  * ============================================================ */
+/* ------------------------------------------------------------
+ * Password fields with a show/hide toggle and a live rules check
+ * ------------------------------------------------------------ */
+function pwField(name, label, ac, live) {
+  return `<label class="wide field"><span>${label}</span><span class="pw">` +
+    `<input name="${name}" type="password" autocomplete="${ac}" required${live ? ' oninput="pwLive(this.form)"' : ''}>` +
+    `<button type="button" class="pw-toggle" onclick="pwToggle(this)" aria-label="Show or hide password">Show</button></span></label>`;
+}
+function pwRulesHtml() {
+  return '<ul class="rules" id="pwRules">' +
+    '<li data-r="len">At least 8 characters</li><li data-r="upper">An uppercase letter</li>' +
+    '<li data-r="lower">A lowercase letter</li><li data-r="num">A number</li><li data-r="match">Passwords match</li></ul>' +
+    '<div class="meter"><i id="pwMeter"></i></div>';
+}
+function pwCheck_(pw, cf) {
+  const r = { len: pw.length >= 8, upper: /[A-Z]/.test(pw), lower: /[a-z]/.test(pw), num: /[0-9]/.test(pw), match: pw.length > 0 && pw === cf };
+  r.score = ['len', 'upper', 'lower', 'num'].filter(k => r[k]).length;
+  r.ok = r.len && r.upper && r.lower && r.num && r.match;
+  return r;
+}
+/** Runs on every key press: ticks each rule, moves the strength bar and enables the button only when all rules pass. */
+function pwLive(form) {
+  const r = pwCheck_(form.newPw.value, form.confirm.value);
+  form.querySelectorAll('#pwRules li').forEach(li => li.classList.toggle('ok', !!r[li.dataset.r]));
+  const m = form.querySelector('#pwMeter');
+  if (m) { m.style.width = (r.score / 4 * 100) + '%'; m.dataset.level = r.score; }
+  const b = form.querySelector('button[type=submit]');
+  if (b) b.disabled = !r.ok;
+}
+function pwToggle(btn) {
+  const i = btn.parentElement.querySelector('input'), show = i.type === 'password';
+  i.type = show ? 'text' : 'password';
+  btn.textContent = show ? 'Hide' : 'Show';
+}
+function formErr_(msg) { const e = document.getElementById('fgErr'); if (e) e.textContent = msg || ''; }
+
+/* ------------------------------------------------------------
+ * Forgot password: email → 6-digit code → new password
+ * ------------------------------------------------------------ */
+function forgotOpen(prefill) {
+  openModal('Reset your password', `<form id="fgStart" class="fgrid">
+    <p class="muted" style="margin:0 0 14px">Enter the email address or username on your account. We will email you a 6-digit code.</p>
+    <label class="wide field"><span>Email or username</span><input name="ident" autocomplete="username" required value="${esc(prefill || '')}"></label>
+    <p class="err" id="fgErr"></p>
+    <div class="actions"><button class="btn ghost" type="button" onclick="closeModal()">Cancel</button><button class="btn" type="submit">Send code</button></div></form>`);
+  $('fgStart').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target, btn = f.querySelector('button[type=submit]'), ident = f.ident.value.trim();
+    btn.disabled = true; formErr_('');
+    try { const r = await rpc('forgotRequest', ident); forgotCode(ident, r.sentTo); }
+    catch (err) { formErr_(err.message); btn.disabled = false; }
+  });
+}
+function forgotCode(ident, sentTo) {
+  const boxes = [0, 1, 2, 3, 4, 5].map(i => `<input inputmode="numeric" autocomplete="${i ? 'off' : 'one-time-code'}" maxlength="1" aria-label="Digit ${i + 1}">`).join('');
+  openModal('Enter your code', `<form id="fgCode" class="fgrid">
+    <p class="muted" style="margin:0 0 4px">${sentTo ? `We sent a 6-digit code to <b>${esc(sentTo)}</b>.` : 'If an account matches, a 6-digit code has been sent to its email address.'} It expires in 10 minutes.</p>
+    <div class="otp" id="otpBox">${boxes}</div>
+    <p class="err" id="fgErr"></p>
+    <div class="actions"><button class="btn ghost" type="button" id="fgResend" disabled>Resend in 60s</button><button class="btn" type="submit">Verify code</button></div></form>`);
+  const inputs = [...$('otpBox').querySelectorAll('input')];
+  inputs.forEach((inp, i) => {
+    inp.addEventListener('input', () => { inp.value = inp.value.replace(/\D/g, '').slice(0, 1); if (inp.value && inputs[i + 1]) inputs[i + 1].focus(); });
+    inp.addEventListener('keydown', e => { if (e.key === 'Backspace' && !inp.value && inputs[i - 1]) inputs[i - 1].focus(); });
+    inp.addEventListener('paste', e => {
+      e.preventDefault();
+      const digits = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
+      digits.split('').forEach((c, k) => { if (inputs[k]) inputs[k].value = c; });
+      (inputs[Math.min(digits.length, 5)] || inp).focus();
+    });
+  });
+  inputs[0].focus();
+  let left = 60;
+  const resend = $('fgResend');
+  const timer = setInterval(() => {
+    left -= 1;
+    if (!$('fgResend')) return clearInterval(timer);
+    $('fgResend').textContent = left > 0 ? `Resend in ${left}s` : 'Resend code';
+    $('fgResend').disabled = left > 0;
+    if (left <= 0) clearInterval(timer);
+  }, 1000);
+  resend.addEventListener('click', async () => {
+    try { const r = await rpc('forgotRequest', ident); toast('A new code was sent if the account matches.'); forgotCode(ident, r.sentTo); }
+    catch (err) { formErr_(err.message); }
+  });
+  $('fgCode').addEventListener('submit', async e => {
+    e.preventDefault();
+    const code = inputs.map(x => x.value).join(''), btn = e.target.querySelector('button[type=submit]');
+    if (code.length !== 6) return formErr_('Enter all 6 digits.');
+    btn.disabled = true; formErr_('');
+    try { const r = await rpc('forgotVerify', ident, code); forgotNew(r.resetToken); }
+    catch (err) { formErr_(err.message); btn.disabled = false; inputs.forEach(x => { x.value = ''; }); inputs[0].focus(); }
+  });
+}
+function forgotNew(resetToken) {
+  openModal('Set a new password', `<form id="fgNew" class="fgrid">
+    ${pwField('newPw', 'New password', 'new-password', true)}
+    ${pwField('confirm', 'Confirm new password', 'new-password', true)}
+    ${pwRulesHtml()}
+    <p class="err" id="fgErr"></p>
+    <div class="actions"><button class="btn" type="submit" disabled>Save new password</button></div></form>`);
+  $('fgNew').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target, btn = f.querySelector('button[type=submit]');
+    btn.disabled = true; formErr_('');
+    try {
+      await rpc('forgotReset', resetToken, f.newPw.value);
+      closeModal(); toast('Password saved. Sign in with your new password.');
+    } catch (err) { formErr_(err.message); pwLive(f); }
+  });
+}
+
+/* ------------------------------------------------------------
+ * Change password (signed in)
+ * ------------------------------------------------------------ */
 function pgPassword() {
-  setView(`<h1>Change password</h1><div class="card" style="max-width:520px">${formHtml('fPw', [
-    { name: 'oldPw', label: 'Current password', type: 'password', required: true, wide: true },
-    { name: 'newPw', label: 'New password (min 8)', type: 'password', required: true, wide: true },
-    { name: 'confirm', label: 'Confirm new password', type: 'password', required: true, wide: true }
-  ], 'Change password', false)}</div>`);
-  bindForm('fPw', async d => {
-    if (d.newPw !== d.confirm) throw new Error('New passwords do not match.');
-    await api('changeMyPassword', d.oldPw, d.newPw);
-    toast('Password changed'); go(firstPage());
+  setView(`<h1>Change password</h1><div class="card" style="max-width:520px"><form id="fPw" class="fgrid">
+    ${pwField('oldPw', 'Current password', 'current-password', false)}
+    ${pwField('newPw', 'New password', 'new-password', true)}
+    ${pwField('confirm', 'Confirm new password', 'new-password', true)}
+    ${pwRulesHtml()}
+    <p class="err" id="fgErr"></p>
+    <div class="actions"><button class="btn" type="submit" disabled>Change password</button></div></form></div>`);
+  $('fPw').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target, btn = f.querySelector('button[type=submit]');
+    btn.disabled = true; formErr_('');
+    try { await api('changeMyPassword', f.oldPw.value, f.newPw.value); toast('Password changed'); go(firstPage()); }
+    catch (err) { formErr_(err.message); pwLive(f); }
   });
   return Promise.resolve();
 }

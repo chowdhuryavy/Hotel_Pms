@@ -13,7 +13,7 @@ const PAY_TYPE = 'Payment';
 const CHARGE_TYPE = 'Charge';
 
 const TBL = {
-  USERS:     ['Users', ['id','username','name','role','salt','passHash','active','lastLogin','createdAt']],
+  USERS:     ['Users', ['id','username','name','role','salt','passHash','active','lastLogin','createdAt','email']],
   PERMS:     ['Permissions', ['permission','description'].concat(ROLES)],
   SETTINGS:  ['Settings', ['key','value']],
   ROOMTYPES: ['RoomTypes', ['code','name','baseRate','maxAdults','active','description']],
@@ -69,7 +69,7 @@ const PERMISSIONS = [
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.1.8';
+const APP_VERSION = '1.2.0';
 const SETTINGS_DEFAULT = {
   appName: 'Stayline',
   hotelName: 'Stayline Hotel',

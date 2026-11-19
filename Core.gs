@@ -106,7 +106,7 @@ function login(username, password) {
   const u = String(username || '').trim().toLowerCase();
   const failKey = 'fail:' + u;
   if (Number(cache.get(failKey) || 0) >= 5) throw new Error('Too many failed attempts. Try again in 15 minutes.');
-  const user = rows_(TBL.USERS).find(x => String(x.username).toLowerCase() === u);
+  const user = rows_(TBL.USERS).find(x => String(x.username).toLowerCase() === u || String(x.email || '').toLowerCase() === u);
   const ok = !!user && user.active === true && hash_(user.salt, String(password || '')) === user.passHash;
   if (!ok) {
     cache.put(failKey, String(Number(cache.get(failKey) || 0) + 1), 900);
@@ -138,9 +138,16 @@ function auth_(token, perm) {
   if (perm && permMap_(s.role)[perm] !== true) throw new Error('Permission denied: ' + perm);
   return s;
 }
+/** One place for the password rules: 8+ characters with an uppercase letter, a lowercase letter and a number. */
+function checkNewPassword_(pw) {
+  const p = String(pw || '');
+  if (p.length < 8 || !/[A-Z]/.test(p) || !/[a-z]/.test(p) || !/[0-9]/.test(p)) {
+    throw new Error('Password must be at least 8 characters and include an uppercase letter, a lowercase letter and a number.');
+  }
+}
 function changeMyPassword(token, oldPw, newPw) {
   const s = auth_(token);
-  if (String(newPw || '').length < 8) throw new Error('New password must be at least 8 characters.');
+  checkNewPassword_(newPw);
   return withLock_(() => {
     const u = rows_(TBL.USERS).find(x => x.id === s.id);
     if (hash_(u.salt, String(oldPw || '')) !== u.passHash) throw new Error('Current password is incorrect.');
@@ -154,7 +161,7 @@ function changeMyPassword(token, oldPw, newPw) {
 /* ============================ ADMIN: USERS, PERMISSIONS, SETTINGS, AUDIT ============================ */
 function listUsers(token) {
   auth_(token, 'users.manage');
-  return rows_(TBL.USERS).map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, active: u.active === true, lastLogin: u.lastLogin || '' }));
+  return rows_(TBL.USERS).map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, active: u.active === true, lastLogin: u.lastLogin || '', email: u.email || '' }));
 }
 function saveUser(token, d) {
   const s = auth_(token, 'users.manage');
@@ -162,6 +169,8 @@ function saveUser(token, d) {
   const uname = String(d.username || '').trim().toLowerCase();
   if (!uname) throw new Error('Username is required.');
   const active = d.active !== false && d.active !== 'false';
+  const email = String(d.email || '').trim().toLowerCase();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter a valid email address.');
   return withLock_(() => {
     const users = rows_(TBL.USERS);
     if (users.some(u => String(u.username).toLowerCase() === uname && u.id !== d.id)) throw new Error('Username already exists.');
@@ -169,9 +178,9 @@ function saveUser(token, d) {
       const u = users.find(x => x.id === d.id);
       if (!u) throw new Error('User not found.');
       if (u.id === s.id && (!active || d.role !== u.role)) throw new Error('You cannot deactivate or demote your own account.');
-      const ch = { username: uname, name: d.name || uname, role: d.role, active: active };
+      const ch = { username: uname, name: d.name || uname, role: d.role, active: active, email: email };
       if (d.password) {
-        if (String(d.password).length < 8) throw new Error('Password must be at least 8 characters.');
+        checkNewPassword_(d.password);
         ch.salt = Utilities.getUuid();
         ch.passHash = hash_(ch.salt, d.password);
       }
@@ -179,9 +188,10 @@ function saveUser(token, d) {
       audit_(s.username, 'USER_UPDATED', 'User', d.id, uname + ' ' + d.role);
       return d.id;
     }
-    if (!d.password || String(d.password).length < 8) throw new Error('New users need a password of at least 8 characters.');
+    if (!d.password) throw new Error('New users need a password.');
+    checkNewPassword_(d.password);
     const id = id_('U'), salt = Utilities.getUuid();
-    append_(TBL.USERS, { id: id, username: uname, name: d.name || uname, role: d.role, salt: salt, passHash: hash_(salt, d.password), active: active, lastLogin: '', createdAt: fmtTs_(new Date()) });
+    append_(TBL.USERS, { id: id, username: uname, name: d.name || uname, role: d.role, salt: salt, passHash: hash_(salt, d.password), active: active, lastLogin: '', createdAt: fmtTs_(new Date()), email: email });
     audit_(s.username, 'USER_CREATED', 'User', id, uname + ' ' + d.role);
     return id;
   });

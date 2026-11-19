@@ -1,6 +1,6 @@
 const fs = require('fs'), vm = require('vm'), crypto = require('crypto');
 const SRC = '../';
-const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','Menu','Updater'];
+const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','Recovery','Menu','Updater'];
 const code = files.map(f => fs.readFileSync(SRC + f + '.gs', 'utf8')).join('\n;\n');
 
 // ---- in-memory Spreadsheet ----
@@ -43,9 +43,11 @@ function makeSheet(name) {
   return sh;
 }
 const props = {};
+const mailbox = [];
 const cache = new Map();
 const sandbox = {
   Logger: { log: (...a) => { if (process.env.VERBOSE) console.log('LOG', ...a); } },
+  MailApp: { sendEmail: m => { mailbox.push(m); } },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; } }) },
   CacheService: { getScriptCache: () => ({ get: k => cache.get(k) || null, put: (k, v) => cache.set(k, v), remove: k => cache.delete(k) }) },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
@@ -98,6 +100,36 @@ if (require.main === module) {
   ok(!newPw.e && String(newPw.v).length > 10, 'new admin password signs in after reset');
   props.ADMIN_PASSWORD = 'Admin12345';
   tryRun("resetAdminPassword()");
+  // email sign-in and forgot-password flow with a code sent by email
+  const adminId = tryRun("rows_(TBL.USERS).find(u => u.username === 'admin').id").v;
+  const setMail = tryRun("saveUser(login('admin','Admin12345').token, { id: '" + adminId + "', username: 'admin', name: 'Administrator', role: 'Admin', email: 'admin@example.com', active: true })");
+  ok(!setMail.e, 'admin email saved');
+  const byEmail = tryRun("login('admin@example.com','Admin12345').token");
+  ok(!byEmail.e && String(byEmail.v).length > 10, 'sign in with email works');
+  const req = tryRun("forgotRequest('admin@example.com')");
+  ok(!req.e && /code has been sent/.test(req.v.message) && req.v.sentTo === 'a***@example.com', 'forgot request sends a code (masked address shown)');
+  const mail = mailbox[mailbox.length - 1] || {};
+  const code = ((mail.body || '').match(/\b(\d{6})\b/) || [])[1];
+  ok(mailbox.length >= 1 && /reset code/i.test(mail.subject || '') && !!code && /<html/i.test(mail.htmlBody || ''), 'code emailed as a professional HTML email');
+  const again = tryRun("forgotRequest('admin@example.com')");
+  ok(!again.e && mailbox.length === 1, 'no second email within the cooldown');
+  const wrong = tryRun("forgotVerify('admin@example.com','" + (code === '000000' ? '111111' : '000000') + "')");
+  ok(!!wrong.e && /not valid|wrong/i.test(wrong.e), 'wrong code is refused');
+  const good = tryRun("forgotVerify('admin@example.com','" + code + "')");
+  ok(!good.e && good.v && good.v.resetToken, 'correct code gives a reset token');
+  const weak = tryRun("forgotReset('" + (good.v && good.v.resetToken) + "','weakpass')");
+  ok(!!weak.e && /uppercase/i.test(weak.e), 'weak new password is refused (' + (weak.e || '') + ')');
+  const done = tryRun("forgotReset('" + (good.v && good.v.resetToken) + "','Brand3New')");
+  ok(!done.e && done.v === true, 'new password saved');
+  const again2 = tryRun("forgotReset('" + (good.v && good.v.resetToken) + "','Brand4New')");
+  ok(!!again2.e, 'reset token cannot be used twice');
+  const newLogin = tryRun("login('admin','Brand3New').token");
+  ok(!newLogin.e, 'sign in with the new password works');
+  ok(!!tryRun("login('admin','Admin12345')").e, 'old password is refused');
+  ok(mailbox[mailbox.length - 1].subject === 'Your password was changed', 'confirmation email sent after reset');
+  props.ADMIN_PASSWORD = 'Admin12345';
+  tryRun("resetAdminPassword()");
+  ok(!tryRun("login('admin','Admin12345').token").e, 'admin password restored for the rest of the tests');
   const bd = run('bizDate_()');
   console.log('business date', bd);
   const av = run("availability(TOK, bizDate_(), addDays_(bizDate_(), 2), '')");

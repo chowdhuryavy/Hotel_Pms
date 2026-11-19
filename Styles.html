@@ -225,6 +225,22 @@
   .login-btn.busy .spinner{opacity:1}
   .login-btn .btn-label{transition:opacity .2s}
   .login-panel .ver{margin-top:0;font-size:12px;opacity:.6}
+  .rules{list-style:none;padding:0;margin:10px 0 8px;display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;font-size:12.5px;color:var(--muted)}
+  .rules li{display:flex;align-items:center;gap:8px;transition:color .2s}
+  .rules li::before{content:"";width:14px;height:14px;border-radius:50%;border:1.5px solid var(--line);flex:none;transition:all .2s}
+  .rules li.ok{color:var(--ok)}
+  .rules li.ok::before{background:var(--ok);border-color:var(--ok);box-shadow:inset 0 0 0 3px var(--card)}
+  .meter{height:6px;border-radius:6px;background:var(--line);overflow:hidden;margin:4px 0 6px}
+  .meter i{display:block;height:100%;width:0;border-radius:6px;background:var(--bad);transition:width .3s,background .3s}
+  .meter i[data-level="2"]{background:var(--warn)}
+  .meter i[data-level="3"]{background:#8bb83a}
+  .meter i[data-level="4"]{background:var(--ok)}
+  .otp{display:flex;gap:10px;justify-content:center;margin:14px 0 8px}
+  .otp input{width:46px;height:56px;text-align:center;font-size:22px;font-weight:700;border:1.5px solid var(--line);border-radius:12px;background:var(--bg);color:var(--text);transition:border-color .2s,box-shadow .2s}
+  .otp input:focus{outline:none;border-color:var(--brand-2);box-shadow:0 0 0 4px rgba(29,120,116,.18)}
+  .linkbtn{background:none;border:0;color:var(--brand-2);font-weight:600;cursor:pointer;padding:4px 0;font-size:13px}
+  .linkbtn:hover{text-decoration:underline}
+  .login-foot{display:flex;justify-content:flex-end;margin:-6px 0 10px}
   @keyframes login-rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
   @keyframes login-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
   @keyframes login-drift{from{transform:translate(0,0) scale(1)}to{transform:translate(30px,-20px) scale(1.06)}}

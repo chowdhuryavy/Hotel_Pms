@@ -4,9 +4,11 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.1.8**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.0**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
 
-Release notes for 1.1.8: resetAdminPassword (set the admin password from Script properties); a blank Settings value keeps the default name.
+Release notes for 1.2.0: sign in with email or username; Forgot password (email code, then a new password); password rules with live check, show/hide toggles and a confirmation email; resetAdminPassword.
+
+Release notes for 1.1.8: resetAdminPassword; a blank Settings value keeps the default name.
 
 Release notes for 1.1.7: a push to GitHub updates the app directly through a GitHub webhook (no timer).
 
@@ -83,6 +85,14 @@ One-time setup:
 5. In GitHub: repo `Hotel_Pms` → Settings → Webhooks → **Add webhook**. Payload URL: your web app URL followed by `?key=` and the `WEBHOOK_KEY` text. Content type: **application/json**. Events: **Just the push event**. Save.
 
 Stayline → **Update from GitHub** still works by hand at any time.
+
+### Sign-in, forgot password and email
+
+- **Sign in** with the username or the email address on the account.
+- **Forgot password:** the user enters their email or username, gets a 6-digit code by email (valid 10 minutes, five tries), then sets a new password. A confirmation email follows.
+- **Email is needed.** Set each user's email under Administration → Users. Stayline sends mail from the script owner's Google account. Google limits how many emails a day it sends (about 100 for a personal account, more for Workspace).
+- **Password rules:** at least 8 characters, with an uppercase letter, a lowercase letter and a number.
+- After updating, the owner must approve the new email permission once (run **updateFromGitHub** from the editor and approve it).
 
 ### Forgotten admin password
 

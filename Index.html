@@ -52,13 +52,14 @@
         </div>
         <h2 class="login-welcome">Welcome back</h2>
         <p class="muted" style="margin:0 0 22px;font-size:13.5px">Sign in with your staff account.</p>
-        <label class="field"><span>Username</span>
+        <label class="field"><span>Email or username</span>
           <input name="u" autocomplete="username" required autofocus></label>
         <label class="field"><span>Password</span>
           <span class="pw">
             <input name="p" id="loginPw" type="password" autocomplete="current-password" required onkeyup="capsCheck(event)" onkeydown="capsCheck(event)">
             <button type="button" class="pw-toggle" onclick="togglePw()" aria-label="Show or hide password">Show</button>
           </span></label>
+        <div class="login-foot"><button type="button" class="linkbtn" onclick="forgotOpen(this.form.u.value)">Forgot password?</button></div>
         <p class="caps hidden" id="capsWarn">Caps Lock is on.</p>
         <p class="err" id="loginErr" role="alert"></p>
         <button class="btn login-btn" type="submit"><span class="btn-label">Sign in</span><span class="spinner" aria-hidden="true"></span></button>

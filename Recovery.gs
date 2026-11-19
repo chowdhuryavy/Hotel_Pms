@@ -1,0 +1,132 @@
+/* ============================ RECOVERY ============================
+ * Forgot password: a 6-digit code is emailed to the user, then a new password is set.
+ * Codes and reset tokens live in the script cache only, and are never written to the sheet.
+ */
+const OTP_SECONDS = 600;     // a code, and a reset token, are valid for 10 minutes
+const OTP_MAX_TRIES = 5;     // wrong codes before the code is cancelled
+const OTP_COOLDOWN = 60;     // seconds before another code can be sent to the same account
+
+function escHtml_(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function appName_() {
+  try { return settings_().appName || 'Stayline'; } catch (e) { return 'Stayline'; }
+}
+/** Finds an active user by username or email (both compared in lower case). */
+function findUserByIdentifier_(identifier) {
+  const id = String(identifier || '').trim().toLowerCase();
+  if (!id) return null;
+  return rows_(TBL.USERS).find(u => u.active === true &&
+    (String(u.username).toLowerCase() === id || String(u.email || '').toLowerCase() === id)) || null;
+}
+function maskEmail_(e) {
+  const s = String(e || ''), at = s.indexOf('@');
+  return at > 0 ? s.charAt(0) + '***' + s.slice(at) : '';
+}
+function sendMail_(to, subject, text, html) {
+  MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: html, name: appName_() });
+}
+/** Professional, simple HTML email. Inline styles only, so it renders in Gmail and Outlook. */
+function mailHtml_(title, intro, code, note) {
+  const app = escHtml_(appName_());
+  const codeBlock = code
+    ? '<div style="margin:26px 0;text-align:center"><span style="display:inline-block;font-family:Menlo,Consolas,monospace;font-size:30px;letter-spacing:8px;font-weight:700;color:#0f3d3e;background:#eef6f5;border:1px solid #cfe3e0;border-radius:12px;padding:14px 22px">' + code + '</span></div>'
+    : '';
+  return '<!doctype html><html><body style="margin:0;padding:0;background:#f4f7f6;font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#14232b">' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 12px"><tr><td align="center">' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #dde5e3">' +
+    '<tr><td style="background:#0f3d3e;padding:22px 28px;color:#ffffff;font-size:18px;font-weight:700">' + app + '</td></tr>' +
+    '<tr><td style="padding:28px">' +
+    '<h1 style="margin:0 0 12px;font-size:20px;color:#0f3d3e">' + escHtml_(title) + '</h1>' +
+    '<p style="margin:0;font-size:15px;line-height:1.6">' + intro + '</p>' + codeBlock +
+    '<p style="margin:0;font-size:13px;line-height:1.6;color:#66757d">' + escHtml_(note) + '</p>' +
+    '</td></tr>' +
+    '<tr><td style="padding:16px 28px;border-top:1px solid #dde5e3;font-size:12px;color:#66757d">This is an automated message from ' + app + '. Please do not reply.</td></tr>' +
+    '</table></td></tr></table></body></html>';
+}
+
+/** Step 1. Sends a code if the username or email matches an active account. Always answers the same way. */
+function forgotRequest(identifier) {
+  const cache = CacheService.getScriptCache();
+  const generic = { message: 'If an account matches, a 6-digit code has been sent to its email address. It is valid for 10 minutes.', sentTo: '' };
+  const u = findUserByIdentifier_(identifier);
+  if (!u || !u.email) return generic;
+  if (cache.get('otpcd:' + u.id)) return generic;               // a code was sent a moment ago
+  const code = String(100000 + Math.floor(Math.random() * 900000));
+  const salt = Utilities.getUuid();
+  cache.put('otp:' + u.id, JSON.stringify({ h: hash_(salt, code), s: salt, t: 0 }), OTP_SECONDS);
+  cache.put('otpcd:' + u.id, '1', OTP_COOLDOWN);
+  const who = u.name || u.username;
+  sendMail_(u.email, 'Your password reset code',
+    'Hello ' + who + ',\n\nYour password reset code is ' + code + '. It expires in 10 minutes.\n\nIf you did not ask for this, ignore this email. Your password will not change.',
+    mailHtml_('Reset your password',
+      'Hello ' + escHtml_(who) + ', use this code to reset your password. It expires in 10 minutes.',
+      code, 'If you did not ask for a password reset, you can ignore this email. Your password will not change.'));
+  withLock_(() => audit_('system', 'PASSWORD_RESET_CODE_SENT', 'User', u.id, u.username));
+  return { message: generic.message, sentTo: maskEmail_(u.email) };
+}
+
+/** Step 2. Checks the 6-digit code. Returns a reset token that works once, for 10 minutes. */
+function forgotVerify(identifier, code) {
+  const bad = 'That code is not valid or has expired. Request a new code.';
+  const u = findUserByIdentifier_(identifier);
+  if (!u) throw new Error(bad);
+  const cache = CacheService.getScriptCache(), key = 'otp:' + u.id;
+  const raw = cache.get(key);
+  if (!raw) throw new Error(bad);
+  const o = JSON.parse(raw);
+  if (o.t >= OTP_MAX_TRIES) { cache.remove(key); throw new Error(bad); }
+  if (hash_(o.s, String(code || '').trim()) !== o.h) {
+    o.t += 1;
+    if (o.t >= OTP_MAX_TRIES) { cache.remove(key); throw new Error('Too many wrong codes. Request a new code.'); }
+    cache.put(key, JSON.stringify(o), OTP_SECONDS);
+    throw new Error('The code is wrong. Check the email and try again.');
+  }
+  cache.remove(key);
+  const token = Utilities.getUuid();
+  cache.put('rst:' + token, u.id, OTP_SECONDS);
+  return { resetToken: token };
+}
+
+/** Step 3. Sets the new password. The token is used up, and the user gets a confirmation email. */
+function forgotReset(resetToken, newPassword) {
+  const cache = CacheService.getScriptCache(), key = 'rst:' + String(resetToken || '');
+  const userId = cache.get(key);
+  if (!userId) throw new Error('This reset has expired. Start again.');
+  checkNewPassword_(newPassword);
+  return withLock_(() => {
+    const u = rows_(TBL.USERS).find(x => x.id === userId && x.active === true);
+    if (!u) throw new Error('This account is no longer active.');
+    const salt = Utilities.getUuid();
+    patch_(TBL.USERS, u._row, { salt: salt, passHash: hash_(salt, newPassword) });
+    cache.remove(key);
+    cache.remove('fail:' + String(u.username).toLowerCase());
+    audit_('system', 'PASSWORD_RESET', 'User', u.id, u.username);
+    if (u.email) {
+      const who = u.name || u.username;
+      sendMail_(u.email, 'Your password was changed',
+        'Hello ' + who + ',\n\nYour password was changed just now. If this was not you, contact your administrator at once.',
+        mailHtml_('Your password was changed', 'Hello ' + escHtml_(who) + ', your password was changed just now.', '',
+          'If this was not you, contact your administrator at once.'));
+    }
+    return true;
+  });
+}
+
+/** Run once from the editor if the admin cannot sign in and has no email. Needs ADMIN_PASSWORD in Script properties. */
+function resetAdminPassword() {
+  const pw = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSWORD') || '';
+  checkNewPassword_(pw);
+  const salt = Utilities.getUuid();
+  const passHash = hash_(salt, pw);
+  withLock_(() => {
+    const admin = rows_(TBL.USERS).find(x => String(x.username).toLowerCase() === 'admin');
+    if (admin) {
+      patch_(TBL.USERS, admin._row, { salt: salt, passHash: passHash, active: true });
+    } else {
+      append_(TBL.USERS, { id: id_('U'), username: 'admin', name: 'Administrator', role: 'Admin', salt: salt, passHash: passHash, active: true, lastLogin: '', createdAt: fmtTs_(new Date()), email: '' });
+    }
+  });
+  CacheService.getScriptCache().remove('fail:admin');
+  return 'Admin password is set. Sign in as admin, then delete ADMIN_PASSWORD from Script properties.';
+}
