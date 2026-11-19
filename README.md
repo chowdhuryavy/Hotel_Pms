@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.17**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.18**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.18: after a save or another completed action a success pop-up appears in the centre of the screen. It closes by itself or when clicked. Errors still show the red message.
 
 Release notes for 1.2.17: on phones (700px and narrower) the header shows only the hotel name and search. The business date is still shown on the dashboard and front desk pages.
 

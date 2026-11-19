@@ -84,8 +84,20 @@ function applyLanguage_(lang) {
 }
 
 /* ---------- Feedback ---------- */
-/* Notification pop: success or error with an icon. Replaces plain text messages. */
+/* Success pop-up shown after a save or another completed action. Closes by itself or on click. */
+function successPop_(msg) {
+  document.querySelectorAll('.dlg-bg.pop-only').forEach(el => el.remove());
+  const bg = document.createElement('div');
+  bg.className = 'dlg-bg pop-only';
+  bg.innerHTML = `<div class="dlg ok pop-ok" role="status" aria-live="polite"><div class="dlg-ico" aria-hidden="true">✓</div><h4>Saved</h4><p>${esc(String(msg))}</p></div>`;
+  document.body.appendChild(bg);
+  const close = () => { bg.classList.add('out'); setTimeout(() => bg.remove(), 180); };
+  bg.addEventListener('click', close);
+  setTimeout(close, 2000);
+}
+/* Notification: success shows a pop-up, errors show the red toast. */
 function toast(msg, bad) {
+  if (!bad && /\b(saved|updated|created|deleted|added|removed|posted|cancelled|reset|unlocked|renewed|sent|checked in|checked out|moved|extended|closed|resent|changed|transferred|split)\b/i.test(String(msg))) return successPop_(msg);
   const t = $('toast');
   t.innerHTML = `<span class="tico" aria-hidden="true">${bad ? '✕' : '✓'}</span><span>${esc(String(msg))}</span>`;
   t.className = 'toast show' + (bad ? ' bad' : '');
