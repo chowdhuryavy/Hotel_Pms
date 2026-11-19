@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.80**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.81**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.81: Property admin screens now lists every configuration function: Hotel settings, Room types, Rooms, Rate plans, Seasonal rates, Charge codes, Packages, Payment methods, Company accounts and Fixed charges. Each has See, Change and Delete limits that System admin sets once; the Property Admin gets exactly those.
 
 Release notes for 1.2.80: New System admin tab, "Property admin screens". It lists each screen in the Property admin area (Staff users, Hotel settings, Room types, Rooms, Packages, Payment methods, Fixed charges) with See, Change and Delete checkboxes, and saves them to the Property Admin role. Other permissions of that role are kept.
 
