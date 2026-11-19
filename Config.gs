@@ -13,7 +13,7 @@ const PAY_TYPE = 'Payment';
 const CHARGE_TYPE = 'Charge';
 
 const TBL = {
-  USERS:     ['Users', ['id','username','name','role','salt','passHash','active','lastLogin','createdAt','email']],
+  USERS:     ['Users', ['id','username','name','role','salt','passHash','active','lastLogin','createdAt','email','mustChange']],
   PERMS:     ['Permissions', ['permission','description'].concat(ROLES)],
   SETTINGS:  ['Settings', ['key','value']],
   ROOMTYPES: ['RoomTypes', ['code','name','baseRate','maxAdults','active','description']],
@@ -65,11 +65,12 @@ const PERMISSIONS = [
   ['accounts.view',         'View company accounts (city ledger)',       true,  true,  true,  false, false, true,  true ],
   ['accounts.manage',       'Create accounts, bill folios to companies', true,  true,  false, false, false, false, false],
   ['shifts.view',           'View all cashier shifts & variances',       true,  true,  false, false, false, false, true ],
-  ['shifts.manage',         'Open / close own cashier shift',            true,  true,  true,  true,  false, false, false]
+  ['shifts.manage',         'Open / close own cashier shift',            true,  true,  true,  true,  false, false, false],
+  ['system.manage',         'System administration: roles, email templates, app link', true,  false, false, false, false, false, false],
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.2.2';
 const SETTINGS_DEFAULT = {
   appName: 'Stayline',
   hotelName: 'Stayline Hotel',
@@ -82,12 +83,17 @@ const SETTINGS_DEFAULT = {
   businessDate: '',                    // set by setupDatabase(); advanced by night audit
   allowCheckoutWithBalance: 'false',   // checkout blocked while folios have a balance
   autoNoShowOnAudit: 'true',           // night audit marks un-arrived reservations as No-Show
-  // Emails. Placeholders: {{name}} {{code}} {{minutes}} {{appName}} {{hotelName}}
+  appUrl: '',                          // link to the app, sent to new users (system admin)
+  // Emails. Placeholders: {{name}} {{code}} {{minutes}} {{appName}} {{hotelName}} {{username}} {{tempPassword}} {{role}} {{appUrl}}
   otpSubject: 'Your verification code for {{appName}}',
   otpBody: 'Hello {{name}},\n\nYour verification code is {{code}}\n\nUse this code to reset your password. It expires in {{minutes}} minutes.\n\nIf you did not ask for a password reset, you can ignore this email. Your password will not change.',
   doneSubject: 'Your {{appName}} password was changed',
-  doneBody: 'Hello {{name}},\n\nYour password was changed just now. If this was not you, contact your administrator at once.'
+  doneBody: 'Hello {{name}},\n\nYour password was changed just now. If this was not you, contact your administrator at once.',
+  welcomeSubject: 'Welcome to {{appName}}: your login details',
+  welcomeBody: 'Hello {{name}},\n\nAn account has been created for you at {{hotelName}}.\n\nApp link: {{appUrl}}\nUsername: {{username}}\nTemporary password: {{tempPassword}}\nRole: {{role}}\n\nYou will be asked to choose a new password the first time you sign in.'
 };
+/** Settings only the system administrator can change (email templates and the app link). */
+const SYSTEM_SETTINGS = ['appUrl', 'welcomeSubject', 'welcomeBody', 'otpSubject', 'otpBody', 'doneSubject', 'doneBody'];
 
 const CHARGE_CODES_DEFAULT = [
   // [code, description, department, type, taxable]

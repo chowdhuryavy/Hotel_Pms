@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.1**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.2**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.2: each page has its own address (bookmarks, refresh and back/forward work); avatar menu with change password and sign out; Property Admin built-in role (hotel operations) separate from the system administrator (roles, email templates, app link); new users get a temporary password and a welcome email with the app link, and must change the password at first sign-in; night audit report and journal by charge code.
 
 Release notes for 1.2.1: sidebar with a logo toggle (grouped menu, collapsible groups); buttons have a spin effect; admins create roles and set their permissions in Administration → Roles & permissions; folio, registration card and reports show the hotel logo and name; reset-code and password-changed emails are editable in Hotel settings, with a test send, and the code line is detectable by Gmail.
 

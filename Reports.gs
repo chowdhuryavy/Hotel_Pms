@@ -5,6 +5,8 @@
  */
 const REPORT_TYPES = [
   ['flash', 'Daily flash (business date)'],
+  ['nightaudit', 'Night audit report (business dates)'],
+  ['journal', 'Journal by charge code'],
   ['occupancy', 'Occupancy & ADR by day'],
   ['arrivals', 'Arrivals'],
   ['departures', 'Departures'],
@@ -121,6 +123,31 @@ function buildReport_(type, from, to) {
       .map(s => [s.user, s.openedAt, s.closedAt || '(open)', num_(s.openingFloat), s.expectedCash === '' ? '' : num_(s.expectedCash),
         s.countedCash === '' ? '' : num_(s.countedCash), s.variance === '' ? '' : num_(s.variance), s.status]);
     return { title: 'Cashier shifts', headers: ['Cashier', 'Opened', 'Closed', 'Float', 'Expected cash', 'Counted cash', 'Variance', 'Status'], rows: rows };
+  }
+  if (type === 'nightaudit') {
+    const days = [];
+    for (let d = f; d <= t && days.length < 62; d = addDays_(d, 1)) days.push(d);
+    const bds = rows_(TBL.BIZDATES);
+    const rows = days.map(d => {
+      const b = bds.find(x => x.date === d);
+      const ps = posts.filter(p => p.bizDate === d);
+      const sum = fn => num_(ps.filter(fn).reduce((a, p) => a + Number(p.amount), 0));
+      return [d, b ? String(b.status || 'Closed') : 'Open', b && b.closedAt ? String(b.closedAt) : '', b ? String(b.closedBy || '') : '',
+        sum(p => p.code === 'ROOM'), sum(p => Number(p.amount) > 0), num_(-sum(p => Number(p.amount) < 0)),
+        b ? Number(b.roomsPosted) || 0 : 0, b ? Number(b.noShows) || 0 : 0];
+    });
+    return { title: 'Night audit · ' + f + (t !== f ? ' to ' + t : ''), headers: ['Business date', 'Status', 'Closed at', 'Closed by', 'Room revenue', 'Charges', 'Payments', 'Rooms posted', 'No-shows'], rows };
+  }
+  if (type === 'journal') {
+    const byCode = {};
+    posts.filter(p => inRange(p.bizDate)).forEach(p => {
+      const c = byCode[p.code] = byCode[p.code] || { code: p.code, n: 0, ch: 0, pay: 0 };
+      const a = Number(p.amount) || 0;
+      c.n++; if (a >= 0) c.ch += a; else c.pay -= a;
+    });
+    const rows = Object.keys(byCode).sort().map(k => { const c = byCode[k]; return [c.code, c.n, num_(c.ch), num_(c.pay), num_(c.ch - c.pay)]; });
+    const tot = rows.reduce((a, r) => [a[0], a[1] + r[1], num_(a[2] + r[2]), num_(a[3] + r[3]), num_(a[4] + r[4])], ['TOTAL', 0, 0, 0, 0]);
+    return { title: 'Journal by charge code · ' + f + (t !== f ? ' to ' + t : ''), headers: ['Code', 'Lines', 'Charges', 'Payments', 'Net'], rows: rows.concat([tot]) };
   }
   if (type === 'housekeeping') {
     const rows = roomsAll_().sort((a, b) => String(a.roomNo).localeCompare(String(b.roomNo), undefined, { numeric: true }))

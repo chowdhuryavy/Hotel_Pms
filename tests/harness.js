@@ -198,10 +198,10 @@ if (require.main === module) {
   const rack = run("rackData(TOK, bizDate_(), 7)");
   ok(rack.rooms.length === 16 + 0 || rack.rooms.length > 10, 'rack returns ' + rack.rooms.length + ' rooms');
   // ---- advanced: migration, company accounts, guest alerts, shifts, late checkout, forecast, reports, housekeeping ----
-  ok(run('rows_(TBL.PERMS).length') === 31, 'permission matrix has 31 rows');
+  ok(run('rows_(TBL.PERMS).length') === 32, 'permission matrix has 32 rows');
   ok(run("rows_(TBL.CHARGES).some(c => c.code === 'LCO')"), 'late checkout charge code LCO present');
   run('migrateSchema_()'); run('migrateSchema_()');
-  ok(run('rows_(TBL.PERMS).length') === 31 && run("rows_(TBL.CHARGES).filter(c => c.code === 'LCO').length") === 1, 'migration is idempotent');
+  ok(run('rows_(TBL.PERMS).length') === 32 && run("rows_(TBL.CHARGES).filter(c => c.code === 'LCO').length") === 1, 'migration is idempotent');
   run("rows_(TBL.ROOMS).forEach(r => patch_(TBL.ROOMS, r._row, { housekeeping: 'Clean' }))");
 
   const acc = tryRun("saveAccount(TOK, { name: 'Acme Corp', code: 'ACME', creditLimit: 500 })");
@@ -283,5 +283,28 @@ if (require.main === module) {
   ok(!!tryRun("deleteRole(TOK, 'Night Auditor')").e, 'role with users cannot be deleted');
   ok(!!tryRun("deleteRole(TOK, 'Admin')").e, 'Admin role cannot be deleted');
   ok(!!tryRun("saveRolePerms(TOK, 'Admin', [])").e === false, 'admin can still save the Admin role');
+  // system vs property admin, welcome email, temporary password, new reports
+  ok(run("listRoles(TOK).some(r => r.name === 'Property Admin' && r.builtIn)"), 'Property Admin is a built-in role');
+  ok(!tryRun("saveUser(TOK, { username: 'propadmin', name: 'Property Admin User', email: '', role: 'Property Admin', password: 'Prop12345', active: true })").e, 'system admin creates a property admin');
+  const PTOK = tryRun("login('propadmin','Prop12345')").v.token;
+  ok(!!PTOK, 'property admin signs in');
+  ok(!!tryRun("listRoles('" + PTOK + "')").e, 'property admin cannot manage roles');
+  ok(!!tryRun("saveSettings('" + PTOK + "', { appUrl: 'https://evil.example' })").e === false && run("settings_().appUrl") !== 'https://evil.example', 'property admin cannot change the app link');
+  ok(!!tryRun("saveUser('" + PTOK + "', { username: 'boss', name: 'Boss', role: 'Admin', password: 'Boss12345', active: true })").e, 'property admin cannot give the Admin role');
+  ok(!tryRun("saveSettings('" + PTOK + "', { hotelName: 'Perfection Hotel' })").e, 'property admin can change hotel settings');
+  const w = tryRun("saveUser(TOK, { username: 'newbie', name: 'New Bie', email: 'newbie@example.com', role: 'FrontDesk', active: true })");
+  ok(!w.e && w.v.tempPassword === '', 'new user with email gets no temporary password on screen');
+  const welcome = mailbox[mailbox.length - 1] || {};
+  const temp = ((welcome.body || '').match(/Temporary password: (\S+)/) || [])[1];
+  ok(/Welcome/.test(welcome.subject || '') && !!temp && /New Bie/.test(welcome.body || ''), 'welcome email sent with login details and temporary password');
+  const first = tryRun("login('newbie','" + temp + "')");
+  ok(!first.e && first.v.user.mustChange === true, 'first sign-in is flagged: password must be changed');
+  const NTOK = first.v.token;
+  ok(!tryRun("changeMyPassword('" + NTOK + "','" + temp + "','Newbie1234')").e, 'temporary password is changed');
+  ok(tryRun("login('newbie','Newbie1234')").v.user.mustChange === false, 'after the change the flag is cleared');
+  const nu = tryRun("saveUser(TOK, { username: 'nouser', name: 'No Mail', role: 'Cashier', active: true })");
+  ok(!nu.e && nu.v.tempPassword.length >= 8, 'user without email: temporary password shown once to the admin');
+  ok(run("runReport(TOK,'nightaudit','" + bd + "','" + bd + "').headers.length") === 9, 'night audit report has its columns');
+  ok(run("runReport(TOK,'journal','" + bd + "','" + bd + "').rows.slice(-1)[0][0]") === 'TOTAL', 'journal ends with a total');
   console.log('done');
 }

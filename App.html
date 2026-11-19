@@ -144,15 +144,40 @@ function sessionEnd(msg) {
   $('loginErr').textContent = msg || '';
   closeModal();
 }
-async function logout() { try { await rpc('logout', S.token); } catch (e) {} sessionEnd(''); }
+async function logout() { try { await rpc('logout', S.token); } catch (e) {} try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} sessionEnd(''); }
 function startApp() {
   $('login').classList.add('hidden');
   $('app').classList.remove('hidden');
   brand();
   buildNav();
-  $('who').innerHTML = `Business date <b>${esc(S.bizDate)}</b>`;
-  $('account').innerHTML = `<b>${esc(S.user.name)}</b><span>${esc(S.user.role)}</span><div class="acct-btns"><button class="btn ghost sm" onclick="go('password')">Password</button> <button class="btn ghost sm" onclick="logout()">Sign out</button></div>`;
-  go(firstPage());
+  $('who').innerHTML = `<span class="bizline">Business date <b>${esc(S.bizDate)}</b></span><div class="avatar-wrap"><button class="avatar" onclick="toggleUserMenu(event)" title="${esc(S.user.name)}" aria-label="Account menu">${esc(initials_(S.user.name || S.user.username))}</button><div class="user-menu" id="userMenu"><div class="um-head"><b>${esc(S.user.name)}</b><span>${esc(S.user.role)}</span></div><button onclick="closeUserMenu();pwModal()">Change password</button><button onclick="logout()">Sign out</button></div></div>`;
+  $('account').innerHTML = `<b>${esc(S.user.name)}</b><span>${esc(S.user.role)}</span>`;
+  if (S.user.mustChange) toast('Please choose a new password to continue.');
+  const want = parseHash_();
+  go(want.page && pageAllowed_(want.page) ? want.page : firstPage(), want.page && pageAllowed_(want.page) ? want.param : null);
+}
+
+/* ---------- Avatar menu and password dialog ---------- */
+function initials_(n) { return String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('') || '?'; }
+function toggleUserMenu(e) { e.stopPropagation(); $('userMenu').classList.toggle('open'); }
+function closeUserMenu() { const m = document.getElementById('userMenu'); if (m) m.classList.remove('open'); }
+document.addEventListener('click', e => { if (!e.target.closest('.avatar-wrap')) closeUserMenu(); });
+function pwModal() {
+  openModal('Change password', `<form id="fPwM" class="fgrid">
+    ${pwField('oldPw', 'Current password', 'current-password', false)}
+    ${pwField('newPw', 'New password', 'new-password', true)}
+    ${pwField('confirm', 'Confirm new password', 'new-password', true)}
+    ${pwRulesHtml()}
+    <p class="err" id="fgErr"></p>
+    <div class="actions"><button class="btn" type="submit" disabled>Change password</button></div></form>`);
+  const f = $('fPwM');
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = f.querySelector('button[type=submit]');
+    btn.disabled = true; formErr_('');
+    try { await api('changeMyPassword', f.oldPw.value, f.newPw.value); S.user.mustChange = false; saveSession(); closeModal(); toast('Password changed'); }
+    catch (err) { formErr_(err.message); pwLive(f); }
+  });
 }
 
 /* Sidebar toggle: the logo button. Mobile slides the menu over; desktop collapses it (remembered per browser). */
@@ -222,15 +247,39 @@ const PAGES = {
   reports: pgReports, log: pgLog, admin: pgAdmin, password: pgPassword,
   accounts: pgAccounts, account: pgAccount, shifts: pgShifts
 };
+/* ---------- Routing: every page has its own address (#/reservations, #/res?"RES1") ---------- */
+function routeHash_(page, param) { return '#/' + page + (param != null ? '?' + encodeURIComponent(JSON.stringify(param)) : ''); }
+function parseHash_() {
+  const h = location.hash.replace(/^#\/?/, ''), i = h.indexOf('?');
+  let param = null;
+  if (i >= 0) { try { param = JSON.parse(decodeURIComponent(h.slice(i + 1))); } catch (e) { param = null; } }
+  return { page: i < 0 ? h : h.slice(0, i), param: param };
+}
+function pageAllowed_(page) { return page === 'password' || NAV.some(n => n.k === page && canAny(n.p)); }
 function go(page, param) {
-  if (!PAGES[page]) page = firstPage();
+  const h = routeHash_(page, param);
+  if (location.hash !== h) { location.hash = h; return; }   // the hashchange listener draws the page
+  renderPage_(page, param);
+}
+function renderPage_(page, param) {
+  if (S.user && S.user.mustChange) page = 'password';        // a temporary password must be changed first
+  if (!PAGES[page] || !pageAllowed_(page)) page = firstPage();
+  if (location.hash !== routeHash_(page, param)) history.replaceState(null, '', routeHash_(page, param));
   S.page = page; S.param = param || null;
   closeModal();
   document.body.classList.remove('menu-open');
   document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('on', a.dataset.p === page));
+  const label = (NAV.find(n => n.k === page) || {}).l || 'Change password';
+  document.title = label + ' · ' + ((S.settings && S.settings.appName) || 'Stayline');
   setView('<div class="loading">Loading…</div>');
   PAGES[page]().catch(e => setView(`<div class="card err">${esc(e.message)}</div>`));
 }
+window.addEventListener('hashchange', () => {
+  if (!S.token) return;
+  const r = parseHash_();
+  if (r.page === S.page && JSON.stringify(r.param) === JSON.stringify(S.param)) return;
+  renderPage_(r.page, r.param);
+});
 async function loadCodes() { if (!CODES) CODES = await api('listChargeCodes'); return CODES; }
 function codeOptions(type) {
   return CODES.filter(c => c.active && c.type === type && (type !== 'Charge' || c.code !== 'TAX')).map(c => [c.code, c.code + ' · ' + c.description]);
@@ -759,7 +808,7 @@ async function pgNightAudit() {
     <div class="kpis">${kpi('Business date', esc(info.bizDate))}${kpi('In-house', info.inHouse)}${kpi('Departures today', info.departuresToday)}
       ${kpi('Arrivals today', info.arrivalsToday)}${kpi('Past-due arrivals', info.pastDue)}${kpi('Dates closed', info.closedDates)}</div>
     ${info.warnings.length ? `<div class="card warn"><h3>Before you close the day</h3><ul>${info.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>` : '<div class="card"><p class="muted">No warnings. Ready to close the day.</p></div>'}
-    ${can('reports.export') ? '<div class="acts"><button class="btn ghost" onclick="eodPdf()">End-of-day flash (PDF)</button></div>' : ''}
+    ${can('reports.export') ? '<div class="acts"><button class="btn ghost" onclick="go(\'reports\',{type:\'nightaudit\',from:S.bizDate,to:S.bizDate})">Night audit report</button><button class="btn ghost" onclick="eodPdf()">End-of-day flash (PDF)</button></div>' : ''}
     <div class="card"><h3>Run night audit for ${esc(info.bizDate)}</h3>
       <ol class="muted" style="line-height:1.7">
         <li>Posts one room charge (and tax) for every guest staying the night.</li>
@@ -916,7 +965,7 @@ async function pgLog() {
 /* ============================================================
  * ADMINISTRATION
  * ============================================================ */
-const ADM_TABS = [['users', 'Users', 'users.manage'], ['settings', 'Hotel settings', 'settings.manage'], ['types', 'Room types', 'rooms.manage'], ['rooms', 'Rooms', 'rooms.manage'], ['roles', 'Roles & permissions', 'users.manage']];
+const ADM_TABS = [['users', 'Users', 'users.manage'], ['settings', 'Hotel settings', 'settings.manage'], ['types', 'Room types', 'rooms.manage'], ['rooms', 'Rooms', 'rooms.manage'], ['roles', 'Roles & permissions', 'system.manage'], ['system', 'System', 'system.manage']];
 async function pgAdmin() {
   const tabs = ADM_TABS.filter(t => can(t[2]));
   if (!tabs.find(t => t[0] === ADM)) ADM = tabs[0][0];
@@ -969,6 +1018,11 @@ async function pgAdmin() {
     S.settings = Object.assign({}, S.settings, { appName: out.appName, hotelName: out.hotelName, logoUrl: out.logoUrl, currency: out.currency });
     brand(); toast('Settings saved');
   });
+  if (ADM === 'system') bindForm('fSys', async d => {
+    await api('saveSettings', { appUrl: d.appUrl, welcomeSubject: d.welcomeSubject, welcomeBody: d.welcomeBody, otpSubject: d.otpSubject,
+      otpBody: d.otpBody, doneSubject: d.doneSubject, doneBody: d.doneBody });
+    toast('System settings saved');
+  });
 }
 async function testEmail() {
   try { const r = await api('sendEmailTest'); toast('Test emails sent to ' + r.sentTo); }
@@ -1016,8 +1070,7 @@ function removeRole(name) {
   api('deleteRole', name).then(() => { go('admin'); toast('Role deleted'); }).catch(e => toast(e.message, true));
 }
 function userModal(id) {
-  Promise.all([api('listUsers'), api('listRoles')]).then(([us, rl]) => {
-    const roles = rl.map(r => r.name);
+  Promise.all([api('listUsers'), api('roleOptions')]).then(([us, roles]) => {
     const u = id ? us.find(x => x.id === id) || {} : {};
     openModal(id ? 'Edit user' : 'New user', formHtml('fUs', [
       { name: 'username', label: 'Username', required: true, value: u.username || '' },
@@ -1028,8 +1081,11 @@ function userModal(id) {
       { name: 'active', label: 'Active', type: 'check', value: id ? !!u.active : true }
     ], 'Save user'));
     bindForm('fUs', async d => {
-      await api('saveUser', { id: id || '', username: d.username, name: d.name, email: d.email, role: d.role, password: d.password || '', active: d.active === 'true' });
-      toast('User saved'); closeModal(); refresh();
+      const r = await api('saveUser', { id: id || '', username: d.username, name: d.name, email: d.email, role: d.role, password: d.password || '', active: d.active === 'true' });
+      toast('User saved');
+      if (r && r.tempPassword) {
+        openModal('Temporary password', `<p>No email was sent, so share this temporary password with the user. It is shown only once, and the user must change it at first sign-in.</p><p class="code-box">${esc(r.tempPassword)}</p><div class="acts"><button class="btn" onclick="closeModal();refresh()">Done</button></div>`);
+      } else { closeModal(); refresh(); }
     });
   }).catch(e => toast(e.message, true));
 }
@@ -1191,7 +1247,7 @@ function pgPassword() {
     e.preventDefault();
     const f = e.target, btn = f.querySelector('button[type=submit]');
     btn.disabled = true; formErr_('');
-    try { await api('changeMyPassword', f.oldPw.value, f.newPw.value); toast('Password changed'); go(firstPage()); }
+    try { await api('changeMyPassword', f.oldPw.value, f.newPw.value); S.user.mustChange = false; saveSession(); toast('Password changed'); go(firstPage()); }
     catch (err) { formErr_(err.message); pwLive(f); }
   });
   return Promise.resolve();

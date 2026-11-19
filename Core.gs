@@ -115,7 +115,7 @@ function login(username, password) {
     withLock_(() => audit_(u || '?', 'LOGIN_FAILED', 'User', u, ''));
     throw new Error('Invalid username or password.');
   }
-  const sess = { id: user.id, username: user.username, name: user.name, role: user.role };
+  const sess = { id: user.id, username: user.username, name: user.name, role: user.role, mustChange: user.mustChange === true };
   const token = Utilities.getUuid();
   cache.put('s:' + token, JSON.stringify(sess), SESSION_SECONDS);
   cache.remove(failKey);
@@ -154,7 +154,7 @@ function changeMyPassword(token, oldPw, newPw) {
     const u = rows_(TBL.USERS).find(x => x.id === s.id);
     if (hash_(u.salt, String(oldPw || '')) !== u.passHash) throw new Error('Current password is incorrect.');
     const salt = Utilities.getUuid();
-    patch_(TBL.USERS, u._row, { salt: salt, passHash: hash_(salt, newPw) });
+    patch_(TBL.USERS, u._row, { salt: salt, passHash: hash_(salt, newPw), mustChange: false });
     audit_(s.username, 'PASSWORD_CHANGED', 'User', s.id, '');
     return true;
   });
@@ -167,7 +167,9 @@ function listUsers(token) {
 }
 function saveUser(token, d) {
   const s = auth_(token, 'users.manage');
+  const isSys = permMap_(s.role)['system.manage'] === true;
   if (roleNames_().indexOf(d.role) < 0) throw new Error('Invalid role.');
+  if (d.role === ADMIN_ROLE && !isSys) throw new Error('Only a system administrator can give the Admin role.');
   const uname = String(d.username || '').trim().toLowerCase();
   if (!uname) throw new Error('Username is required.');
   const active = d.active !== false && d.active !== 'false';
@@ -179,23 +181,29 @@ function saveUser(token, d) {
     if (d.id) {
       const u = users.find(x => x.id === d.id);
       if (!u) throw new Error('User not found.');
+      if (u.role === ADMIN_ROLE && !isSys) throw new Error('Only a system administrator can change an Admin user.');
       if (u.id === s.id && (!active || d.role !== u.role)) throw new Error('You cannot deactivate or demote your own account.');
       const ch = { username: uname, name: d.name || uname, role: d.role, active: active, email: email };
       if (d.password) {
         checkNewPassword_(d.password);
         ch.salt = Utilities.getUuid();
         ch.passHash = hash_(ch.salt, d.password);
+        ch.mustChange = true;
       }
       patch_(TBL.USERS, u._row, ch);
       audit_(s.username, 'USER_UPDATED', 'User', d.id, uname + ' ' + d.role);
-      return d.id;
+      return { id: d.id, tempPassword: '' };
     }
-    if (!d.password) throw new Error('New users need a password.');
-    checkNewPassword_(d.password);
+    const pw = d.password || genTempPassword_();
+    checkNewPassword_(pw);
     const id = id_('U'), salt = Utilities.getUuid();
-    append_(TBL.USERS, { id: id, username: uname, name: d.name || uname, role: d.role, salt: salt, passHash: hash_(salt, d.password), active: active, lastLogin: '', createdAt: fmtTs_(new Date()), email: email });
-    audit_(s.username, 'USER_CREATED', 'User', id, uname + ' ' + d.role);
-    return id;
+    const user = { id: id, username: uname, name: d.name || uname, role: d.role, salt: salt, passHash: hash_(salt, pw),
+      active: active, lastLogin: '', createdAt: fmtTs_(new Date()), email: email, mustChange: true };
+    append_(TBL.USERS, user);
+    let mailed = false;
+    if (email) { try { sendWelcome_(user, pw); mailed = true; } catch (e) { Logger.log('Welcome email: ' + e.message); } }
+    audit_(s.username, 'USER_CREATED', 'User', id, uname + ' ' + d.role + (mailed ? ' (welcome email sent)' : ''));
+    return { id: id, tempPassword: mailed ? '' : pw };   // shown once to the admin only when no email was sent
   });
 }
 function listPermissions(token) {
@@ -208,9 +216,11 @@ function getSettings(token) {
 }
 function saveSettings(token, d) {
   const s = auth_(token, 'settings.manage');
+  const isSys = permMap_(s.role)['system.manage'] === true;
   return withLock_(() => {
     Object.keys(SETTINGS_DEFAULT).forEach(k => {
-      if (k === 'businessDate' || d[k] === undefined) return;   // business date only changes via night audit
+      if (k === 'businessDate' || d[k] === undefined) return;
+      if (SYSTEM_SETTINGS.indexOf(k) >= 0 && !isSys) return;   // only the system administrator   // business date only changes via night audit
       const row = rows_(TBL.SETTINGS).find(r => r.key === k);
       if (row) patch_(TBL.SETTINGS, row._row, { value: d[k] }); else append_(TBL.SETTINGS, { key: k, value: d[k] });
     });

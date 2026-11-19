@@ -37,6 +37,8 @@ function setupDatabase() {
     perms.getRange(2, 3, PERMISSIONS.length, ROLES.length).insertCheckboxes();
   }
 
+  ensureBuiltinRoles_();   // after the matrix is seeded, so Property Admin gets its defaults
+
   // 3) Settings
   const st = ss.getSheetByName(TBL.SETTINGS[0]);
   if (st.getLastRow() === 1) {
@@ -112,6 +114,7 @@ function migrateSchema_() {
     const missing = CHARGE_CODES_DEFAULT.filter(c => !have.has(c[0])).map(c => [c[0], c[1], c[2], c[3], c[4], true]);
     if (missing.length) codes.getRange(codes.getLastRow() + 1, 1, missing.length, 6).setValues(missing);
   }
+  ensureBuiltinRoles_();
 }
 
 function buildSampleRooms_() {

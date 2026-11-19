@@ -64,7 +64,7 @@ function renderMail_(kind, vars) {
 
 /** Sends the two emails to the signed-in admin's own address, so the wording can be checked. */
 function sendEmailTest(token) {
-  const s = auth_(token, 'settings.manage');
+  const s = auth_(token, 'system.manage');
   const u = rows_(TBL.USERS).find(x => x.id === s.id);
   if (!u || !u.email) throw new Error('Add an email to your user first (Administration → Users).');
   const who = u.name || u.username;
@@ -152,4 +152,19 @@ function resetAdminPassword() {
   });
   CacheService.getScriptCache().remove('fail:admin');
   return 'Admin password is set. Sign in as admin, then delete ADMIN_PASSWORD from Script properties.';
+}
+
+/** Welcome email for a new user: login details and a temporary password (must be changed at first sign-in). */
+function sendWelcome_(u, tempPassword) {
+  const m = renderMail_('welcome', { name: u.name || u.username, username: u.username, tempPassword: tempPassword,
+    role: u.role, appUrl: settings_().appUrl || '' });
+  sendMail_(u.email, m.subject, m.text, m.html);
+}
+/** A readable temporary password with upper, lower and digit characters (passes checkNewPassword_). */
+function genTempPassword_() {
+  const pick = s => s.charAt(Math.floor(Math.random() * s.length));
+  const U = 'ABCDEFGHJKMNPQRSTUVWXYZ', L = 'abcdefghjkmnpqrstuvwxyz', D = '23456789';
+  let p = pick(U) + pick(L) + pick(D);
+  while (p.length < 10) p += pick(U + L + D);
+  return p;
 }
