@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.121**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.122**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.122: The Forgot password button works again. Its dialog opens on the sign-in page instead of an in-app tab, which exists only while signed in.
 
 Release notes for 1.2.121: No dialog opens while nobody is signed in. Signing out clears any dialog that appears just before or after it, so the sign-in page is not left under a blurred layer.
 

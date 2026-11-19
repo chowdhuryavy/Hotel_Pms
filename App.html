@@ -416,7 +416,8 @@ function refresh() {
 /* ---------- In-app tabs: each form action opens as a tab inside this page (no new browser tab) ---------- */
 let APP_TABS = [], ACTIVE_TAB = 'page', APP_TAB_SEQ = 0;
 function openModal(title, html) {
-  if (CLICK_EXPR && !CLICK_WROTE && Date.now() - CLICK_AT < 20000 && TAB_EXPR_OK_RE.test(CLICK_EXPR)) {
+  // In-app tabs exist only while signed in. On the sign-in page (Forgot password) the dialog opens directly.
+  if (S.token && CLICK_EXPR && !CLICK_WROTE && Date.now() - CLICK_AT < 20000 && TAB_EXPR_OK_RE.test(CLICK_EXPR)) {
     const e = CLICK_EXPR, l = CLICK_LABEL; CLICK_EXPR = null;
     openAppTab_(e, l || title);
     return;
