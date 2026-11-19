@@ -496,7 +496,7 @@
   .btn{background:linear-gradient(180deg,var(--p1),var(--p2));color:var(--p-ink);box-shadow:0 1px 0 rgba(255,255,255,.18) inset,0 2px 6px rgba(9,40,41,.25)}
   .btn:hover{transform:translateY(-1px);box-shadow:0 1px 0 rgba(255,255,255,.18) inset,0 8px 18px rgba(9,40,41,.28);filter:none}
   .btn:active{transform:translateY(0) scale(.98);box-shadow:none}
-  .btn::after{content:none!important;animation:none!important}
+  .btn:not(.spin-on)::after{content:none!important;animation:none!important}
   .btn.ghost{background:var(--card);color:var(--text);border-color:var(--line);box-shadow:none}
   .btn.ghost:hover{background:var(--hover);border-color:var(--p1);color:var(--text);box-shadow:0 4px 12px rgba(0,0,0,.12)}
   .btn.soft{background:rgba(42,157,150,.14);color:var(--p1);border-color:rgba(42,157,150,.35);box-shadow:none}
@@ -510,7 +510,8 @@
   .btn:focus-visible{outline:2px solid var(--warn);outline-offset:2px}
   .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
   .btn.ghost.on,.fd-tabs .btn.on{background:linear-gradient(180deg,var(--p1),var(--p2));color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(9,40,41,.25)}
-  .btn.spin-on::after{content:'';animation:btn-spin .7s linear infinite!important;opacity:1!important}
+  .btn.spin-on::after{content:''!important;position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;animation:btn-spin .7s linear infinite!important;opacity:1!important;inset:auto}
+  .btn.ghost.spin-on::after{border-color:rgba(42,157,150,.25);border-top-color:var(--p1)}
 
   /* Icon-led buttons: any button can start with an icon span */
   .btn .bi{width:15px;height:15px;flex:none}
@@ -588,4 +589,9 @@
   body.has-actbar .view{padding-bottom:96px}
   .opt-list{display:grid;gap:8px}
   @media (min-width:900px){ .actbar{left:240px} body.sb-collapsed .actbar{left:0} }
+  /* Busy buttons: the label hides and the spinner shows in its place */
+  .btn.spin-on,.btn.spin-on:hover,.btn.spin-on:focus{color:transparent!important;pointer-events:none}
+  .ab.spin-on{pointer-events:none}
+  .ab.spin-on .ab-i{background:var(--hover)}
+  .ab.spin-on .ab-i svg{animation:btn-spin .8s linear infinite}
 </style>

@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.25**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.26**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.26: Buttons: fixed the spinner and the disappearing labels while a button is busy. Bottom action bar buttons now spin too.
 
 Release notes for 1.2.25: Billing room screen has a bottom action bar: Post, Payment, Folio, Reservation, Check out and Options (guest history, move, extend, copy). The bar appears only on screens that set one.
 

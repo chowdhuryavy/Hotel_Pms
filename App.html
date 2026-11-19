@@ -73,7 +73,7 @@ function waitSplash_() {
 }
 /* Button feedback: every .btn spins while its action runs, and stops when the data has arrived. */
 document.addEventListener('click', e => {
-  const b = e.target.closest && e.target.closest('.btn');
+  const b = e.target.closest && e.target.closest('.btn,.ab');
   if (!b || b.disabled || b.hasAttribute('data-nospin')) return;
   b.classList.add('spin-on');
   const t0 = Date.now();
