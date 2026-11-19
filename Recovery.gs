@@ -89,14 +89,16 @@ function renderMail_(kind, vars) {
 }
 
 /** Sends the two emails to the signed-in admin's own address, so the wording can be checked. */
-function sendEmailTest(token) {
+function sendEmailTest(token, to) {
   const s = auth_(token, 'system.manage');
   const u = rows_(TBL.USERS).find(x => x.id === s.id);
-  if (!u || !u.email) throw new Error('Add an email to your user first (Administration → Users).');
-  const who = u.name || u.username;
+  const target = String(to || '').trim() || (u && u.email) || '';
+  if (!target) throw new Error('Enter the email address that should receive the test, or add an email to your user (Administration → Staff users).');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) throw new Error('Enter a valid email address for the test.');
+  const who = (u && (u.name || u.username)) || 'Administrator';
   const otp = renderMail_('otp', { name: who, code: '123456', minutes: Math.round(OTP_SECONDS / 60) });
-  sendMail_(u.email, '[Test] ' + otp.subject, otp.text, otp.html);
-  return { sentTo: maskEmail_(u.email) };
+  sendMail_(target, '[Test] ' + otp.subject, otp.text, otp.html);
+  return { sentTo: maskEmail_(target) };
 }
 
 /** Sign-in with a code: after the right password, a 6-digit code is emailed. Held in the script cache only. */

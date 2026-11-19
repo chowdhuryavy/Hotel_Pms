@@ -3001,7 +3001,8 @@ async function pgAdmin(scope) {
       fieldHtml({ name: 'resendFrom', label: 'Resend from address (on your verified domain)', value: e.resendFrom, wide: true }) +
       secret('resendApiKey', 'Resend API key', e.resendKeySet, 'Enter the Resend API key') +
       (e.resendKeySet ? fieldHtml({ name: 'clearResendKey', label: 'Remove the saved Resend API key', type: 'check', value: false }) : '') +
-      `<div class="actions"><button class="btn ghost" type="button" onclick="testEmail()">Send a test email to me</button><button class="btn" type="submit">Save email sending</button></div></form>`;
+      `<h4 style="margin:18px 0 6px">Test</h4>` + fieldHtml({ name: 'testTo', label: 'Send the test email to (leave blank to use your own address)', value: '', wide: true }) +
+      `<div class="actions"><button class="btn ghost" type="button" onclick="testEmail(this.form.testTo.value)">Send test email</button><button class="btn" type="submit">Save email sending</button></div></form>`;
   } else if (ADM === 'types') {
     const ts = await api('listRoomTypes');
     body = `<div class="head-row"><h3>Room types</h3><div class="acts">${can('cfg.roomtypes.edit') ? '<button class="btn" onclick="tabOpen_(&#39;typeModal&#39;,[])">+ Room type</button>' : ''}</div></div>` +
@@ -3176,8 +3177,8 @@ async function menuReset() {
     go('sysadmin');
   } catch (e) { toast(e.message, true); }
 }
-async function testEmail() {
-  try { const r = await api('sendEmailTest'); toast('Test emails sent to ' + r.sentTo); }
+async function testEmail(to) {
+  try { const r = await api('sendEmailTest', String(to || '')); toast('Test email sent to ' + r.sentTo); }
   catch (e) { toast(e.message, true); }
 }
 /* Set while an admin section is drawn in its own tab: only that section is shown, without the page heading and tab bar */

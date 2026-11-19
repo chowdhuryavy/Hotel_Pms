@@ -583,5 +583,9 @@ if (require.main === module) {
   // The backup folder follows the app name in Settings, not a fixed word
   run("(function(){ patch_(TBL.SETTINGS, rows_(TBL.SETTINGS).find(r => r.key === 'appName')._row, { value: 'Lumen' }); return true; })()");
   ok(run("backupFolderName_()") === 'Lumen backups', 'backup folder is named after the app name in Settings');
+  // Test email goes to the address typed in, or to the admin's own address when blank
+  ok(run("(function(){ const n = mailbox.length; const r = sendEmailTest(TOK, 'tester@example.org'); return r.sentTo.indexOf('@example.org') > 0 && mailbox[mailbox.length - 1].to === 'tester@example.org' && mailbox.length === n + 1; })()"), 'test email goes to the address typed in');
+  ok(!!tryRun("sendEmailTest(TOK, 'not-an-email')").e, 'test email rejects an invalid address');
+  ok(run("(function(){ const r = sendEmailTest(TOK, ''); return mailbox[mailbox.length - 1].to === 'admin@example.com'; })()"), 'blank test address uses the admin email');
   console.log('done');
 }
