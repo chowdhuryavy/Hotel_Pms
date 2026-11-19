@@ -461,7 +461,16 @@ function listAudit(token, limit) {
 }
 
 /* ============================ WEB ENTRY ============================ */
-function doGet() {
+/* Returns the app name from Settings as a small script, for the Vercel page (?nameFor=callback). Only the name is sent. */
+function appNameScript_(cb) {
+  let name = '';
+  try { name = settings_().appName || ''; } catch (e) { /* database not set up yet */ }
+  return ContentService.createTextOutput(cb + '(' + JSON.stringify({ appName: name }) + ');')
+    .setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
+function doGet(e) {
+  const cb = e && e.parameter && e.parameter.nameFor;
+  if (cb) return /^[A-Za-z_$][\w$]*$/.test(cb) ? appNameScript_(cb) : ContentService.createTextOutput('');
   try { ensureAutoUpdate_(); } catch (e) { Logger.log('Auto update timer: ' + e.message); }
   try { ensureBackupTrigger_(); } catch (e) { Logger.log('Backup timer: ' + e.message); }
   try { ensureAllTabsOnce_(); } catch (e) { Logger.log('Tabs check: ' + e.message); }

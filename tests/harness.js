@@ -79,6 +79,7 @@ const sandbox = {
       return fmt === 'yyyy-MM-dd' ? base : base + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes());
     }
   },
+  ContentService: { createTextOutput: s => ({ setMimeType() { return { getContent: () => s }; } }), MimeType: { JAVASCRIPT: 'application/javascript' } },
   HtmlService: { createHtmlOutput: () => ({ getAs: () => ({ getBytes: () => [37, 80, 68, 70] }) }) }, ScriptApp2: {},
   console
 };
@@ -607,5 +608,7 @@ if (require.main === module) {
   // A failed sign-in records why in the audit log, never the password
   ok(!!tryRun("login('newbie', 'Definitely-wrong-1')").e && run("(function(){ const a = rows_(TBL.AUDIT).filter(r => r.action === 'LOGIN_FAILED'); const last = a[a.length - 1]; return last.details === 'wrong password' && JSON.stringify(last).indexOf('Definitely-wrong-1') < 0; })()"), 'a wrong password is logged as "wrong password" without the password itself');
   ok(!!tryRun("login('no-such-person-zz', 'Anything-1')").e && run("(function(){ const a = rows_(TBL.AUDIT).filter(r => r.action === 'LOGIN_FAILED'); return a[a.length - 1].details === 'no matching user'; })()"), 'an unknown name is logged as "no matching user"');
+  // The app name for the Vercel page is read from Settings, as a callback script
+  ok(run("appNameScript_('nameLoaded').getContent()") === "nameLoaded(" + JSON.stringify({ appName: run("settings_().appName") }) + ");", 'the name script carries the Settings app name');
   console.log('done');
 }
