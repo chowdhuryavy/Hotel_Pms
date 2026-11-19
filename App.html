@@ -3120,7 +3120,7 @@ async function padScreensHtml_() {
   return `<h3>Property admin screens</h3>
     <p class="muted">Choose each configuration function a Property Admin may use, and its limits: See (open it), Change (add and edit) and Delete. A function that is off is hidden from them. Saved to the Property Admin role; its other permissions stay as they are.</p>
     ${table(['Screen', 'See', 'Change', 'Delete'], PAD_SCREENS.map(([name, see, edit, del]) => tr([esc(name), box(see, name + ' – see'), box(edit, name + ' – change'), box(del, name + ' – delete')])))}
-    <div class="acts pm-foot"><button class="btn" id="psSave" type="button" onclick="savePadScreens()">Save screens</button></div>`;
+    <div class="acts pm-foot"><button class="btn ghost" type="button" onclick="document.querySelectorAll('input[name=pscreen]').forEach(i => { i.checked = true; })">Select all</button><button class="btn" id="psSave" type="button" onclick="savePadScreens()">Save screens</button></div>`;
 }
 async function savePadScreens() {
   const mine = [...document.querySelectorAll('input[name=pscreen]:checked')].map(i => i.value);

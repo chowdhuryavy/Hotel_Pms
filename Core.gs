@@ -166,8 +166,6 @@ function permMap_(who) {
   rows_(TBL.PERMS).forEach(r => { m[r.permission] = r[role] === true; });
   // The system administrator has every permission defined in the code, even before the sheet is updated
   if (role === ADMIN_ROLE) PERMISSIONS.forEach(p => { m[p[0]] = true; });
-  // A Property Admin has every operational permission, but not the system settings
-  if (role === PROPERTY_ROLE) { PERMISSIONS.forEach(p => { m[p[0]] = true; }); m['system.manage'] = false; }
   // Extra configuration access the system administrator gave this user, on top of the role
   if (who && typeof who === 'object' && Array.isArray(who.extra)) who.extra.forEach(p => { m[p] = true; });
   return m;

@@ -316,7 +316,11 @@ if (require.main === module) {
   tryRun("saveSettings('" + PTOK + "', { appUrl: 'https://evil.example' })");
   ok(run("settings_().appUrl") !== 'https://evil.example', 'property admin cannot change the app link');
   ok(!!tryRun("saveUser('" + PTOK + "', { username: 'boss', name: 'Boss', role: 'Admin', password: 'Boss12345', active: true })").e, 'property admin cannot give the Admin role');
-  ok(!tryRun("saveSettings('" + PTOK + "', { hotelName: 'Perfection Hotel' })").e && run("permMap_('Property Admin')['cfg.settings.edit']") === true, 'property admin can change hotel details');
+  ok(run("permMap_('Property Admin')['cfg.settings.edit']") === false, 'property admin cannot change hotel details by default');
+  // The system administrator ticks the Property admin screens: keep the role's other permissions, add these
+  const PAD_GRANT = ['cfg.settings.view', 'cfg.settings.edit', 'users.manage', 'fixed.manage'].concat(['roomtypes', 'rooms', 'rates', 'accounts', 'packages', 'payments', 'rateplans', 'chargecodes'].reduce((a, k) => a.concat(['view', 'edit', 'delete'].map(x => 'cfg.' + k + '.' + x)), []));
+  run("(() => { saveRolePerms(TOK, 'Property Admin', rows_(TBL.PERMS).filter(p => p['Property Admin'] === true).map(p => p.permission).concat(" + JSON.stringify(PAD_GRANT) + ")); return true; })()");
+  ok(run("permMap_('Property Admin')['cfg.settings.edit']") === true, 'a system admin can give Property Admin hotel details');
   ok(run("permMap_('Property Admin')['cfg.roomtypes.edit']") === true && run("permMap_('Property Admin')['cfg.accounts.delete']") === true, 'property admin has configuration rights for rooms, rates and accounts by default');
   ok(run("permMap_('Manager')['cfg.payments.edit']") === false && run("permMap_('Manager')['cfg.roomtypes.edit']") === true, 'manager edits room types only, not payment methods');
   const w = tryRun("saveUser(TOK, { username: 'newbie', name: 'New Bie', email: 'newbie@example.com', role: 'FrontDesk', active: true })");
