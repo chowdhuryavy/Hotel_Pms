@@ -64,7 +64,7 @@
   <div id="app" class="app hidden">
     <aside class="sidebar">
       <div class="brand">
-        <div id="brandLogo"></div>
+        <div id="brandLogo" role="button" tabindex="0" title="Show menu" aria-label="Show menu" onclick="toggleSidebar()" onkeydown="if(event.key==='Enter')toggleSidebar()"></div>
         <div class="brand-txt">
           <div class="brand-name" id="brandName"></div>
           <div class="brand-sub" id="brandHotel"></div>

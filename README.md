@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.190**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.191**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.191: With the menu closed on desktop, the logo stays in the narrow sidebar and opens the menu; the name is hidden. The spinning loader on the domain page is removed.
 
 Release notes for 1.2.190: Fewer loading messages. Searching, running reports and saving no longer show loading text inside the page.
 

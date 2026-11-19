@@ -755,7 +755,13 @@
   .brand{display:flex;align-items:center;gap:12px;padding:16px 16px 14px}
   #brandLogo{flex:none;width:42px;height:42px;display:grid;place-items:center}
   #brandLogo svg,#brandLogo img{width:42px;height:42px;max-height:42px;margin:0;border-radius:12px;object-fit:contain}
-  #brandLogo{display:none!important}   /* one logo only: the round menu button shows it */
+  #brandLogo{display:none!important}   /* one logo: the round menu button, shown when the menu is open */
+  /* Desktop, menu closed: the logo stays in the narrow sidebar and opens the menu; the name is hidden */
+  @media (min-width:900px){
+    body.sb-collapsed #brandLogo{display:grid!important;width:52px;height:52px;margin:0 auto;padding:5px;border-radius:14px;background:var(--brand);box-shadow:0 4px 12px rgba(15,61,62,.25);cursor:pointer;place-items:center}
+    body.sb-collapsed #brandLogo img,body.sb-collapsed #brandLogo svg{width:40px;height:40px;max-height:40px;border-radius:10px}
+    body.sb-collapsed #sbToggle{display:none!important}
+  }
   .brand-txt{display:flex;flex-direction:column;min-width:0}
   .brand-name{font-size:15px;font-weight:800;letter-spacing:.2px;line-height:1.25;white-space:normal;overflow-wrap:anywhere}
   .brand-sub{margin-top:3px;font-size:10.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
