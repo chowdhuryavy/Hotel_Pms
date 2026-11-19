@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.28**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.29**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.29: Connection handling: reads and saves time out instead of waiting forever; when the server cannot be reached, a banner appears, the app checks every 10 seconds and redraws the page when the connection returns, and the Diagnose button says whether the browser, the server or the database is failing. System administrators get a live connection dot in the header (connected, slow, database error, no server or offline), a Connection panel on the System admin page, and a server check that reads the database. The sidebar logo keeps spinning after the sidebar is toggled.
 
 Release notes for 1.2.28: Fixed: the Save button on forms (Settings, Integrations and others) stayed disabled with a blank label after a successful save. It now returns to normal whether the save worked or not.
 

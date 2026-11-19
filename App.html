@@ -50,15 +50,125 @@ const READ_FN_RE = /^(get|list|run|front|billing|occupancy|availability|search|m
 const isNetErr_ = m => NET_ERR_RE.test(String(m || ''));
 const api = (fn, ...a) => {
   progressStart_();
-  const attempt = n => rpc(fn, S.token, ...a).catch(e => {
+  const limit = READ_FN_RE.test(fn) ? 30000 : 60000;   // a stalled request must not leave the screen waiting forever
+  const attempt = n => withTimeout_(rpc(fn, S.token, ...a), limit).catch(e => {
     if (isNetErr_(e.message) && READ_FN_RE.test(fn) && n < 2) return new Promise(r => setTimeout(r, 700 * (n + 1))).then(() => attempt(n + 1));
-    if (isNetErr_(e.message)) throw new Error(READ_FN_RE.test(fn)
-      ? 'The connection to Google was interrupted. Please try again.'
-      : 'The connection to Google was interrupted. Check whether it was saved before you try again.');
+    if (isNetErr_(e.message)) {
+      netFailed_();
+      throw new Error(READ_FN_RE.test(fn)
+        ? 'The connection to Google was interrupted. The app will reconnect automatically.'
+        : 'The connection to Google was interrupted. Check whether it was saved before you try again.');
+    }
     throw e;
   });
   return attempt(0).finally(progressEnd_);
 };
+/* ---------- Connection indicator (system administrator): is the app really talking to the server and the database? ---------- */
+let CONN = { state: 'checking' }, CONN_TIMER = null;
+const CONN_LABEL_ = { ok: 'Connected', slow: 'Slow', db: 'Database error', down: 'No server', offline: 'Offline', checking: 'Checking…' };
+async function connCheck_() {
+  if (!$('connDot') || !S.token) { connStop_(); return; }
+  const t0 = Date.now();
+  try {
+    const h = await withTimeout_(rpc('healthCheck', S.token), 15000);
+    const ms = Date.now() - t0;
+    CONN = Object.assign({}, h, { totalMs: ms, checkedAt: new Date() });
+    CONN.state = h.database !== 'ok' ? 'db' : (ms > 3000 || h.dbMs > 2000 ? 'slow' : 'ok');
+  } catch (e) {
+    const m = String((e && e.message) || e);
+    CONN = { state: !navigator.onLine ? 'offline' : (/timed out/i.test(m) ? 'slow' : 'down'), error: m, checkedAt: new Date() };
+  }
+  connRender_();
+}
+function connRender_() {
+  const el = $('connDot'); if (!el) return;
+  el.className = 'conn ' + CONN.state;
+  el.querySelector('.conn-txt').textContent = CONN_LABEL_[CONN.state] || CONN.state;
+}
+function connStart_() {
+  connCheck_();
+  if (!CONN_TIMER) CONN_TIMER = setInterval(connCheck_, 60000);
+}
+function connStop_() { if (CONN_TIMER) { clearInterval(CONN_TIMER); CONN_TIMER = null; } }
+function connRows_() {
+  const c = CONN;
+  const when = c.checkedAt ? new Date(c.checkedAt).toLocaleTimeString() : '—';
+  return [
+    ['Status', CONN_LABEL_[c.state] || c.state],
+    ['App server (handshake)', c.server === 'ok' ? 'Answered in ' + (c.totalMs || 0) + ' ms' : (c.error ? 'No answer: ' + c.error : 'Not checked')],
+    ['Database (sheets)', c.database === 'ok' ? 'Readable: ' + (c.tables || 0) + ' tables, settings read in ' + (c.dbMs || 0) + ' ms' : 'Error: ' + (c.dbError || c.error || 'unknown')],
+    ['Server time', c.serverTime || '—'],
+    ['Version', c.version || (S.settings && S.settings.appVersion) || '—'],
+    ['Last checked', when]
+  ];
+}
+function connPanelHtml_() {
+  return `<div class="card conn-panel"><div class="head-row"><h3>Connection</h3><div class="acts"><button class="btn ghost sm" onclick="connCheck_().then(()=>renderPage_('sysadmin'))">Check now</button></div></div>
+    <div class="conn-grid">${connRows_().map(([k, v]) => `<div><span class="muted">${esc(k)}</span><b class="conn-v">${esc(v)}</b></div>`).join('')}</div>
+    <p class="muted" style="margin:10px 0 0">Checked every minute while you are signed in. The dot in the header shows the same status.</p></div>`;
+}
+function connDetail_() {
+  openModal('Connection', `<div class="conn-grid one">${connRows_().map(([k, v]) => `<div><span class="muted">${esc(k)}</span><b class="conn-v">${esc(v)}</b></div>`).join('')}</div>
+    <div class="acts" style="margin-top:12px"><button class="btn ghost" onclick="connCheck_().then(connDetail_)">Check again</button></div>`);
+}
+
+/* ---------- Connection: detect, diagnose and recover ---------- */
+let NET_TIMER = null, NET_RETRY = false;
+const withTimeout_ = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('Request timed out')), ms))]);
+function netBanner_(tone, text) {
+  let bar = document.getElementById('netbar');
+  if (!bar) { bar = document.createElement('div'); bar.id = 'netbar'; bar.className = 'netbar'; bar.setAttribute('role', 'status'); document.body.appendChild(bar); }
+  if (!tone) { bar.classList.remove('show'); bar.innerHTML = ''; return; }
+  bar.className = 'netbar show ' + tone;
+  bar.innerHTML = `<span class="net-dot"></span><span>${esc(text)}</span><button type="button" class="net-btn" onclick="netDiagnose_()">Diagnose</button>`;
+}
+/* Checks the browser connection first, then the app server. Returns which one is failing. */
+async function netProbe_() {
+  if (!navigator.onLine) return { browser: 'offline', server: 'skipped' };
+  const t0 = Date.now();
+  try { await withTimeout_(rpc('getPublicSettings'), 10000); return { browser: 'online', server: 'ok', ms: Date.now() - t0 }; }
+  catch (e) {
+    const m = String((e && e.message) || e);
+    return { browser: 'online', server: /timed out/i.test(m) ? 'slow' : 'unreachable', detail: m };
+  }
+}
+function netDescribe_(d) {
+  if (d.browser === 'offline') return ['Your device is offline', 'Check Wi‑Fi or mobile data. The app reconnects automatically when the connection returns.'];
+  if (d.server === 'ok') return ['Connection is working', `The app server answered in ${d.ms} ms. The page has been refreshed. If you were saving something, check it was saved.`];
+  if (d.server === 'slow') return ['The app server is slow', 'Google is taking a long time to answer. Wait a moment, then press Retry.'];
+  return ['The app server cannot be reached', 'This is usually temporary: Google may be busy, or the network is blocking it. The app keeps trying every 10 seconds. If it continues, try another connection.'];
+}
+async function netDiagnose_() {
+  const d = await netProbe_();
+  const [title, msg] = netDescribe_(d);
+  if (d.server === 'ok') netRecovered_();
+  const again = await appConfirm(title, msg, { ok: d.server === 'ok' ? 'Close' : 'Retry', cancel: 'Close', tone: d.server === 'ok' ? 'ok' : 'warn' });
+  if (again && d.server !== 'ok') netDiagnose_();
+}
+function netStartWatch_() {
+  if (NET_TIMER) return;
+  NET_TIMER = setInterval(async () => {
+    const d = await netProbe_();
+    if (d.server === 'ok') netRecovered_();
+    else netBanner_('bad', d.browser === 'offline' ? 'Offline. Waiting for the connection…' : 'The server is not reachable. Retrying every 10 seconds…');
+  }, 10000);
+}
+function netStopWatch_() { if (NET_TIMER) { clearInterval(NET_TIMER); NET_TIMER = null; } }
+function netRecovered_() {
+  netStopWatch_(); netBanner_(null);
+  if (NET_RETRY && S.token) { NET_RETRY = false; renderPage_(S.page, S.param); toast('Connection restored'); }
+}
+function netFailed_() {
+  if (S.token) NET_RETRY = true;
+  netBanner_('bad', navigator.onLine ? 'Connection problem. Retrying…' : 'Offline. Waiting for the connection…');
+  netStartWatch_();
+}
+function netCard_() {
+  return `<div class="card net-card"><h3>Connection problem</h3><p class="muted">The app could not reach Google. This page reloads by itself when the connection returns.</p>
+    <div class="acts"><button class="btn" type="button" onclick="netDiagnose_()">Diagnose and retry</button></div></div>`;
+}
+window.addEventListener('offline', () => netFailed_());
+window.addEventListener('online', () => { netProbe_().then(d => { if (d.server === 'ok') netRecovered_(); }); });
 let PROGRESS_N = 0;
 let VIEW_PENDING = false;          // true while a page is loading its data from the sheet
 /* Keeps the loading screen up until the first page has its data (or 20 seconds have passed). */
@@ -280,6 +390,10 @@ function startApp() {
   $('who').innerHTML = `<div class="top-hotel"><div class="top-hotel-txt"><span class="top-hotel-name">${esc(hotelTop)}</span><span class="top-hotel-sub">${esc(subLine)}</span></div></div>` +
     `<form class="qs" role="search" onsubmit="searchGo(event)"><input name="q" type="search" placeholder="Search room, guest, res #, group…" aria-label="Search"></form>`;
   $('account').innerHTML = acctHtml_();
+  if (can('system.manage')) {
+    $('who').insertAdjacentHTML('beforeend', '<button type="button" class="conn" id="connDot" onclick="connDetail_()" title="Connection status"><span class="conn-dot"></span><span class="conn-txt">Checking…</span></button>');
+    connStart_();
+  }
   idleReset_();
   if (S.user.mustChange) toast('Please choose a new password to continue.');
   // Draw the first page directly. Relying on the hashchange event left the loading screen up until its 20-second limit.
@@ -698,6 +812,7 @@ function toggleSidebar() {
   }
   b.setAttribute('aria-expanded', String(open));
   b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin');
+  clearTimeout(b._spinT); b._spinT = setTimeout(() => b.classList.remove('spin'), 800);
 }
 
 /* ---------- Navigation ---------- */
@@ -863,7 +978,10 @@ function renderPage_(page, param) {
   document.title = label + ' · ' + ((S.settings && S.settings.appName) || 'Stayline');
   setView(skeleton_());
   VIEW_PENDING = true;
-  PAGES[page]().catch(e => setView(`<div class="card err">${esc(e.message)}</div>`)).finally(() => { VIEW_PENDING = false; });
+  PAGES[page]().catch(e => {
+    if (isNetErr_(e.message)) { netFailed_(); setView(netCard_()); }
+    else setView(`<div class="card err">${esc(e.message)}</div>`);
+  }).finally(() => { VIEW_PENDING = false; });
 }
 window.addEventListener('hashchange', () => {
   if (!S.token) return;
@@ -1676,6 +1794,7 @@ async function pgAdmin(scope) {
   const tabs = ADM_TABS.filter(t => t[3] === scope && can(t[2]));
   if (!tabs.length) { setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1><div class="card">You do not have access to this area.</div>`); return; }
   if (!tabs.find(t => t[0] === ADM)) ADM = tabs[0][0];
+  if (scope === 'sys' && can('system.manage')) connCheck_();
   const bar = `<div class="tabs">${tabs.map(([k, l]) => `<button class="btn ghost${ADM === k ? ' on' : ''}" onclick="admTab('${k}')">${l}</button>`).join('')}</div>`;
   let body = '';
   if (ADM === 'users') {
@@ -1764,7 +1883,7 @@ async function pgAdmin(scope) {
       table(['Role', 'Users', 'Permissions', ''], rl.map(r => tr([esc(r.name) + (r.builtIn ? ' <span class="pill">built-in</span>' : ''), r.users, r.permissions + ' of ' + r.total,
         `<div class="acts"><button class="btn sm ghost" onclick="permModal('${esc(r.name)}')">${r.builtIn ? 'View' : 'Permissions'}</button>${r.builtIn || r.users ? '' : `<button class="btn sm danger" onclick="removeRole('${esc(r.name)}')">Delete</button>`}</div>`])));
   }
-  setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1><p class="muted">${scope === 'sys' ? 'System administrator only: property admin accounts, roles and permissions, system settings and email templates.' : 'Hotel operations: staff users, hotel settings, rooms, packages and payment methods.'}</p>${bar}<div class="card">${body}</div>`);
+  setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1>${scope === 'sys' ? connPanelHtml_() : ''}<p class="muted">${scope === 'sys' ? 'System administrator only: property admin accounts, roles and permissions, system settings and email templates.' : 'Hotel operations: staff users, hotel settings, rooms, packages and payment methods.'}</p>${bar}<div class="card">${body}</div>`);
   if (ADM === 'settings' && can('cfg.settings.edit')) bindForm('fSt', async d => {
     const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, ownerName: d.ownerName, hotelAddress: d.hotelAddress, logoUrl: d.logoUrl, currency: d.currency,
       taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit, loadingMessage: d.loadingMessage });

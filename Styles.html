@@ -49,7 +49,8 @@
   .logo-btn img,.logo-btn svg{width:40px;height:40px;max-height:40px;margin:0;display:block;object-fit:contain}
   .logo-btn span{animation:logo-spin 14s linear infinite}
   .logo-btn:hover span{animation-duration:2s}
-  .logo-btn.spin span{animation:logo-spin .8s cubic-bezier(.3,.7,.4,1)}
+  /* A quick extra turn on toggle; the spin stays infinite and returns to its normal speed */
+  .logo-btn.spin span{animation:logo-spin .8s linear infinite}
   .logo-btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
   .account{padding:14px 16px;border-top:1px solid rgba(255,255,255,.12);font-size:12px;color:#cfe3e1;margin-top:auto}
   .account b{display:block;color:#fff;font-size:14px}
@@ -598,4 +599,27 @@
   .top-hotel-txt{min-width:0}
   .top-hotel-sub{max-width:100%}
   @media (max-width:700px){ .top-hotel{max-width:calc(100% - 64px)} }
+  /* Connection banner: shown when the app cannot reach the server */
+  .netbar{position:fixed;top:0;left:0;right:0;z-index:70;display:none;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px;padding:9px 14px;font-size:13px;font-weight:650;box-shadow:0 6px 18px rgba(0,0,0,.22)}
+  .netbar.show{display:flex}
+  .netbar.bad{background:var(--bad-soft);color:var(--bad-ink);border-bottom:1px solid var(--bad)}
+  .net-dot{width:8px;height:8px;border-radius:50%;background:currentColor;animation:sp-dot 1s ease-in-out infinite}
+  .net-btn{border:1px solid currentColor;background:transparent;color:inherit;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer}
+  .net-card .acts{margin-top:10px}
+  /* Live connection indicator (system administrator) */
+  .conn{display:inline-flex;align-items:center;gap:7px;flex:none;padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+  .conn:hover{border-color:var(--p1)}
+  .conn-dot{width:9px;height:9px;border-radius:50%;background:var(--muted);box-shadow:0 0 0 3px transparent;transition:box-shadow .3s ease,background-color .3s ease}
+  .conn.ok .conn-dot{background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
+  .conn.slow .conn-dot,.conn.checking .conn-dot{background:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
+  .conn.db .conn-dot,.conn.down .conn-dot,.conn.offline .conn-dot{background:var(--bad);box-shadow:0 0 0 3px var(--bad-soft)}
+  .conn.ok .conn-txt{color:var(--ok-ink)}
+  .conn.db .conn-txt,.conn.down .conn-txt,.conn.offline .conn-txt{color:var(--bad-ink)}
+  .conn.slow .conn-txt{color:var(--warn-ink)}
+  .conn-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px}
+  .conn-grid.one{grid-template-columns:1fr}
+  .conn-grid > div{display:flex;flex-direction:column;gap:3px}
+  .conn-grid .muted{font-size:12px}
+  .conn-v{font-size:14px;word-break:break-word}
+  @media (max-width:700px){ .conn-grid{grid-template-columns:1fr} .conn .conn-txt{display:none} }
 </style>

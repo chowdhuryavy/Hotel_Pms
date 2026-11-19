@@ -144,6 +144,26 @@ function publicSettings_() {
 }
 function getPublicSettings() { return publicSettings_(); }
 
+/** Connection health for the system administrator: the app server answered (this call), and every database
+    sheet is present and can be read now. Timed, so the screen can show a slow connection too. */
+function healthCheck(token) {
+  const s = auth_(token, 'system.manage');
+  const out = { server: 'ok', database: 'ok', dbError: '', tables: 0, settingsRows: 0, version: APP_VERSION,
+    serverTime: fmtTs_(new Date()), user: s.username, dbMs: 0 };
+  const t0 = Date.now();
+  try {
+    const names = Object.keys(TBL);
+    names.forEach(k => sh_(TBL[k]));                 // every table must exist
+    out.settingsRows = rows_(TBL.SETTINGS).length;   // a real read of the sheet
+    out.tables = names.length;
+  } catch (e) {
+    out.database = 'error';
+    out.dbError = String(e.message || e);
+  }
+  out.dbMs = Date.now() - t0;
+  return out;
+}
+
 function maxAttempts_() { return Math.max(5, Number(settings_().maxLoginAttempts) || 5); }
 function inactivityMinutes_() { return Math.max(1, Number(settings_().inactivityMinutes) || 30); }
 function login(username, password) {
