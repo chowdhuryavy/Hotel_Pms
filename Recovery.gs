@@ -44,15 +44,33 @@ function htmlFromText_(text, code) {
     return '<p style="margin:0 0 14px;font-size:15px;line-height:1.6">' + h + '</p>';
   }).join('');
 }
-/** Wraps the body in a simple, inline-styled layout that renders in Gmail and Outlook. */
+/** Hotel logo for emails: the logo link or image from Settings, or the hotel's initial in a badge when none is set. */
+function mailLogo_(st, hotel) {
+  const url = String((st && st.logoUrl) || '');
+  if (/^(https?:\/\/|data:image\/)/i.test(url)) {
+    return '<img src="' + escHtml_(url) + '" alt="' + hotel + '" width="56" height="56" style="display:block;width:56px;height:56px;border-radius:14px;background:#ffffff;object-fit:contain">';
+  }
+  return '<div style="width:56px;height:56px;border-radius:14px;background:#1f6b68;color:#ffffff;font-size:24px;font-weight:700;line-height:56px;text-align:center">' + hotel.charAt(0).toUpperCase() + '</div>';
+}
+/** Wraps the body in a branded, inline-styled layout (logo, hotel name, app name) that renders in Gmail and Outlook. */
 function mailHtml_(bodyHtml) {
-  const hotel = escHtml_(hotelName_());
-  return '<!doctype html><html><body style="margin:0;padding:0;background:#f4f7f6;font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#14232b">' +
-    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:32px 12px"><tr><td align="center">' +
-    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #dde5e3">' +
-    '<tr><td style="background:#0f3d3e;padding:22px 28px;color:#ffffff;font-size:18px;font-weight:700">' + hotel + '</td></tr>' +
-    '<tr><td style="padding:28px">' + bodyHtml + '</td></tr>' +
-    '<tr><td style="padding:16px 28px;border-top:1px solid #dde5e3;font-size:12px;color:#66757d">This is an automated message from ' + hotel + '. Please do not reply.</td></tr>' +
+  let st = {};
+  try { st = settings_() || {}; } catch (e) { st = {}; }
+  const hotel = escHtml_(st.hotelName || appName_());
+  const app = escHtml_(st.appName || 'Stayline');
+  return '<!doctype html><html><body style="margin:0;padding:0;background:#eef3f2;font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#14232b">' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef3f2;padding:32px 12px"><tr><td align="center">' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #d6e2df">' +
+    '<tr><td style="background:#0f3d3e;padding:22px 28px">' +
+      '<table role="presentation" cellspacing="0" cellpadding="0"><tr>' +
+      '<td valign="middle" style="width:56px;padding-right:16px">' + mailLogo_(st, hotel) + '</td>' +
+      '<td valign="middle"><div style="font-size:20px;line-height:1.25;font-weight:700;color:#ffffff">' + hotel + '</div>' +
+      '<div style="margin-top:4px;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;font-weight:700;color:#f2b134">' + app + '</div></td>' +
+      '</tr></table></td></tr>' +
+    '<tr><td style="height:4px;background:#f2b134;font-size:0;line-height:0">&nbsp;</td></tr>' +
+    '<tr><td style="padding:30px 32px 26px">' + bodyHtml + '</td></tr>' +
+    '<tr><td style="padding:16px 32px;background:#f7faf9;border-top:1px solid #e3ebe9;font-size:12px;line-height:1.5;color:#66757d">' +
+      hotel + ' · Sent by ' + app + '. This is an automated message, please do not reply.</td></tr>' +
     '</table></td></tr></table></body></html>';
 }
 /** Subject, plain text and HTML for one of the editable emails: kind is 'otp' or 'done'. */
