@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.98**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.99**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.99: Every report has PDF, Print, Excel and CSV. Print prints the report on the page without opening a new window. Excel downloads a spreadsheet file that opens in Excel or LibreOffice; CSV is kept for other tools.
 
 Release notes for 1.2.98: When a cashier closes the shift at the end of duty, a summary shows the expected cash, the counted cash and the variance, with a Print cashier report button for that shift.
 

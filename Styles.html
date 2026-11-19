@@ -839,4 +839,9 @@
   .na-tile{display:flex;flex-direction:column;gap:6px;text-align:left;cursor:pointer;font:inherit;color:inherit;border:1px solid var(--line)}
   .na-tile b{font-size:17px}
   .na-reports{display:flex;flex-wrap:wrap;gap:8px}
+  @media print{
+    body.printing-report *{visibility:hidden!important}
+    body.printing-report .print-area,body.printing-report .print-area *{visibility:visible!important}
+    body.printing-report .print-area{position:absolute;left:0;top:0;width:100%;box-shadow:none;border:0}
+  }
 </style>

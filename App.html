@@ -2277,7 +2277,7 @@ async function pgNightReport() {
     </form>
     <div class="card"><h3>Choose a report</h3><div class="na-reports">${types.map(([k, l]) => `<button type="button" class="btn ghost sm${k === 'nightaudit' ? ' on' : ''}" data-type="${k}" onclick="nrPickType('${k}')">${esc(l)}</button>`).join('')}</div></div>
     <div class="card toolbar"><label><span>Search (name, room, reservation, any text)</span><input id="nrSearch" placeholder="Type to filter the rows" oninput="nrFilter(this.value)"></label>
-      ${can('reports.export') ? '<div class="acts"><button class="btn ghost" type="button" onclick="repPdf()">PDF</button><button class="btn ghost" type="button" onclick="repCsv()">CSV / Excel</button></div>' : ''}</div>
+      ${can('reports.export') ? '<div class="acts">' + repButtons_() + '</div>' : ''}</div>
     <div class="card" id="repOut"><div class="loading">Running…</div></div>`);
   NR_TYPE = 'nightaudit';
   await nrLoad(NR_TYPE, d);
@@ -2564,7 +2564,7 @@ async function pgReports() {
     <label><span>From</span><input type="date" name="from" value="${cur.from}"></label>
     <label><span>To</span><input type="date" name="to" value="${cur.to}"></label>
     <button class="btn" type="submit">Run</button>
-    ${can('reports.export') ? '<button class="btn ghost" type="button" onclick="repPdf()">PDF</button><button class="btn ghost" type="button" onclick="repCsv()">CSV / Excel</button>' : ''}
+    ${can('reports.export') ? repButtons_() : ''}
   </form>
   <div class="card" id="repOut"><div class="loading">Running…</div></div>`);
   await repLoad(cur);
@@ -2576,7 +2576,7 @@ async function pgEod() {
   <form class="card toolbar" onsubmit="eodRun(event)">
     <label><span>Business date</span><input type="date" name="from" value="${d}"></label>
     <button class="btn" type="submit">Run</button>
-    ${can('reports.export') ? '<button class="btn ghost" type="button" onclick="repPdf()">PDF</button><button class="btn ghost" type="button" onclick="repCsv()">CSV / Excel</button>' : ''}
+    ${can('reports.export') ? repButtons_() : ''}
   </form>
   <div class="card" id="repOut"><div class="loading">Running…</div></div>`);
   await repLoad({ type: 'eod', from: d, to: d });
@@ -2620,6 +2620,38 @@ function repCsv() {
   a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
   a.download = LAST.type + '.csv';
   document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* Download and print buttons shared by every report */
+function repButtons_() {
+  return '<button class="btn ghost" type="button" onclick="repPdf()">PDF</button><button class="btn ghost" type="button" onclick="repPrint()">Print</button>' +
+    '<button class="btn ghost" type="button" onclick="repXls()">Excel</button><button class="btn ghost" type="button" onclick="repCsv()">CSV</button>';
+}
+/* Excel: the report as a workbook sheet (opens in Excel and LibreOffice) */
+function repXls() {
+  if (!LAST) return;
+  const e = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const secs = LAST.sections || [{ title: '', headers: LAST.headers, rows: LAST.rows }];
+  const body = secs.map(sec => (LAST.sections && sec.title ? '<tr><td colspan="' + sec.headers.length + '"><b>' + e(sec.title) + '</b></td></tr>' : '') +
+    '<tr>' + sec.headers.map(h => '<th>' + e(h) + '</th>').join('') + '</tr>' +
+    sec.rows.map(r => '<tr>' + r.map(c => '<td' + (typeof c === 'number' ? ' x:num' : '') + '>' + e(typeof c === 'number' ? c : c) + '</td>').join('') + '</tr>').join('')).join('<tr><td></td></tr>');
+  const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">' +
+    '<head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Report</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>' +
+    '<body><table>' + body + '</table></body></html>';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8' }));
+  a.download = LAST.type + '.xls';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+/* Print: prints the report on the page (no new window) */
+function repPrint() {
+  const el = $('repOut');
+  if (!el) return;
+  el.classList.add('print-area');
+  document.body.classList.add('printing-report');
+  const done = () => { el.classList.remove('print-area'); document.body.classList.remove('printing-report'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  window.print();
 }
 
 /* ============================================================
