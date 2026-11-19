@@ -50,7 +50,7 @@ const READ_FN_RE = /^(get|list|run|front|billing|occupancy|availability|search|m
 const isNetErr_ = m => NET_ERR_RE.test(String(m || ''));
 /* Money-moving calls: kept and retried for up to 60 seconds if the connection drops. Each has a request id, so a retry
    cannot post twice (the server returns the saved result). */
-const RETRY_WRITE_FN = { checkoutPay: true, checkOut: true };
+const RETRY_WRITE_FN = { checkoutPay: true, checkOut: true, postCharge: true, postPayment: true, createReservation: true, checkIn: true, saveSettings: true };
 const api = (fn, ...a) => {
   progressStart_();
   const limit = READ_FN_RE.test(fn) ? 30000 : 60000;   // a stalled request must not leave the screen waiting forever
@@ -1180,13 +1180,9 @@ async function pgDashboard() {
   const canBoard = can('frontdesk.checkin') || can('frontdesk.checkout');
   const canReports = can('reports.view');
   const from7 = addDaysIso(S.bizDate, -6);
-  const part = p => p.catch(e => ({ error: e.message }));
-  const [b, f, fc, na] = await Promise.all([
-    canBoard ? part(api('frontDeskBoard')) : null,
-    canReports ? part(api('runReport', 'flash', '', '')) : null,
-    can('dashboard.view') ? part(api('occupancyForecast', 14)) : null,
-    canReports ? part(api('runReport', 'nightaudit', from7, S.bizDate)) : null
-  ]);
+  // One server call returns every widget's data (saves three round trips)
+  const dd = await api('dashboardData', from7, S.bizDate);
+  const b = dd.board, f = dd.flash, fc = dd.forecast, na = dd.nightaudit;
   const note = x => `<div class="card err">${esc(x.error)}</div>`;
   const occ = f && !f.error ? ((f.rows.find(r => r[0] === 'Occupancy %') || [])[1] || '0%') : '—';
   const kpis = !b ? '' : b.error ? note(b) : `<div class="kpis">${kpi('In-house', b.inHouse.length, 'inhouse')}${kpi('Arrivals', b.arrivals.length, 'arrivals')}${kpi('Departures', b.departures.length, 'departures')}
@@ -2619,7 +2615,7 @@ function forgotCode(ident, sentTo) {
     <p class="muted" style="margin:0 0 4px">${sentTo ? `We sent a 6-digit code to <b>${esc(sentTo)}</b>.` : 'If an account matches, a 6-digit code has been sent to its email address.'} It expires in 10 minutes.</p>
     <div class="otp" id="otpBox">${boxes}</div>
     <p class="err" id="fgErr"></p>
-    <div class="actions"><button class="btn ghost" type="button" id="fgResend" disabled>Resend in 60s</button><button class="btn" type="submit">Verify code</button></div></form>`);
+    <div class="actions"><button class="btn ghost" type="button" id="fgResend" disabled>Resend in 60s</button><button class="btn ghost" type="button" id="fgPaste">Paste code</button><button class="btn" type="submit">Verify code</button></div></form>`);
   const inputs = [...$('otpBox').querySelectorAll('input')];
   inputs.forEach((inp, i) => {
     inp.addEventListener('input', () => { inp.value = inp.value.replace(/\D/g, '').slice(0, 1); if (inp.value && inputs[i + 1]) inputs[i + 1].focus(); });
@@ -2630,6 +2626,17 @@ function forgotCode(ident, sentTo) {
       digits.split('').forEach((c, k) => { if (inputs[k]) inputs[k].value = c; });
       (inputs[Math.min(digits.length, 5)] || inp).focus();
     });
+  });
+  const fillOtp = digits => {
+    digits.slice(0, 6).split('').forEach((c, k) => { inputs[k].value = c; });
+    (inputs[Math.min(digits.length, 5)] || inputs[0]).focus();
+  };
+  $('fgPaste').addEventListener('click', async () => {
+    try {
+      const digits = String(await navigator.clipboard.readText()).replace(/\D/g, '');
+      if (digits.length < 6) return formErr_('No 6-digit code on the clipboard. Copy the code from the email first.');
+      formErr_(''); fillOtp(digits);
+    } catch (e) { formErr_('Could not read the clipboard. Press and hold the first box and paste instead.'); }
   });
   inputs[0].focus();
   let left = 60;

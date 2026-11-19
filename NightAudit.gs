@@ -12,6 +12,22 @@ function closedDate_(bd) {
   const d = String(bd || '').slice(0, 10);
   return !!d && rows_(TBL.BIZDATES).some(b => String(b.date).slice(0, 10) === d && b.status === 'Closed');
 }
+/** Nights from arrival up to (not including) departure, as yyyy-mm-dd strings (capped at 400 nights). */
+function nightsOf_(arrival, departure) {
+  const out = [];
+  for (let x = String(arrival).slice(0, 10), i = 0; x < String(departure).slice(0, 10) && i < 400; x = addDays_(x, 1), i++) out.push(x);
+  return out;
+}
+/** A stay may not change for a night already closed by the night audit (its charges are final).
+ *  Blocks nights added or removed, and any night re-priced by a room type or plan change. */
+function assertStayEditable_(oldA, oldD, newA, newD, repriced) {
+  const oldN = nightsOf_(oldA, oldD), newN = nightsOf_(newA, newD);
+  const inOld = new Set(oldN), inNew = new Set(newN);
+  const touched = oldN.filter(x => !inNew.has(x)).concat(newN.filter(x => !inOld.has(x)));
+  if (repriced) touched.push(...oldN.filter(x => inNew.has(x)));
+  const bad = touched.find(x => closedDate_(x));
+  if (bad) throw new Error('The night of ' + bad + ' is already closed by the night audit, so this stay cannot be changed for that night.');
+}
 function businessDateInfo(token) {
   const s0 = auth_(token);
   if (!anyPerm_(s0, ['nightaudit.run'])) throw new Error('Permission denied: nightaudit.run');

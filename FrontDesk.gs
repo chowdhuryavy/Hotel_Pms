@@ -86,10 +86,16 @@ function folio1_(resNo) {
 }
 
 /** force = explicit override for this one transaction; requires frontdesk.override. */
-function checkIn(token, resNo, roomNo, deposit, depositCode, force) {
+function checkIn(token, resNo, roomNo, deposit, depositCode, force, rid) {
   const s = auth_(token, 'frontdesk.checkin');
   const canOverride = permMap_(s.role)['frontdesk.override'] === true && (force === true || force === 'true');
-  return withLock_(() => checkIn_(resNo, roomNo, deposit, depositCode, s.username, canOverride));
+  return withLock_(() => {
+    const dup = idemGet_(s, rid);
+    if (dup) return dup;
+    const out = checkIn_(resNo, roomNo, deposit, depositCode, s.username, canOverride);
+    idemPut_(s, rid, out);
+    return out;
+  });
 }
 
 function checkOut(token, resNo, force, rid) {
@@ -188,6 +194,7 @@ function extendStay(token, resNo, newDeparture) {
     const r = findRes_(resNo);
     if (r.status !== 'In-House') throw new Error('Only in-house stays can be extended.');
     if (!isDate_(newDeparture) || newDeparture <= r.departure) throw new Error('New departure must be after ' + r.departure + '.');
+    assertStayEditable_(r.departure, r.departure, r.departure, newDeparture, false);
     if (!freeRooms_(r.departure, newDeparture, r.roomType, resNo).some(x => String(x.roomNo) === String(r.roomNo))) throw new Error('Room ' + r.roomNo + ' is booked after ' + r.departure + '.');
     const extra = quoteNights_(r.roomType, r.plan || 'BAR', r.departure, newDeparture);
     const sched = rows_(TBL.RATESCHED).filter(x => x.resNo === resNo && x.active === true)

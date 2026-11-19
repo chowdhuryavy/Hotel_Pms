@@ -86,9 +86,15 @@ function nightRate_(res, date) {
   return r ? Number(r.rate) : Number(res.rate) || 0;
 }
 
-function createReservation(token, d) {
+function createReservation(token, d, rid) {
   const s = auth_(token, 'reservations.create');
-  return withLock_(() => createRes_(d, s.username));
+  return withLock_(() => {
+    const dup = idemGet_(s, rid);
+    if (dup) return dup;
+    const out = createRes_(d, s.username);
+    idemPut_(s, rid, out);
+    return out;
+  });
 }
 
 function listReservations(token, f) {
@@ -146,6 +152,7 @@ function modifyReservation(token, resNo, d) {
   const s = auth_(token, 'reservations.modify');
   return withLock_(() => {
     const r = findRes_(resNo);
+    assertStayEditable_(r.arrival, r.departure, d.arrival || r.arrival, d.departure || r.departure, !!((d.roomType && d.roomType !== r.roomType) || (d.plan && d.plan !== r.plan)));
     if (r.status === 'In-House') return modifyInHouse_(r, s, d);
     if (r.status !== 'Reserved') throw new Error('Only Reserved or In-House bookings can be updated here (status: ' + r.status + ').');
     const arrival = d.arrival || r.arrival, departure = d.departure || r.departure;

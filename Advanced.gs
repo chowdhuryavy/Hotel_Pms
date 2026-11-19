@@ -275,3 +275,18 @@ function occupancyForecast(token, days) {
   }
   return out;
 }
+
+/** Everything the dashboard shows, in one server call (each part keeps its own permission check). */
+function dashboardData(token, from7, bd) {
+  const s = auth_(token);
+  const p = permMap_(s.role);
+  const part = fn => { try { return fn(); } catch (e) { return { error: e.message }; } };
+  const canBoard = p['frontdesk.checkin'] === true || p['frontdesk.checkout'] === true;
+  const canReports = p['reports.view'] === true;
+  return {
+    board: canBoard ? part(() => frontDeskBoard(token)) : null,
+    flash: canReports ? part(() => runReport(token, 'flash', '', '')) : null,
+    forecast: p['dashboard.view'] === true ? part(() => occupancyForecast(token, 14)) : null,
+    nightaudit: canReports ? part(() => runReport(token, 'nightaudit', from7, bd)) : null
+  };
+}

@@ -337,7 +337,7 @@ function getSettings(token) {
   auth_(token, 'cfg.settings.view');
   return settings_();
 }
-function saveSettings(token, d) {
+function saveSettings(token, d, rid) {
   const s = auth_(token, 'cfg.settings.edit');
   const isSys = permMap_(s.role)['system.manage'] === true;
   // 1) Check every value first, so a rejected save changes nothing
@@ -364,12 +364,16 @@ function saveSettings(token, d) {
   if (lsStart && lsExp && lsExp < lsStart) throw new Error('The licence expiry must be on or after its start date.');
   // 2) Write
   return withLock_(() => {
+    const dup = idemGet_(s, rid);
+    if (dup) return dup;
     plan.forEach(([k, v]) => {
       const row = rows_(TBL.SETTINGS).find(r => r.key === k);
       if (row) patch_(TBL.SETTINGS, row._row, { value: v }); else append_(TBL.SETTINGS, { key: k, value: v });
     });
     audit_(s.username, 'SETTINGS_SAVED', 'Settings', '', Object.keys(d).join(','));
-    return settings_();
+    const out = settings_();
+    idemPut_(s, rid, out);
+    return out;
   });
 }
 function listAudit(token, limit) {

@@ -43,11 +43,13 @@ function addFolio(token, resNo, name) {
   });
 }
 
-function postCharge(token, folioId, code, description, amount) {
+function postCharge(token, folioId, code, description, amount, rid) {
   const s = auth_(token, 'folio.post');
   const amt = num_(amount);
   if (!(amt > 0)) throw new Error('Amount must be greater than zero.');
   return withLock_(() => {
+    const dup = idemGet_(s, rid);
+    if (dup) return dup;
     const f = folioRow_(folioId);
     if (f.status !== 'Open') throw new Error('Folio is closed.');
     const r = findRes_(f.resNo);
@@ -61,16 +63,20 @@ function postCharge(token, folioId, code, description, amount) {
       postEntry_(r.resNo, r.roomNo, folioId, 'TAX', 'Tax on ' + c.code, amt * settings_().taxRate, s.username, bd, parent);
     }
     audit_(s.username, 'CHARGE', 'Reservation', r.resNo, c.code + ' ' + amt);
-    return { balance: num_(balances_()[r.resNo] || 0) };
+    const out = { balance: num_(balances_()[r.resNo] || 0) };
+    idemPut_(s, rid, out);
+    return out;
   });
 }
 
-function postPayment(token, folioId, code, amount) {
+function postPayment(token, folioId, code, amount, rid) {
   const s = auth_(token, 'folio.post');
   const amt = num_(amount);
   if (!(amt > 0)) throw new Error('Amount must be greater than zero.');
   requireShift_(s);
   return withLock_(() => {
+    const dup = idemGet_(s, rid);
+    if (dup) return dup;
     const f = folioRow_(folioId);
     if (f.status !== 'Open') throw new Error('Folio is closed.');
     const r = findRes_(f.resNo);
@@ -78,7 +84,9 @@ function postPayment(token, folioId, code, amount) {
     const c = chargeCode_(code, PAY_TYPE);
     postEntry_(r.resNo, r.roomNo, folioId, c.code, 'Payment: ' + c.description, -amt, s.username, bizDate_(), '');
     audit_(s.username, 'PAYMENT', 'Reservation', r.resNo, c.code + ' ' + amt);
-    return { balance: num_(balances_()[r.resNo] || 0) };
+    const out = { balance: num_(balances_()[r.resNo] || 0) };
+    idemPut_(s, rid, out);
+    return out;
   });
 }
 

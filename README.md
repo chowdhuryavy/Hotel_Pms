@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.51**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.52**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.52: Charges, payments, reservation creation, check-in and settings saves now use a request id, so a retry after a dropped connection cannot post or save twice. Reservation date, room type or rate changes are refused for any night the night audit has already closed; room-number changes are still allowed. Stay extensions are checked the same way. The dashboard loads in one server call instead of several. The password-reset code screen has a Paste code button that reads the 6 digits from the clipboard.
 
 Release notes for 1.2.51: Night audit runs a sense check for each item and ticks it off in turn: business date open, guests due out, past-due arrivals, departures with a balance, cashier shifts, dirty rooms, rooms out of order, and room rates for stayers. Guests due out today block the audit until each one is checked out or extended by one night. The audit then ticks each step as it completes. The night run closes every open cashier shift (cash is not counted, so counted and variance stay blank) and saves the city-ledger (AR) aging for that date to a new ARAging tab (run Set up database once to create it). The bell panel fits the phone screen. Every hard-coded "Stayline" fallback is removed: names come from the App name in Settings, and the menu title follows it.
 
