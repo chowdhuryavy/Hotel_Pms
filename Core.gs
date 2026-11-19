@@ -56,6 +56,12 @@ function rows_(t) {
 /* Small tables read on every request (users for the session check, settings for the inactivity limit) are kept
    in the script cache between requests for one minute. Every write clears them at once (see uncacheTbls_). */
 const CROSS_TBLS_ = ['Users', 'Settings'];
+/* Read-only view of a table for code that only reads it: no copy of every row. Never change the rows it returns. */
+function rowsRO_(t) {
+  const key = t[0];
+  if (!ROWS_MEMO_[key]) ROWS_MEMO_[key] = CROSS_TBLS_.indexOf(key) >= 0 ? crossRows_(t) : readRows_(t);
+  return ROWS_MEMO_[key];
+}
 function crossRows_(t) {
   const c = CacheService.getScriptCache();
   const k = 'tbl:' + t[0];

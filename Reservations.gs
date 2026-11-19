@@ -144,7 +144,7 @@ function findRes_(resNo) {
 }
 function balances_() {
   const m = {};
-  rows_(TBL.POSTINGS).forEach(p => { if (p.voided !== true) m[p.resNo] = (m[p.resNo] || 0) + Number(p.amount || 0); });
+  rowsRO_(TBL.POSTINGS).forEach(p => { if (p.voided !== true) m[p.resNo] = (m[p.resNo] || 0) + Number(p.amount || 0); });   // read only: no copy of the rows
   return m;
 }
 

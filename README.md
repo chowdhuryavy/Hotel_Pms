@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.208**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.209**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.209: The room-balance calculation reads the postings without copying every row, so the front desk and the reports do less work. Sheet reads on the front desk board, the rack and the flash report are lower.
 
 Release notes for 1.2.208: Fewer sheet reads on every request. The users and settings tables are kept for one minute between requests and cleared the moment anything is saved. The 15-second check and every permission check read about one third as much.
 
