@@ -223,7 +223,6 @@
     /* open menu: dim the page, keep the menu button above the sidebar so the same button closes it */
     body.menu-open::after{content:'';position:fixed;inset:0;background:rgba(5,15,18,.45);z-index:35;animation:fade .2s ease}
     body.menu-open .topbar{z-index:45}
-    body.menu-open .topbar .who{visibility:hidden}
     body.sb-collapsed .sidebar{margin-left:0}
     .grid2{grid-template-columns:1fr}
     .kpis{grid-template-columns:repeat(2,1fr)}
@@ -667,4 +666,12 @@
   .upd-txt > span{color:var(--muted);font-size:12px}
   .upd-acts{display:flex;gap:6px;flex:none}
   @media (max-width:420px){ .updbox{left:12px;right:12px;max-width:none;flex-wrap:wrap} .upd-acts{width:100%;justify-content:flex-end} }
+  /* Sidebar brand: logo, app name and hotel, laid out as one clean block */
+  .brand{display:flex;align-items:center;gap:12px;padding:16px 16px 14px}
+  #brandLogo{flex:none;width:42px;height:42px;display:grid;place-items:center}
+  #brandLogo svg,#brandLogo img{width:42px;height:42px;max-height:42px;margin:0;border-radius:12px;object-fit:contain}
+  .brand-txt{display:flex;flex-direction:column;min-width:0}
+  .brand-name{font-size:16px;font-weight:800;letter-spacing:.2px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brand-sub{margin-top:3px;font-size:10.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brand-sub:empty{display:none}
 </style>
