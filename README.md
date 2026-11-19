@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.144**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.145**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.145: Every email, including the cash-up to the auditor and guest receipts, goes through the Email settings (SMTP first, then Resend, then the Google account). Licence dates show under the version, and the licence box is hidden when no dates are set.
 
 Release notes for 1.2.144: The settings tab for email is named "Email settings".
 

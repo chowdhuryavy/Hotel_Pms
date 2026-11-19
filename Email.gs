@@ -78,19 +78,21 @@ function decryptSetting_(enc) {
 }
 
 /** Sends one email: through SMTP when it is on, otherwise from the Google account. */
-function sendMail_(to, subject, text, html) {
+function sendMail_(to, subject, text, html, att) {
   const c = smtpConfig_();
-  if (c.active) return sendViaSmtp_(c, to, subject, text, html);
-  if (c.resendActive) return sendViaResend_(c, to, subject, text, html);
+  if (c.active) return sendViaSmtp_(c, to, subject, text, html, att);
+  if (c.resendActive) return sendViaResend_(c, to, subject, text, html, att);
   try {
-    MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: html, name: appName_() });
+    const opts = { to: to, subject: subject, body: text, htmlBody: html, name: appName_() };
+    if (att && att.b64) opts.attachments = [Utilities.newBlob(Utilities.base64Decode(att.b64), 'application/pdf', att.name || 'attachment.pdf')];
+    MailApp.sendEmail(opts);
   } catch (e) {
     throw new Error('The email could not be sent right now. Try again in a few minutes, or ask the administrator.');
   }
 }
 
 /** Sends through the Resend API. The key is decrypted only for this request. */
-function sendViaResend_(c, to, subject, text, html) {
+function sendViaResend_(c, to, subject, text, html, att) {
   if (!c.resendFrom) throw new Error('Resend is on, but the from address is missing. Fix it in System admin → Email sending.');
   if (!c.resendEnc) throw new Error('Resend is on, but no API key is saved. Save it in System admin → Email sending.');
   const key = decryptSetting_(c.resendEnc);
@@ -100,7 +102,8 @@ function sendViaResend_(c, to, subject, text, html) {
     res = UrlFetchApp.fetch('https://api.resend.com/emails', {
       method: 'post', contentType: 'application/json', muteHttpExceptions: true,
       headers: { Authorization: 'Bearer ' + key },
-      payload: JSON.stringify({ from: (name ? '"' + name + '" ' : '') + '<' + c.resendFrom + '>', to: [to], subject: subject, text: text, html: html })
+      payload: JSON.stringify(Object.assign({ from: (name ? '"' + name + '" ' : '') + '<' + c.resendFrom + '>', to: [to], subject: subject, text: text, html: html },
+        att && att.b64 ? { attachments: [{ filename: att.name || 'attachment.pdf', content: att.b64 }] } : {}))
     });
   } catch (e) {
     throw new Error('Resend could not be reached. Check the internet connection, then try again.');
@@ -111,7 +114,7 @@ function sendViaResend_(c, to, subject, text, html) {
   throw new Error('Resend could not send the email' + (msg ? ': ' + msg : ' (code ' + res.getResponseCode() + ')') + '.');
 }
 
-function sendViaSmtp_(c, to, subject, text, html) {
+function sendViaSmtp_(c, to, subject, text, html, att) {
   if (!c.host || !c.from) throw new Error('SMTP is on, but the server or the from address is missing. Fix it in System admin → Email sending.');
   if (!c.relayUrl) throw new Error('SMTP is on, but the mail relay address is missing. Fix it in System admin → Email sending.');
   if (!c.secret) throw new Error('The mail relay secret is not set. Save it in System admin → Email sending.');
@@ -122,7 +125,8 @@ function sendViaSmtp_(c, to, subject, text, html) {
       headers: { 'X-Relay-Secret': c.secret },
       payload: JSON.stringify({
         smtp: { host: c.host, port: c.port, security: c.security, user: c.user, pass: c.pass, from: c.from },
-        fromName: appName_(), to: to, subject: subject, text: text, html: html
+        fromName: appName_(), to: to, subject: subject, text: text, html: html,
+        attachment: att && att.b64 ? { name: att.name || 'attachment.pdf', b64: att.b64 } : null
       })
     });
   } catch (e) {

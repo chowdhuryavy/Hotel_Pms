@@ -285,10 +285,9 @@ function shiftCashUpPdf(token, shiftId) {
 function mailCashUp_(cu, user) {
   const st = settings_();
   if (!st.auditorEmail || !flag_('auditorAutoSend')) return false;
-  const blob = Utilities.newBlob(Utilities.base64Decode(cu.base64), 'application/pdf', cu.name);
-  MailApp.sendEmail({ to: st.auditorEmail, subject: 'Cash-up · ' + user + ' · ' + (st.hotelName || ''),
-    body: 'The cash-up for ' + user + ' is attached.', htmlBody: mailHtml_('<p>The cash-up for <b>' + escHtml_(user) + '</b> is attached.</p>'),
-    attachments: [blob], name: appName_() });
+  sendMail_(st.auditorEmail, 'Cash-up · ' + user + ' · ' + (st.hotelName || ''),
+    'The cash-up for ' + user + ' is attached.', mailHtml_('<p>The cash-up for <b>' + escHtml_(user) + '</b> is attached.</p>'),
+    { name: cu.name, b64: cu.base64 });
   return true;
 }
 
@@ -302,10 +301,8 @@ function guestEmailOf_(resNo) {
 function guestMail_(resNo, subject, bodyHtml, b64, fname) {
   const to = guestEmailOf_(resNo);
   if (!to) return false;
-  const opts = { to: to, subject: subject, body: bodyHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
-    htmlBody: mailHtml_(bodyHtml), name: appName_() };
-  if (b64) opts.attachments = [Utilities.newBlob(Utilities.base64Decode(b64), 'application/pdf', fname || 'document.pdf')];
-  MailApp.sendEmail(opts);
+  const text = bodyHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  sendMail_(to, subject, text, mailHtml_(bodyHtml), b64 ? { name: fname || 'document.pdf', b64: b64 } : null);
   return true;
 }
 function reservationMail_(resNo) {

@@ -22,27 +22,43 @@ function wrap76(s) { return s.replace(/.{1,76}/g, '$&\r\n'); }
 /** Builds the message: text and HTML parts, base64 encoded, so no line can break the SMTP data. */
 export function buildMessage(d, now = new Date()) {
   const boundary = 'stayline_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const mixed = 'stayline_mix_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
   const domain = String(d.smtp.from).split('@')[1] || 'localhost';
   const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
   const name = String(d.fromName || '').replace(/["\\\r\n]/g, '');
   const fromHdr = (name ? (/^[\x20-\x7e]*$/.test(name) ? '"' + name + '"' : word(name)) + ' ' : '') + '<' + d.smtp.from + '>';
   const part = (type, body) => 'Content-Type: ' + type + '; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n' + wrap76(b64(body));
-  return [
+  const headers = [
     'From: ' + fromHdr,
     'To: <' + d.to + '>',
     'Subject: ' + word(d.subject || ''),
     'Date: ' + now.toUTCString(),
     'Message-ID: <' + id + '@' + domain + '>',
-    'MIME-Version: 1.0',
-    'Content-Type: multipart/alternative; boundary="' + boundary + '"',
-    '',
+    'MIME-Version: 1.0'
+  ];
+  const alt = [
     '--' + boundary,
     part('text/plain', d.text || ''),
     '--' + boundary,
     part('text/html', d.html || d.text || ''),
-    '--' + boundary + '--',
-    ''
+    '--' + boundary + '--'
   ].join('\r\n');
+  const att = d.attachment && d.attachment.b64 ? d.attachment : null;
+  if (!att) {
+    return headers.concat(['Content-Type: multipart/alternative; boundary="' + boundary + '"', '', alt, '']).join('\r\n');
+  }
+  const file = String(att.name || 'attachment.pdf').replace(/["\\\r\n]/g, '');
+  return headers.concat([
+    'Content-Type: multipart/mixed; boundary="' + mixed + '"', '',
+    '--' + mixed,
+    'Content-Type: multipart/alternative; boundary="' + boundary + '"', '', alt, '',
+    '--' + mixed,
+    'Content-Type: application/pdf; name="' + file + '"',
+    'Content-Disposition: attachment; filename="' + file + '"',
+    'Content-Transfer-Encoding: base64', '',
+    wrap76(att.b64),
+    '--' + mixed + '--', ''
+  ]).join('\r\n');
 }
 
 class Conn {
