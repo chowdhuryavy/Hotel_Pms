@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.78**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.79**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.79: Fixed charges moved from the sidebar into the Rooms section of Property admin, as a card that opens Manage fixed charges in its own tab. End of day is now its own menu item, "End-of-day report", and is no longer in the Reports dropdown with Journal and the other reports. Dialog boxes can be dragged by their header or body, and the popup can be dragged by its header; buttons and fields still work. A page tab reloads its data on refresh.
 
 Release notes for 1.2.78: While a form saves, its button shows a spinner with Saving… in place of the label, instead of going blank. The label comes back when the save finishes.
 

@@ -5,7 +5,6 @@
  */
 const REPORT_TYPES = [
   ['flash', 'Daily flash (business date)'],
-  ['eod', 'End-of-day report (all sections)'],
   ['nightaudit', 'Night audit report (business dates)'],
   ['journal', 'Journal by charge code'],
   ['occupancy', 'Occupancy & ADR by day'],
