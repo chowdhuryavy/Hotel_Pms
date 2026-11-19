@@ -248,7 +248,8 @@
     .sb-close{display:inline-flex;align-items:center;justify-content:center;margin-left:auto;width:36px;height:36px;flex:none;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;cursor:pointer}
     /* open menu: dim the page, keep the menu button above the sidebar so the same button closes it */
     body.menu-open::after{content:'';position:fixed;inset:0;background:rgba(5,15,18,.45);z-index:35;animation:fade .2s ease}
-    body.menu-open .topbar{z-index:45}
+    body.menu-open .topbar{z-index:auto;position:relative}   /* a sticky bar is its own layer; this lets the menu button sit above the menu */
+    body.menu-open .logo-btn{position:relative;z-index:60}   /* the menu button stays on top of the menu and the dark overlay */
     body.sb-collapsed .sidebar{margin-left:0}
     .grid2{grid-template-columns:1fr}
     .kpis{grid-template-columns:repeat(2,1fr)}

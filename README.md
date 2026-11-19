@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.118**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.119**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.119: On a phone, the menu button stays visible above the open menu, and keeps spinning as it does when the menu is closed.
 
 Release notes for 1.2.118: Under the hotel name, the sidebar and header show "Designed by [app name]" instead of the app name or the owner name.
 
