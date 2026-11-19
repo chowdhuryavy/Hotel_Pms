@@ -479,5 +479,6 @@ if (require.main === module) {
   ok(!!tryRun("modifyReservation(TOK, '" + IHR + "', {arrival: '2099-01-01'})").e, 'in-house stay: arrival cannot change');
   ok(!!tryRun("modifyReservation(TOK, '" + IHR + "', {roomType: 'ZZZ'})").e, 'in-house stay: room type cannot change here');
   ok(!!tryRun("modifyReservation(TOK, '" + IHR + "', {rateOverride: 10})").e, 'in-house stay: rate cannot change here');
+  ok(run("permMap_('Admin')['cfg.settings.view'] === true && permMap_('Admin')['cfg.accounts.delete'] === true"), 'system admin has every configuration permission');
   console.log('done');
 }

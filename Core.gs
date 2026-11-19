@@ -99,6 +99,8 @@ function hash_(salt, pw) {
 function permMap_(role) {
   const m = {};
   rows_(TBL.PERMS).forEach(r => { m[r.permission] = r[role] === true; });
+  // The system administrator has every permission defined in the code, even before the sheet is updated
+  if (role === ADMIN_ROLE) PERMISSIONS.forEach(p => { m[p[0]] = true; });
   return m;
 }
 /* Licence window set by the system administrator. Outside it only the system administrator can sign in. */
