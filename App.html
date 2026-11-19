@@ -124,8 +124,9 @@ function updateShow_(v) {
    comes from the server (meta exec-url). The route cannot be carried across, so the main page opens. */
 function updateRefresh_() {
   // Inside another site's page (for example your own domain), the top page must not leave that site: ask it to reload this app
-  const anc = (location.ancestorOrigins && Array.from(location.ancestorOrigins)) || [];
-  const ourSite = anc.length ? anc.some(o => o && o.indexOf('google') < 0)
+  // The top page is the last ancestor: Google's own page means the app was opened directly on Google
+  const anc = location.ancestorOrigins ? Array.from(location.ancestorOrigins) : [];
+  const ourSite = anc.length ? anc[anc.length - 1].indexOf('google') < 0
     : (window.top !== window.self && !!document.referrer && document.referrer.indexOf('google') < 0);
   if (ourSite) { try { window.top.postMessage({ type: 'stayline-reload' }, '*'); return; } catch (e) { /* fall through */ } }
   const base = ((document.querySelector('meta[name="exec-url"]') || {}).content || '').trim();
