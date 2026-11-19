@@ -562,7 +562,7 @@ const chk = v => v === 'true';
 const TAB_OPEN_OK = ['admSection', 'userModal', 'typeModal', 'roomModal', 'roleModal', 'permModal', 'paymentMethodModal', 'packageModal', 'planModal', 'rateModal', 'codeModal'];
 /** Opens a form in a new browser tab, signed in through a one-time link. The tab opens at once so the browser allows it. */
 /* A form action is a call to one page function, e.g. userModal("U1"). Navigation and saving functions are excluded. */
-const TAB_EXPR_OK_RE = /^(?!(?:closeModal|act|appConfirm|appAlert|logout|refresh|go|tabRun_|tabOpen_)\b)[A-Za-z_$][\w$]*\([^]*\)\s*;?$/;
+const TAB_EXPR_OK_RE = /^(?!(?:closeModal|act|appConfirm|appAlert|logout|refresh|go|tabRun_|tabOpen_|postModal|postKind)\b)[A-Za-z_$][\w$]*\([^]*\)\s*;?$/;
 async function tabOpen_(fn, args) { openAppTab_(fn + '(' + (args || []).map(a => JSON.stringify(a == null ? null : a)).join(',') + ')', CLICK_LABEL || fn); }
 
 /** In a tab opened by tabOpen_: runs the dialog named in the address, once. */
@@ -916,9 +916,9 @@ async function postFind(e) {
       : '<p class="muted">No stay matches.</p>';
   } catch (err) { box.innerHTML = ''; toast(err.message, true); }
 }
+let POST_D = null;   // billing data of the room on the posting page
 async function pgPost(param) {
   const room = String(param || '').trim();
-  // A selected room is posted to on its own: no search or room list. Without one, the room list and search show.
   const head = room
     ? `<h1>Posting <small>room ${esc(room)} only</small></h1><p><button class="btn ghost sm" type="button" onclick="go('billing','${esc(room)}')">&larr; Back to billing</button></p>`
     : `<h1>Posting <small>charges, payments and packages</small></h1>
@@ -931,8 +931,37 @@ async function pgPost(param) {
   }
   const d = await api('billingRoom', room);
   if (!d.res) { setView(head + `<div class="card">Room ${esc(room)} has no in-house or reserved stay.</div>`); return; }
+  POST_D = d;
   const r = d.res.res, folios = d.res.folios || [];
   const openFolios = folios.filter(f => f.status === 'Open');
+  const recent = folios.flatMap(f => (f.postings || []).filter(p => p.voided !== true).map(p => ({ f: f, p: p })))
+    .sort((a, b) => String(b.p.createdAt || b.p.bizDate || '').localeCompare(String(a.p.createdAt || a.p.bizDate || ''))).slice(0, 12);
+  const folioCards = folios.map(f => `<div class="pw-folio"><div><b>${esc(f.folioNo)} · ${esc(f.name)}</b> ${pill(f.status)}</div><div>Balance ${balCell(f.balance)}</div></div>`).join('');
+  setView(`${head}
+    <div class="card stay-head"><div><h2>${esc(d.res.guestName)}</h2><p class="muted">Room ${esc(room)} · ${pill(r.status)}</p></div>
+      <div class="stay-facts">
+        <div><span>Rate code</span><b>${esc(r.plan || '—')}</b></div>
+        <div><span>Arrival</span><b>${esc(dmy(r.arrival || ''))}</b></div>
+        <div><span>Departure</span><b>${esc(dmy(r.departure || ''))}</b></div>
+        <div><span>Confirmation</span><b>${lnk(r.resNo)}</b></div>
+      </div>
+      <div class="acts"><button class="btn" type="button" onclick="postModal('${esc(room)}')"${openFolios.length ? '' : ' disabled'}>Post to folio</button>
+        <button class="btn ghost" onclick="go('res','${esc(r.resNo)}')">Reservation</button>
+        ${d.canPost ? `<button class="btn ghost" onclick="addFolioModal('${esc(r.resNo)}')">+ New folio</button>` : ''}</div></div>
+    <div class="post-grid">
+      <div class="card"><h3>Folios</h3>${folioCards || '<p class="muted">No folios yet.</p>'}${openFolios.length ? '' : '<p class="muted">No open folio. Create one with + New folio.</p>'}</div>
+      <div class="card"><h3>Recent postings</h3>${table(['Date', 'Folio', 'Code', 'Description', 'Amount'],
+        recent.map(x => tr([esc(dmy(x.p.bizDate || '')), esc(x.f.folioNo), esc(x.p.code), esc(x.p.description || ''), `<span class="${Number(x.p.amount) < 0 ? 'neg' : ''}">${num(x.p.amount)}</span>`])))}</div>
+    </div>`);
+}
+/* The posting form as a popup over the room page. Drag it by its header. */
+async function postModal(room) {
+  const d = POST_D && String(POST_D.roomNo) === String(room) ? POST_D : await api('billingRoom', room);
+  POST_D = d;
+  if (!d.res) { toast('Room ' + room + ' has no in-house or reserved stay.', true); return; }
+  const r = d.res.res, folios = d.res.folios || [];
+  const openFolios = folios.filter(f => f.status === 'Open');
+  if (!openFolios.length) { toast('No open folio. Create one with + New folio.', true); return; }
   const charges = d.charges || [], payments = d.payments || [], packages = d.packages || [];
   const folioOpts = openFolios.map(f => `<option value="${esc(f.id)}">${esc(f.folioNo)} · ${esc(f.name)}</option>`).join('');
   const kindTabs = [['charge', 'Charge'], ['payment', 'Payment'], ['package', 'Package']]
@@ -959,23 +988,11 @@ async function pgPost(param) {
       <label class="wide"><span>Package</span><select name="code" required>${packages.map(p => `<option value="${esc(p.code)}">${esc(p.name)} · ${num(p.amount)}${p.perNight ? ' per night' : ''}</option>`).join('')}</select></label>
       <div class="wide acts"><button class="btn" type="submit">Post package</button></div></form>`;
   }
-  const recent = folios.flatMap(f => (f.postings || []).filter(p => p.voided !== true).map(p => ({ f: f, p: p })))
-    .sort((a, b) => String(b.p.createdAt || b.p.bizDate || '').localeCompare(String(a.p.createdAt || a.p.bizDate || ''))).slice(0, 12);
-  const folioCards = folios.map(f => `<div class="pw-folio"><div><b>${esc(f.folioNo)} · ${esc(f.name)}</b> ${pill(f.status)}</div><div>Balance ${balCell(f.balance)}</div></div>`).join('');
-  setView(`${head}
-    <div class="card"><div class="head-row"><div><h2>${esc(d.res.guestName)}</h2><p class="muted">Room ${esc(room)} · ${lnk(r.resNo)} · ${pill(r.status)}</p></div>
-      <div class="acts"><button class="btn ghost" onclick="go('res','${esc(r.resNo)}')">Reservation</button><button class="btn ghost" onclick="go('billing','${esc(room)}')">Billing</button>
-      ${d.canPost ? `<button class="btn ghost" onclick="addFolioModal('${esc(r.resNo)}')">+ New folio</button>` : ''}</div></div></div>
-    <div class="post-grid">
-      <div class="card"><h3>Post to folio</h3><div class="seg">${kindTabs}</div>${openFolios.length ? form : '<p class="muted">No open folio. Create one with + New folio.</p>'}</div>
-      <div class="card"><h3>Folios</h3>${folioCards || '<p class="muted">No folios yet.</p>'}
-        <h3 style="margin-top:14px">Recent postings</h3>${table(['Date', 'Folio', 'Code', 'Description', 'Amount'],
-          recent.map(x => tr([esc(dmy(x.p.bizDate || '')), esc(x.f.folioNo), esc(x.p.code), esc(x.p.description || ''), `<span class="${Number(x.p.amount) < 0 ? 'neg' : ''}">${num(x.p.amount)}</span>`])))}</div>
-    </div>`);
-  if (POST_KIND === 'charge') postTotal(document.querySelector('.post-grid form'));
+  openModal('Post · Room ' + room, `<div class="seg">${kindTabs}</div>${form}`);
+  if (POST_KIND === 'charge') postTotal(document.querySelector('#mBody form'));
 }
 function postLoad(e) { e.preventDefault(); const room = String(new FormData(e.target).get('room') || '').trim(); go('post', room); }
-function postKind(k, room) { POST_KIND = k; renderPage_('post', room); }
+function postKind(k, room) { POST_KIND = k; postModal(room); }
 function postTotal(form) {
   if (!form || !form.qty) return;
   const q = Number(form.qty.value) || 0, u = Number(form.unit.value) || 0;
