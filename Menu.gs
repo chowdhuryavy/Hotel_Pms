@@ -4,7 +4,7 @@
  * project from the sheet (Extensions → Apps Script), so the menu appears in the sheet's ribbon.
  */
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('Stayline')
+  SpreadsheetApp.getUi().createMenu(menuName_())
     .addItem('Set up database', 'menuSetup')
     .addItem('Check database', 'menuCheck')
     .addItem('Load demo data', 'menuDemo')
@@ -15,10 +15,15 @@ function onOpen() {
     .addToUi();
 }
 
+/** Menu title comes from the App name in Settings (falls back to a neutral label if the database is not ready). */
+function menuName_() {
+  try { return appName_() || 'Hotel PMS'; } catch (e) { return 'Hotel PMS'; }
+}
+
 function menuSetup() {
   const ui = SpreadsheetApp.getUi();
   try {
-    ui.alert('Stayline', setupDatabase(), ui.ButtonSet.OK);
+    ui.alert(menuName_(), setupDatabase(), ui.ButtonSet.OK);
   } catch (e) {
     ui.alert('Setup failed: ' + e.message);
   }
@@ -47,7 +52,7 @@ function menuDemo() {
 function menuUpdate() {
   const ui = SpreadsheetApp.getUi();
   try {
-    ui.alert('Stayline update', updateFromGitHub(), ui.ButtonSet.OK);
+    ui.alert(menuName_() + ' update', updateFromGitHub(), ui.ButtonSet.OK);
   } catch (e) {
     ui.alert('Update failed: ' + e.message);
   }
@@ -64,6 +69,6 @@ function menuLink() {
 
 function menuAutoOn() {
   const ui = SpreadsheetApp.getUi();
-  try { ui.alert('Stayline update', enableAutoUpdate(), ui.ButtonSet.OK); }
+  try { ui.alert(menuName_() + ' update', enableAutoUpdate(), ui.ButtonSet.OK); }
   catch (e) { ui.alert('Could not turn on automatic updates: ' + e.message); }
 }

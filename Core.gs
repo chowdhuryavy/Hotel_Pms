@@ -170,8 +170,8 @@ function licenseStatus_() {
 function licenseGuard_(role) {
   if (permMap_(role)['system.manage'] === true) return;
   const L = licenseStatus_();
-  if (L.status === 'expired') throw new Error('LICENSE_BLOCKED: Your Stayline licence ended on ' + dmy_(L.expiry) + '. Ask the system administrator to renew it.');
-  if (L.status === 'not-started') throw new Error('LICENSE_BLOCKED: Your Stayline licence starts on ' + dmy_(L.start) + '.');
+  if (L.status === 'expired') throw new Error('LICENSE_BLOCKED: Your ' + appName_() + ' licence ended on ' + dmy_(L.expiry) + '. Ask the system administrator to renew it.');
+  if (L.status === 'not-started') throw new Error('LICENSE_BLOCKED: Your ' + appName_() + ' licence starts on ' + dmy_(L.start) + '.');
 }
 function publicSettings_() {
   const s = settings_();
@@ -381,7 +381,7 @@ function listAudit(token, limit) {
 /* ============================ WEB ENTRY ============================ */
 function doGet() {
   try { ensureAutoUpdate_(); } catch (e) { Logger.log('Auto update timer: ' + e.message); }
-  let name = SETTINGS_DEFAULT.appName;
+  let name = '';
   try { name = settings_().appName || name; } catch (e) { /* database not set up yet */ }
   const t = HtmlService.createTemplateFromFile('Index');
   t.appName = name;

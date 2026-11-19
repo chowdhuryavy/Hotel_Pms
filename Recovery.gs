@@ -10,7 +10,7 @@ function escHtml_(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 function appName_() {
-  try { return settings_().appName || 'Stayline'; } catch (e) { return 'Stayline'; }
+  try { return settings_().appName || ''; } catch (e) { return ''; }
 }
 /** Finds an active user by username or email (both compared in lower case). */
 function findUserByIdentifier_(identifier) {
@@ -27,7 +27,7 @@ function sendMail_(to, subject, text, html) {
   MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: html, name: appName_() });
 }
 function hotelName_() {
-  try { return settings_().hotelName || appName_(); } catch (e) { return 'Stayline'; }
+  try { return settings_().hotelName || appName_(); } catch (e) { return appName_(); }
 }
 /** Fills {{placeholders}} in an email template saved in Settings. */
 function tplText_(key, vars) {
@@ -61,7 +61,7 @@ function mailHtml_(bodyHtml) {
   let st = {};
   try { st = settings_() || {}; } catch (e) { st = {}; }
   const hotel = escHtml_(st.hotelName || appName_());
-  const app = escHtml_(st.appName || 'Stayline');
+  const app = escHtml_(st.appName || '');
   return '<!doctype html><html><body style="margin:0;padding:0;background:#eef3f2;font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#14232b">' +
     '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef3f2;padding:32px 12px"><tr><td align="center">' +
     '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #d6e2df">' +

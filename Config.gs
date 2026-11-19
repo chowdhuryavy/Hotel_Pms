@@ -33,7 +33,8 @@ const TBL = {
   PAYMETHODS: ['PaymentMethods', ['code','name','kind','chargeCode','accountId','active']],
   PACKAGES:  ['Packages', ['code','name','description','chargeCode','amount','perNight','active']],
   AUDIT:     ['AuditLog', ['time','user','action','entity','entityId','details']],
-  RESLOG:    ['ResLog', ['id','resNo','at','user','action','details']]
+  RESLOG:    ['ResLog', ['id','resNo','at','user','action','details']],
+  ARAGING:   ['ARAging', ['bizDate','code','name','current','d31','d61','d90','total','snapshotAt']]
 };
 
 /** [permission, description, Admin, Manager, FrontDesk, Cashier, Housekeeping, Sales, Accountant] */
@@ -78,7 +79,7 @@ const PERMISSIONS = [
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.50';
+const APP_VERSION = '1.2.51';
 const SETTINGS_DEFAULT = {
   maxLoginAttempts: 5,      // wrong passwords before the account is locked (system admin, minimum 5)
   inactivityMinutes: 30,    // idle minutes before sign-out (system admin)

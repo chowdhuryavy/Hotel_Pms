@@ -51,11 +51,91 @@ function listBizDates(token) {
   }));
 }
 
+/** One night-audit sense check. The page calls this once per check so each tick shows as it completes. */
+function nightAuditCheck(token, key) {
+  const s = auth_(token);
+  if (!anyPerm_(s, ['nightaudit.run'])) throw new Error('Permission denied: nightaudit.run');
+  const bd = bizDate_();
+  const res = rows_(TBL.RES);
+  const out = (status, detail, extra) => Object.assign({ key: key, status: status, detail: detail }, extra || {});
+  switch (key) {
+    case 'date': {
+      const closed = rows_(TBL.BIZDATES).some(b => b.date === bd && b.status === 'Closed');
+      return closed ? out('fail', 'Business date ' + bd + ' is already closed.') : out('ok', 'Business date ' + bd + ' is open.');
+    }
+    case 'dueout': {
+      // Guests whose stay ends on the business date must check out or extend before the audit
+      const due = res.filter(r => r.status === 'In-House' && r.departure === bd);
+      const guests = due.map(r => ({ resNo: r.resNo, roomNo: String(r.roomNo), guest: r.guestName, balance: num_(guestBalance_(r.resNo)) }));
+      return guests.length
+        ? out('fail', guests.length + ' guest(s) due out today: ' + guests.map(g => 'Room ' + g.roomNo).join(', ') + '. Check out or extend the stay.', { guests: guests })
+        : out('ok', 'No guests due out today.', { guests: [] });
+    }
+    case 'arrivals': {
+      const n = res.filter(r => r.status === 'Reserved' && r.arrival < bd).length;
+      return n ? out('warn', n + ' past-due arrival(s) still Reserved.') : out('ok', 'No past-due arrivals.');
+    }
+    case 'departures': {
+      const unpaid = res.filter(r => r.status === 'In-House' && r.departure === bd && guestBalance_(r.resNo) > 0.005).length;
+      return unpaid ? out('warn', unpaid + ' departing guest(s) with an open balance.') : out('ok', 'Departing guests are settled.');
+    }
+    case 'shifts': {
+      const n = rows_(TBL.SHIFTS).filter(x => x.status === 'Open').length;
+      return out('ok', n ? n + ' open cashier shift(s) will be closed automatically by the audit.' : 'No open cashier shifts.');
+    }
+    case 'housekeeping': {
+      const n = roomsAll_().filter(r => r.housekeeping === 'Dirty').length;
+      return n ? out('warn', n + ' room(s) still Dirty.') : out('ok', 'No dirty rooms.');
+    }
+    case 'rooms': {
+      const n = roomsAll_().filter(r => r.status !== 'Active').length;
+      return n ? out('warn', n + ' room(s) out of order or out of service.') : out('ok', 'All rooms in order.');
+    }
+    case 'rates': {
+      const stayers = res.filter(r => r.status === 'In-House' && r.arrival <= bd && bd < r.departure);
+      const zero = stayers.filter(r => !(nightRate_(r, bd) > 0)).length;
+      return zero ? out('warn', zero + ' stayer(s) with a zero room rate for ' + bd + '.') : out('ok', stayers.length + ' stayer(s) tonight, all with a rate.');
+    }
+  }
+  throw new Error('Unknown check: ' + key);
+}
+
+/** Closes every open cashier shift at the audit. Cash is not counted here, so the counted amount and variance stay blank. */
+function closeOpenShifts_(bd, by) {
+  const now = fmtTs_(new Date());
+  const open = rows_(TBL.SHIFTS).filter(x => x.status === 'Open');
+  open.forEach(sh => {
+    const expected = num_(Number(sh.openingFloat) + shiftSummary_(sh).cashReceived);
+    patch_(TBL.SHIFTS, sh._row, { closedAt: now, expectedCash: expected, countedCash: '', variance: '', status: 'Closed', notes: 'Closed by night audit ' + bd });
+    audit_(by, 'SHIFT_AUTO_CLOSED', 'Shift', sh.id, sh.user + ' · expected ' + expected + ' (not counted)');
+  });
+  return open.length;
+}
+/** Saves the city-ledger aging as of the audited date, one row per company with a balance. */
+function arAgingSnapshot_(bd) {
+  const now = fmtTs_(new Date());
+  // a database set up before this version gets the tab on first night run
+  const ss = ss_();
+  const tab = ss.getSheetByName(TBL.ARAGING[0]) || ss.insertSheet(TBL.ARAGING[0]);
+  if (tab.getLastRow() === 0) tab.getRange(1, 1, 1, TBL.ARAGING[1].length).setValues([TBL.ARAGING[1]]);
+  let companies = 0, total = 0;
+  rows_(TBL.ACCOUNTS).forEach(a => {
+    const b = arBuckets_(arItems_(a.id).open);
+    const t = num_(b.current + b.d31 + b.d61 + b.d90);
+    if (t === 0) return;
+    append_(TBL.ARAGING, { bizDate: bd, code: a.code, name: a.name, current: num_(b.current), d31: num_(b.d31), d61: num_(b.d61), d90: num_(b.d90), total: t, snapshotAt: now });
+    companies++; total += t;
+  });
+  return { companies: companies, total: num_(total) };
+}
+
 function runNightAudit(token) {
   const s = auth_(token, 'nightaudit.run');
   return withLock_(() => {
     const bd = bizDate_();
     if (rows_(TBL.BIZDATES).some(b => b.date === bd && b.status === 'Closed')) throw new Error('Business date ' + bd + ' has already been audited.');
+    const dueOut = rows_(TBL.RES).filter(r => r.status === 'In-House' && r.departure === bd);
+    if (dueOut.length) throw new Error(dueOut.length + ' guest(s) due out on ' + bd + ' (room ' + dueOut.map(r => r.roomNo).join(', ') + '). Check out or extend their stay first.');
 
     // 1) Room and tax postings for every guest staying the night of bd
     const stayers = rows_(TBL.RES).filter(r => r.status === 'In-House' && r.arrival <= bd && bd < r.departure);
@@ -77,14 +157,19 @@ function runNightAudit(token) {
       });
     }
 
-    // 3) Close the date and advance
+    // 3) Close open cashier shifts and save the AR aging as of this date
+    const shiftsClosed = closeOpenShifts_(bd, s.username);
+    const aging = arAgingSnapshot_(bd);
+
+    // 4) Close the date and advance
     const next = addDays_(bd, 1);
     append_(TBL.BIZDATES, { date: bd, status: 'Closed', openedAt: '', closedAt: fmtTs_(new Date()), closedBy: s.username, roomsPosted: roomsPosted, noShows: noShows });
     const row = rows_(TBL.SETTINGS).find(r => r.key === 'businessDate');
     if (row) patch_(TBL.SETTINGS, row._row, { value: next });
     else append_(TBL.SETTINGS, { key: 'businessDate', value: next });
-    audit_(s.username, 'NIGHT_AUDIT', 'BusinessDate', bd, roomsPosted + ' rooms, ' + num_(total) + ' room revenue, ' + noShows + ' no-shows; next ' + next);
-    try { sendAuditorReport_(bd); } catch (e) { Logger.log('Auditor report: ' + e.message); }
-    return { closed: bd, next: next, roomsPosted: roomsPosted, roomRevenue: num_(total), noShows: noShows };
+    audit_(s.username, 'NIGHT_AUDIT', 'BusinessDate', bd, roomsPosted + ' rooms, ' + num_(total) + ' room revenue, ' + noShows + ' no-shows, ' + shiftsClosed + ' shifts closed, AR ' + aging.total + '; next ' + next);
+    let emailed = false;
+    try { sendAuditorReport_(bd); emailed = true; } catch (e) { Logger.log('Auditor report: ' + e.message); }
+    return { closed: bd, next: next, roomsPosted: roomsPosted, roomRevenue: num_(total), noShows: noShows, shiftsClosed: shiftsClosed, aging: aging, emailed: emailed };
   });
 }

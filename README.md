@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.50**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.51**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.51: Night audit runs a sense check for each item and ticks it off in turn: business date open, guests due out, past-due arrivals, departures with a balance, cashier shifts, dirty rooms, rooms out of order, and room rates for stayers. Guests due out today block the audit until each one is checked out or extended by one night. The audit then ticks each step as it completes. The night run closes every open cashier shift (cash is not counted, so counted and variance stay blank) and saves the city-ledger (AR) aging for that date to a new ARAging tab (run Set up database once to create it). The bell panel fits the phone screen. Every hard-coded "Stayline" fallback is removed: names come from the App name in Settings, and the menu title follows it.
 
 Release notes for 1.2.50: Check-out settles any balance first: the settlement screen lists each folio's balance and takes a payment by method and amount. Card payments ask for the card number (checked by Luhn) and expiry date; only the last four digits and the expiry are kept. Payments and check-outs keep retrying for up to 60 seconds if the connection drops, with a request id so a retry cannot post twice. A bell in the header lists arrivals, past-due arrivals, departures with a balance and dirty rooms; Mark all read and Clear are saved per user. Reads for the front-desk board and reports are cached for up to 60 seconds, and any saved change clears the cache. The login logo shows from the copy saved on the device, and the placeholder logo is gone.
 

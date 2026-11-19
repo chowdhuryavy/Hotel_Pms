@@ -734,6 +734,10 @@
   .bell-item .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);margin-top:6px;flex:none}
   .bell-txt{font-size:12.5px;font-weight:400;margin-top:2px}
   .bell-empty{padding:14px 10px;margin:0}
+  /* Phone: the panel spans the screen under the header instead of hanging off the bell */
+  @media (max-width:900px){
+    .bell-panel{position:fixed;left:12px;right:12px;top:calc(68px + 8px);width:auto;max-height:calc(100vh - 68px - 24px)}
+  }
   /* Dashboard icons, gauge and meter */
   .kpi-ico{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:var(--hover);color:var(--p1);margin-bottom:10px}
   .kpi-ico svg{width:18px;height:18px}
