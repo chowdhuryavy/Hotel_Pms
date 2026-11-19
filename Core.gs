@@ -474,14 +474,17 @@ function doGet(e) {
   try { ensureAutoUpdate_(); } catch (e) { Logger.log('Auto update timer: ' + e.message); }
   try { ensureBackupTrigger_(); } catch (e) { Logger.log('Backup timer: ' + e.message); }
   try { ensureAllTabsOnce_(); } catch (e) { Logger.log('Tabs check: ' + e.message); }
-  let name = '';
-  try { name = settings_().appName || name; } catch (e) { /* database not set up yet */ }
+  let name = '', logo = '';
+  try { const st = settings_(); name = st.appName || name; logo = st.logoUrl || ''; } catch (e) { /* database not set up yet */ }
   const t = HtmlService.createTemplateFromFile('Index');
   t.appName = name;
   t.appVersion = APP_VERSION;
   t.execUrl = ScriptApp.getService().getUrl();   // the web app's own address, used by the update Refresh button
   // ALLOWALL lets the Vercel page show this app in its frame. Without it Google blocks the frame.
-  return t.evaluate().setTitle(name).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL).addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  const out = t.evaluate().setTitle(name).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL).addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  // The tab icon for the Google page needs a web address. An uploaded logo (data picture) cannot be used there, only an https logo link.
+  if (/^https:\/\//i.test(logo)) out.setFaviconUrl(logo);
+  return out;
 }
 /** Inlines a file (Styles) into Index as HTML. */
 function include(name) {
