@@ -91,6 +91,11 @@ function sendMail_(to, subject, text, html, att) {
   }
 }
 
+/** The service that sends email now, for the messages to the administrator */
+function mailRoute_() {
+  const c = smtpConfig_();
+  return c.active ? 'SMTP' : c.resendActive ? 'Resend' : 'the Google account';
+}
 /** Sends through the Resend API. The key is decrypted only for this request. */
 function sendViaResend_(c, to, subject, text, html, att) {
   if (!c.resendFrom) throw new Error('Resend is on, but the from address is missing. Fix it in System admin → Email sending.');

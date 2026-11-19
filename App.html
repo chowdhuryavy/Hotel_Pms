@@ -3488,7 +3488,7 @@ function resetPwAct(id) {
     try {
       const r = await api('resetUserPassword', id);
       if (r.tempPassword) openModal('Temporary password', `<p>No email was sent, so share this temporary password with the user. It is shown once, and the user must change it at sign-in.</p><p class="code-box">${esc(r.tempPassword)}</p><div class="actions"><button class="btn" onclick="closeModal();refresh()">Done</button></div>`);
-      else { toast('Password reset. The user was emailed a temporary password.'); closeModal(); refresh(); }
+      else { toast('Password reset. Email sent to ' + r.sentTo + ' via ' + r.via + '. Check spam, or the ' + r.via + ' log, if it does not arrive.'); closeModal(); refresh(); }
     } catch (e) { toast(e.message, true); }
   });
 }

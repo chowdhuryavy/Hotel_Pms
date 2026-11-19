@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.168**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.169**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.169: After an admin password reset, the message shows the address the temporary password was sent to and the service used (SMTP, Resend or the Google account). The same is recorded in the audit log.
 
 Release notes for 1.2.168: On your own domain, the update Refresh button reloads the app inside the page instead of going to the Apps Script address.
 

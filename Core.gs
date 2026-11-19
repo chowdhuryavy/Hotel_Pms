@@ -539,8 +539,9 @@ function resetUserPassword(token, id) {
     patch_(TBL.USERS, u._row, { salt: salt, passHash: storeHash_(salt, pw), mustChange: true, failCount: 0, locked: false });
     let mailed = false;
     if (u.email) { try { sendWelcome_({ id: u.id, username: u.username, name: u.name, role: u.role, email: u.email }, pw); mailed = true; } catch (e) { Logger.log('Reset email: ' + e.message); } }
-    audit_(s.username, 'PASSWORD_RESET_BY_ADMIN', 'User', id, u.username + (mailed ? ' (email sent)' : ''));
-    return { tempPassword: mailed ? '' : pw };
+    const via = mailed ? mailRoute_() : '';
+    audit_(s.username, 'PASSWORD_RESET_BY_ADMIN', 'User', id, u.username + (mailed ? ' (email sent to ' + u.email + ' via ' + via + ')' : ''));
+    return { tempPassword: mailed ? '' : pw, sentTo: mailed ? u.email : '', via: via };
   });
 }
 
