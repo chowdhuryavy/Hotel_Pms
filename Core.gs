@@ -394,6 +394,7 @@ function saveUser(token, d) {
   if (roleNames_().indexOf(d.role) < 0) throw new Error('Invalid role.');
   if (d.role === ADMIN_ROLE && !isSys) throw new Error('Only a system administrator can give the Admin role.');
   if (d.role === PROPERTY_ROLE && !isSys) throw new Error('Only a system administrator can create or change Property Admin accounts.');
+  if (!isSys && !roleWithin_(d.role, s)) throw new Error('You can only give a role whose permissions you all have.');
   const uname = String(d.username || '').trim().toLowerCase();
   if (!uname) throw new Error('Username is required.');
   const active = d.active !== false && d.active !== 'false';

@@ -20,15 +20,22 @@ function roleColumn_(name) {
   return i < 0 ? -1 : i + 3;                       // sheet column (1-based) of this role
 }
 
-/** Role names for the user form (property admins can pick roles, but cannot manage them). */
+/* Roles a signed-in user may see: the system administrator sees all; everyone else never sees Admin or Property Admin */
+function roleVisible_(name, s) { return s.role === ADMIN_ROLE || BUILTIN_ROLES.indexOf(name) < 0; }
+/* True when every permission of the role is one the signed-in user holds */
+function roleWithin_(name, s) {
+  const mine = permMap_(s);
+  return rows_(TBL.PERMS).every(p => p[name] !== true || mine[p.permission] === true);
+}
+/** Role names for the user form: a property admin only gets roles whose permissions they all hold. */
 function roleOptions(token) {
-  auth_(token, 'users.manage');
-  return roleNames_();
+  const s = auth_(token, 'users.manage');
+  return roleNames_().filter(n => roleVisible_(n, s) && (s.role === ADMIN_ROLE || roleWithin_(n, s)));
 }
 function listRoles(token) {
-  auth_(token, 'system.manage');
+  const s = auth_(token, 'users.manage');
   const users = rows_(TBL.USERS), perms = rows_(TBL.PERMS);
-  return roleNames_().map(n => ({
+  return roleNames_().filter(n => roleVisible_(n, s)).map(n => ({
     name: n,
     users: users.filter(u => u.role === n).length,
     permissions: perms.filter(p => p[n] === true).length,
@@ -37,11 +44,16 @@ function listRoles(token) {
   }));
 }
 function getRolePerms(token, role) {
-  auth_(token, 'system.manage');
-  if (roleColumn_(role) < 0) throw new Error('Unknown role.');
+  const s = auth_(token, 'users.manage');
+  if (roleColumn_(role) < 0 || !roleVisible_(role, s)) throw new Error('Unknown role.');
+  const mine = permMap_(s);
   return {
     role: role,
-    perms: rows_(TBL.PERMS).map(p => ({ permission: p.permission, description: p.description, allowed: role === ADMIN_ROLE || p[role] === true }))
+    perms: rows_(TBL.PERMS).map(p => ({
+      permission: p.permission, description: p.description,
+      allowed: role === ADMIN_ROLE || p[role] === true,
+      editable: s.role === ADMIN_ROLE || (mine[p.permission] === true && p.permission !== 'system.manage')
+    }))
   };
 }
 /* The signed-in user's permissions, read live: the role from the grid, and the user's extra access and role from the Users sheet */
@@ -60,7 +72,9 @@ function myPermissions(token) {
   return permMap_(s);
 }
 function saveRolePerms(token, role, allowed) {
-  const s = auth_(token, 'system.manage');
+  const s = auth_(token, 'users.manage');
+  const isSys = s.role === ADMIN_ROLE;
+  if (!isSys && (role === ADMIN_ROLE || !roleVisible_(role, s))) throw new Error('Only a system administrator can change this role.');
   const col = roleColumn_(role);
   if (col < 0) throw new Error('Unknown role.');
   const want = new Set(Array.isArray(allowed) ? allowed : []);
@@ -68,10 +82,14 @@ function saveRolePerms(token, role, allowed) {
   if (role === s.role && (!want.has('system.manage') || !want.has('users.manage'))) {
     throw new Error('You cannot remove system or user permissions from your own role.');
   }
+  const mine = permMap_(s);
+  // A property admin changes only the permissions they hold themselves; the rest of the role stays as it is
+  const editable = p => isSys || (mine[p.permission] === true && p.permission !== 'system.manage');
   return withLock_(() => {
     const sh = sh_(TBL.PERMS);
     let n = 0;
     rows_(TBL.PERMS).forEach(p => {
+      if (!editable(p)) { if (p[role] === true) n++; return; }
       const on = want.has(p.permission);
       if (on) n++;
       sh.getRange(p._row, col).setValue(on);
@@ -99,10 +117,25 @@ function createRoleRaw_(name, copyFrom) {
   return name;
 }
 function createRole(token, name, copyFrom) {
-  const s = auth_(token, 'system.manage');
+  const s = auth_(token, 'users.manage');
+  const isSys = s.role === ADMIN_ROLE;
+  if (!isSys && copyFrom && !roleVisible_(copyFrom, s)) throw new Error('Unknown role.');
   return withLock_(() => {
-    const made = createRoleRaw_(name, copyFrom);
-    audit_(s.username, 'ROLE_CREATED', 'Role', made, copyFrom ? 'copied from ' + copyFrom : 'no permissions');
+    if (isSys) {
+      const made = createRoleRaw_(name, copyFrom);
+      audit_(s.username, 'ROLE_CREATED', 'Role', made, copyFrom ? 'copied from ' + copyFrom : 'no permissions');
+      return { name: made };
+    }
+    // A property admin's new role gets only the permissions they hold (copied ones they hold)
+    const made = createRoleRaw_(name, '');
+    if (copyFrom) {
+      const mine = permMap_(s), col = roleColumn_(made), sh = sh_(TBL.PERMS);
+      rows_(TBL.PERMS).forEach(p => {
+        const on = p[copyFrom] === true && mine[p.permission] === true && p.permission !== 'system.manage';
+        if (on) sh.getRange(p._row, col).setValue(true);
+      });
+    }
+    audit_(s.username, 'ROLE_CREATED', 'Role', made, copyFrom ? 'copied from ' + copyFrom + ' (permissions held)' : 'no permissions');
     return { name: made };
   });
 }

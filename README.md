@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.178**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.179**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.179: A Property Admin now has Staff users and Permission roles in the sidebar. A Property Admin can create roles and staff users only with the permissions they hold; Admin and Property Admin roles and accounts are never shown to them. Only the system administrator deletes roles and changes system settings.
 
 Release notes for 1.2.178: A Property Admin has all normal hotel operations and can create staff users and give them the configuration screens he holds. The configuration screens and staff-user access are still ticked by the system administrator.
 

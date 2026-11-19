@@ -312,7 +312,7 @@ if (require.main === module) {
   ok(!tryRun("saveUser(TOK, { username: 'propadmin', name: 'Property Admin User', email: '', role: 'Property Admin', password: 'Prop12345', active: true })").e, 'system admin creates a property admin');
   const PTOK = tryRun("login('propadmin','Prop12345')").v.token;
   ok(!!PTOK, 'property admin signs in');
-  ok(!!tryRun("listRoles('" + PTOK + "')").e, 'property admin cannot manage roles');
+  ok(!tryRun("listRoles('" + PTOK + "')").e, 'property admin can open permission roles');
   tryRun("saveSettings('" + PTOK + "', { appUrl: 'https://evil.example' })");
   ok(run("settings_().appUrl") !== 'https://evil.example', 'property admin cannot change the app link');
   ok(!!tryRun("saveUser('" + PTOK + "', { username: 'boss', name: 'Boss', role: 'Admin', password: 'Boss12345', active: true })").e, 'property admin cannot give the Admin role');
@@ -320,6 +320,17 @@ if (require.main === module) {
   // The system administrator ticks the Property admin screens: keep the role's other permissions, add these
   const PAD_GRANT = ['cfg.settings.view', 'cfg.settings.edit', 'users.manage', 'fixed.manage'].concat(['roomtypes', 'rooms', 'rates', 'accounts', 'packages', 'payments', 'rateplans', 'chargecodes'].reduce((a, k) => a.concat(['view', 'edit', 'delete'].map(x => 'cfg.' + k + '.' + x)), []));
   run("(() => { saveRolePerms(TOK, 'Property Admin', rows_(TBL.PERMS).filter(p => p['Property Admin'] === true).map(p => p.permission).concat(" + JSON.stringify(PAD_GRANT) + ")); return true; })()");
+  ok(run("listRoles('" + PTOK + "').every(r => r.name !== 'Admin' && r.name !== 'Property Admin')"), 'property admin does not see the Admin or Property Admin roles');
+  ok(run("roleOptions('" + PTOK + "').every(r => r !== 'Admin' && r !== 'Property Admin')"), 'property admin role choices leave out Admin and Property Admin');
+  ok(!!tryRun("saveRolePerms('" + PTOK + "', 'Admin', [])").e, 'property admin cannot change the Admin role');
+  ok(!!tryRun("getRolePerms('" + PTOK + "', 'Property Admin')").e, 'property admin cannot open the Property Admin role');
+  run("(() => { createRole(TOK, 'Secret', ''); saveRolePerms(TOK, 'Secret', ['system.manage', 'dashboard.view']); return true; })()");
+  ok(!!tryRun("saveUser('" + PTOK + "', { username: 'sneaky', name: 'Sneaky', role: 'Secret', password: 'Sneaky1234', active: true })").e, 'property admin cannot give a role with permissions they lack');
+  ok(run("roleOptions('" + PTOK + "').indexOf('Secret') < 0"), 'a role with permissions they lack is not offered to a property admin');
+  ok(!tryRun("createRole('" + PTOK + "', 'Front Only', 'Secret')").e, 'property admin creates a role copied from a role they partly hold');
+  ok(run("getRolePerms(TOK, 'Front Only').perms.find(p => p.permission === 'system.manage').allowed === false"), 'a role made by a property admin never gets system permissions');
+  ok(!tryRun("saveRolePerms('" + PTOK + "', 'Front Only', ['system.manage', 'dashboard.view'])").e && run("getRolePerms(TOK, 'Front Only').perms.find(p => p.permission === 'system.manage').allowed === false"), 'property admin cannot give system permissions');
+  ok(!!tryRun("deleteRole('" + PTOK + "', 'Front Only')").e, 'property admin cannot delete a role');
   ok(run("permMap_('Property Admin')['cfg.settings.edit']") === true, 'a system admin can give Property Admin hotel details');
   ok(run("permMap_('Property Admin')['cfg.roomtypes.edit']") === true && run("permMap_('Property Admin')['cfg.accounts.delete']") === true, 'property admin has configuration rights for rooms, rates and accounts by default');
   ok(run("permMap_('Manager')['cfg.payments.edit']") === false && run("permMap_('Manager')['cfg.roomtypes.edit']") === true, 'manager edits room types only, not payment methods');
