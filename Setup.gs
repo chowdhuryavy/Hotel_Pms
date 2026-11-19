@@ -67,6 +67,7 @@ function setupDatabase() {
     }
   }
 
+  try { organiseTabs_(); } catch (e) { Logger.log('Tab order: ' + e.message); }
   const msg = 'Stayline database ready.\nSheet: ' + ss.getUrl() + firstAdminNote;
   Logger.log(msg);
   return msg;
@@ -153,4 +154,29 @@ function checkDatabase() {
   });
   Logger.log(problems.length ? problems.join('\n') : 'Database structure OK');
   return problems;
+}
+
+/* Sheet tabs: grouped by area, in order, each group with its own colour. Tab names are unchanged. */
+const TAB_GROUPS = [
+  ['Reservations & guests', '#2b6cb0', ['RES', 'GUESTS', 'GROUPS', 'RATESCHED']],
+  ['Rooms & rates', '#2e7d6b', ['ROOMS', 'ROOMTYPES', 'RATEPLANS', 'RATES']],
+  ['Charges, folios & payments', '#b7791f', ['FOLIOS', 'POSTINGS', 'CHARGES', 'PAYMETHODS', 'PACKAGES', 'FIXEDRULES', 'ROOMCHG', 'ACCOUNTS', 'SHIFTS']],
+  ['Night audit & reports', '#7b3fa0', ['BIZDATES', 'ARAGING']],
+  ['Administration', '#5b6b7a', ['SETTINGS', 'USERS', 'PERMS']],
+  ['Logs', '#8a8a8a', ['AUDIT', 'RESLOG']]
+];
+/** Orders the database tabs by TAB_GROUPS and colours each group. Returns how many tabs were placed. */
+function organiseTabs_() {
+  const ss = ss_();
+  let pos = 0;
+  TAB_GROUPS.forEach(g => {
+    g[2].forEach(k => {
+      const sh = ss.getSheetByName(TBL[k][0]);
+      if (!sh) return;
+      sh.setTabColor(g[1]);
+      ss.setActiveSheet(sh);
+      ss.moveActiveSheet(++pos);
+    });
+  });
+  return pos;
 }

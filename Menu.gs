@@ -7,6 +7,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu(menuName_())
     .addItem('Set up database', 'menuSetup')
     .addItem('Check database', 'menuCheck')
+    .addItem('Organise tabs', 'menuTabs')
     .addItem('Load demo data', 'menuDemo')
     .addSeparator()
     .addItem('Update from GitHub', 'menuUpdate')
@@ -71,4 +72,10 @@ function menuAutoOn() {
   const ui = SpreadsheetApp.getUi();
   try { ui.alert(menuName_() + ' update', enableAutoUpdate(), ui.ButtonSet.OK); }
   catch (e) { ui.alert('Could not turn on automatic updates: ' + e.message); }
+}
+
+function menuTabs() {
+  const ui = SpreadsheetApp.getUi();
+  try { const n = organiseTabs_(); ui.alert('Tabs organised: ' + n + ' database tabs grouped by area and coloured.'); }
+  catch (e) { ui.alert('Could not organise tabs: ' + e.message); }
 }
