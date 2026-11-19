@@ -30,18 +30,23 @@
       };
       // The tab uses the logo itself, the same image as the sidebar
       var typeOf = /^data:image\/svg/i.test(src) ? 'image/svg+xml' : /^data:image\/png/i.test(src) ? 'image/png' : /^data:image\/jpe?g/i.test(src) ? 'image/jpeg' : /^data:image\/webp/i.test(src) ? 'image/webp' : '';
-      setLink('icon', src, typeOf);
       var img = new Image();
       img.onload = function () {
+        // Mobile browsers need a PNG icon. The tab gets the logo as a PNG on a clear background (same image as the sidebar).
         try {
           var c = document.createElement('canvas'); c.width = 192; c.height = 192;
-          var x = c.getContext('2d');
+          c.getContext('2d').drawImage(img, 12, 12, 168, 168);
+          setLink('icon', c.toDataURL('image/png'), 'image/png');
+        } catch (e) { setLink('icon', src, typeOf); /* the browser will not let the page draw it: use the logo's own link */ }
+        // Phones use this square PNG (with the brand colour) for the home-screen icon
+        try {
+          var a = document.createElement('canvas'); a.width = 192; a.height = 192;
+          var x = a.getContext('2d');
           x.fillStyle = '#0f3d3e';
           x.beginPath(); if (x.roundRect) x.roundRect(0, 0, 192, 192, 36); else x.rect(0, 0, 192, 192); x.fill();
           x.drawImage(img, 28, 28, 136, 136);
-          // Phones use this square PNG for the home-screen icon
-          setLink('apple-touch-icon', c.toDataURL('image/png'), 'image/png');
-        } catch (e) { /* the browser will not let the page draw it: the tab still uses the logo */ }
+          setLink('apple-touch-icon', a.toDataURL('image/png'), 'image/png');
+        } catch (e) { /* no home-screen icon drawn: the browser uses its default */ }
       };
       img.onerror = function () { /* the logo could not be loaded: keep the default icon */ };
       img.src = src;
