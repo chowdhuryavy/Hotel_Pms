@@ -1626,12 +1626,15 @@ function renderPage_(page, param) {
   } else setView(`<h1>${esc(page === 'f' ? '' : label)}</h1>` + skeleton_());
   VIEW_PENDING = true;
   RENDER_RID = ++PAGE_SEQ;
+  // A small line at the top shows only when the page takes longer than a moment, so quick pages show no change
+  clearTimeout(NAV_BUSY_T); NAV_BUSY_T = setTimeout(() => document.body.classList.add('nav-busy'), 250);
   PAGES[page]().catch(e => {
     if (e && e.stale) return;   // a newer page is drawing: this one stops quietly
     if (isNetErr_(e.message)) { netFailed_(); setView(netCard_()); }
     else setView(`<div class="card err">${esc(e.message)}</div>`);
-  }).finally(() => { VIEW_PENDING = false; });
+  }).finally(() => { VIEW_PENDING = false; clearTimeout(NAV_BUSY_T); document.body.classList.remove('nav-busy'); });
 }
+let NAV_BUSY_T = 0;
 window.addEventListener('hashchange', () => {
   if (!S.token) return;
   const r = parseHash_();
