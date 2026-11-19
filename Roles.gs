@@ -46,7 +46,7 @@ function getRolePerms(token, role) {
 }
 function myPermissions(token) {
   const s = auth_(token);
-  return permMap_(s.role);
+  return permMap_(s);
 }
 function saveRolePerms(token, role, allowed) {
   const s = auth_(token, 'system.manage');

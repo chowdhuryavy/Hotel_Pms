@@ -260,7 +260,7 @@ function shiftCashUpData_(sh) {
 }
 function shiftCashUpPdf(token, shiftId) {
   const s = auth_(token);
-  const p = permMap_(s.role);
+  const p = permMap_(s);
   const sh = rows_(TBL.SHIFTS).find(r => r.id === shiftId);
   if (!sh) throw new Error('Shift not found.');
   if (!p['shifts.view'] && !p['shifts.manage'] && sh.user !== s.username) throw new Error('Permission denied: shifts.view');

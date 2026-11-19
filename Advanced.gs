@@ -130,7 +130,7 @@ function closeShift(token, countedCash) {
 }
 function listShifts(token) {
   const s = auth_(token);
-  const p = permMap_(s.role);
+  const p = permMap_(s);
   if (!p['shifts.view'] && !p['shifts.manage']) throw new Error('Permission denied: shifts.view');
   return rows_(TBL.SHIFTS).filter(x => p['shifts.view'] || x.user === s.username)
     .sort((a, b) => String(b.openedAt).localeCompare(String(a.openedAt))).slice(0, 200)
@@ -211,7 +211,7 @@ function occupancyForecast(token, days) {
 /** Everything the dashboard shows, in one server call (each part keeps its own permission check). */
 function dashboardData(token, from7, bd) {
   const s = auth_(token);
-  const p = permMap_(s.role);
+  const p = permMap_(s);
   const part = fn => { try { return fn(); } catch (e) { return { error: e.message }; } };
   const canBoard = p['frontdesk.checkin'] === true || p['frontdesk.checkout'] === true;
   const canReports = p['reports.view'] === true;

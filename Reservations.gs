@@ -119,7 +119,7 @@ function listReservations(token, f) {
 
 function getReservation(token, resNo) {
   const s = auth_(token, 'reservations.view');
-  const perms = permMap_(s.role);
+  const perms = permMap_(s);
   const r = findRes_(resNo);
   const guest = rows_(TBL.GUESTS).find(g => g.id === r.guestId) || {};
   const room = rows_(TBL.ROOMS).find(x => String(x.roomNo) === String(r.roomNo)) || {};

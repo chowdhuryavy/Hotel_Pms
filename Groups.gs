@@ -52,7 +52,7 @@ function listGroups(token) {
 
 function getGroup(token, gid) {
   const s = auth_(token, 'reservations.view');
-  const perms = permMap_(s.role);
+  const perms = permMap_(s);
   const g = rows_(TBL.GROUPS).find(x => x.id === gid);
   if (!g) throw new Error('Group not found.');
   const folios = rows_(TBL.FOLIOS).filter(f => f.status === 'Open');
@@ -89,7 +89,7 @@ function groupCheckIn(token, gid) {
 /** Group charge: target MASTER posts once to the master folio; EACH posts to every in-house room. */
 function postGroupCharge(token, gid, code, description, amount, target) {
   const s = auth_(token, 'folio.post');
-  if (permMap_(s.role)['groups.manage'] !== true) throw new Error('Permission denied: groups.manage');
+  if (permMap_(s)['groups.manage'] !== true) throw new Error('Permission denied: groups.manage');
   const amt = num_(amount);
   if (!(amt > 0)) throw new Error('Amount must be greater than zero.');
   return withLock_(() => {

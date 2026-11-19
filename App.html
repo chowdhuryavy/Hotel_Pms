@@ -3326,18 +3326,24 @@ async function removeRole(name) {
   api('deleteRole', name).then(() => { go('admin'); toast('Role deleted'); }).catch(e => toast(e.message, true));
 }
 function userModal(id, presetRole) {
-  Promise.all([api('listUsers'), api('roleOptions')]).then(([us, roles]) => {
+  Promise.all([api('listUsers'), api('roleOptions'), can('system.manage') ? api('extraPermOptions') : Promise.resolve([])]).then(([us, roles, extraOpts]) => {
     const u = id ? us.find(x => x.id === id) || {} : {};
+    const have = u.extra || [];
+    // Extra configuration access for this user, on top of the role (system administrator only)
+    const extraFields = extraOpts.length ? [{ raw: '<p class="muted wide" style="margin:6px 0 0">Extra configuration access for this user (on top of the role):</p>' }]
+      .concat(extraOpts.map(o => ({ name: 'perm_' + o[0], label: o[1], type: 'check', value: have.indexOf(o[0]) >= 0 }))) : [];
     openModal(id ? 'Edit user' : 'New user', formHtml('fUs', [
       { name: 'username', label: 'Username', required: true, value: u.username || '' },
       { name: 'name', label: 'Full name', value: u.name || '' },
       { name: 'email', label: 'Email (used for password reset)', value: u.email || '' },
       { name: 'role', label: 'Role', type: 'select', options: roles, value: u.role || presetRole || 'FrontDesk' },
       { name: 'password', label: id ? 'New password (blank = keep)' : 'Password (min 8)', type: 'password', required: !id },
-      { name: 'active', label: 'Active', type: 'check', value: id ? !!u.active : true }
+      { name: 'active', label: 'Active', type: 'check', value: id ? !!u.active : true },
+      ...extraFields
     ], 'Save user'));
     bindForm('fUs', async d => {
-      const r = await api('saveUser', { id: id || '', username: d.username, name: d.name, email: d.email, role: d.role, password: d.password || '', active: d.active === 'true' });
+      const permExtra = extraOpts.map(o => o[0]).filter(k => d['perm_' + k] === 'true');
+      const r = await api('saveUser', { id: id || '', username: d.username, name: d.name, email: d.email, role: d.role, password: d.password || '', active: d.active === 'true', permExtra: permExtra });
       toast('User saved');
       if (r && r.tempPassword) {
         openModal('Temporary password', `<p>No email was sent, so share this temporary password with the user. It is shown only once, and the user must change it at first sign-in.</p><p class="code-box">${esc(r.tempPassword)}</p><div class="acts"><button class="btn" onclick="closeModal();refresh()">Done</button></div>`);

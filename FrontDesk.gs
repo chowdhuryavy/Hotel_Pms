@@ -4,7 +4,7 @@
  * All "today" logic uses the hotel's BUSINESS DATE (set by night audit), not the wall clock.
  */
 function anyPerm_(s, list) {
-  const p = permMap_(s.role);
+  const p = permMap_(s);
   return list.some(k => p[k] === true);
 }
 
@@ -88,7 +88,7 @@ function folio1_(resNo) {
 /** force = explicit override for this one transaction; requires frontdesk.override. */
 function checkIn(token, resNo, roomNo, deposit, depositCode, force, rid) {
   const s = auth_(token, 'frontdesk.checkin');
-  const canOverride = permMap_(s.role)['frontdesk.override'] === true && (force === true || force === 'true');
+  const canOverride = permMap_(s)['frontdesk.override'] === true && (force === true || force === 'true');
   return withLock_(() => {
     const dup = idemGet_(s, rid);
     if (dup) return dup;
@@ -100,7 +100,7 @@ function checkIn(token, resNo, roomNo, deposit, depositCode, force, rid) {
 
 function checkOut(token, resNo, force, rid) {
   const s = auth_(token, 'frontdesk.checkout');
-  const canOverride = permMap_(s.role)['frontdesk.override'] === true && (force === true || force === 'true');
+  const canOverride = permMap_(s)['frontdesk.override'] === true && (force === true || force === 'true');
   return withLock_(() => {
     const dup = idemGet_(s, rid);
     if (dup) return dup;
@@ -139,7 +139,7 @@ function checkoutStatus(token, resNo) {
   const methods = rows_(TBL.PAYMETHODS).filter(m => m.active === true && m.kind !== 'City ledger')
     .map(m => ({ code: m.code, name: m.name, kind: m.kind }));
   return { resNo: resNo, guestName: r.guestName || '', roomNo: String(r.roomNo || ''), balance: num_(guestBalance_(resNo)),
-    folios: folios, methods: methods, canOverride: permMap_(s.role)['frontdesk.override'] === true };
+    folios: folios, methods: methods, canOverride: permMap_(s)['frontdesk.override'] === true };
 }
 
 /** Luhn check for a card number (digits only). */
@@ -156,8 +156,8 @@ function luhnOk_(d) {
 /** Walk-in: creates a reservation for today and checks the guest in at once. */
 function walkIn(token, d) {
   const s = auth_(token, 'reservations.create');
-  if (permMap_(s.role)['frontdesk.checkin'] !== true) throw new Error('Permission denied: frontdesk.checkin');
-  const canOverride = permMap_(s.role)['frontdesk.override'] === true && (d.force === true || d.force === 'true');
+  if (permMap_(s)['frontdesk.checkin'] !== true) throw new Error('Permission denied: frontdesk.checkin');
+  const canOverride = permMap_(s)['frontdesk.override'] === true && (d.force === true || d.force === 'true');
   return withLock_(() => {
     const bd = bizDate_();
     const r = createRes_(Object.assign({}, d, { arrival: bd, departure: d.departure || addDays_(bd, 1), channel: 'Walk-in' }), s.username);

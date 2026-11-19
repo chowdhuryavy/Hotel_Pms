@@ -76,7 +76,7 @@ function billingRoom(token, roomNo) {
     minibar: listMinibar(token).filter(x => x.active),
     currencies: listCurrencies(token),
     types: codes.reduce((m, c) => { m[c.code] = c.type; return m; }, {}),
-    canPost: permMap_(s.role)['folio.post'] === true };
+    canPost: permMap_(s)['folio.post'] === true };
   if (rs.length) out.res = getReservation(token, rs[0].resNo);
   return out;
 }

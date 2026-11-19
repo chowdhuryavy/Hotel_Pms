@@ -160,13 +160,23 @@ function hash_(salt, pw) {
   }
   return h;
 }
-function permMap_(role) {
+function permMap_(who) {
+  const role = typeof who === 'string' ? who : (who && who.role);
   const m = {};
   rows_(TBL.PERMS).forEach(r => { m[r.permission] = r[role] === true; });
   // The system administrator has every permission defined in the code, even before the sheet is updated
   if (role === ADMIN_ROLE) PERMISSIONS.forEach(p => { m[p[0]] = true; });
+  // Extra configuration access the system administrator gave this user, on top of the role
+  if (who && typeof who === 'object' && Array.isArray(who.extra)) who.extra.forEach(p => { m[p] = true; });
   return m;
 }
+/* The permissions a system administrator can give one user on top of the role: configuration screens and user management */
+function cfgPermKeys_() { return PERMISSIONS.map(p => p[0]).filter(k => k === 'users.manage' || k.indexOf('cfg.') === 0); }
+function cleanExtra_(v) {
+  const want = (Array.isArray(v) ? v : String(v || '').split(',')).map(x => String(x).trim());
+  return cfgPermKeys_().filter(k => want.indexOf(k) >= 0);
+}
+function userExtra_(u) { return cleanExtra_(String((u && u.permExtra) || '')); }
 /* Sidebar layout: { groups: [{ name, items: [page keys] }] }. The page keys are checked against the menu on the client. */
 function normalizeMenuLayout_(raw) {
   if (raw === '' || raw === null || raw === undefined) return '';
@@ -274,7 +284,7 @@ function login(username, password) {
 /** Opens the session for a user who has passed every sign-in step */
 function finishLogin_(user, failKey) {
   licenseGuard_(user.role);
-  const sess = { id: user.id, username: user.username, name: user.name, role: user.role, mustChange: user.mustChange === true };
+  const sess = { id: user.id, username: user.username, name: user.name, role: user.role, mustChange: user.mustChange === true, extra: userExtra_(user) };
   const token = Utilities.getUuid();
   const cache = CacheService.getScriptCache();
   cache.put('s:' + token, JSON.stringify(Object.assign({}, sess, { seen: Date.now() })), SESSION_SECONDS);
@@ -283,7 +293,7 @@ function finishLogin_(user, failKey) {
     patch_(TBL.USERS, user._row, { lastLogin: fmtTs_(new Date()), failCount: 0, locked: false });
     audit_(sess.username, 'LOGIN', 'User', sess.id, '');
   });
-  return { token: token, user: sess, perms: permMap_(sess.role), settings: publicSettings_(), bizDate: bizDate_() };
+  return { token: token, user: sess, perms: permMap_(sess), settings: publicSettings_(), bizDate: bizDate_() };
 }
 /** Roles that need an emailed code at sign-in */
 function otpRolesList_() {
@@ -330,7 +340,7 @@ function auth_(token, perm) {
   if (!u || u.active !== true) throw new Error('SESSION_EXPIRED');
   licenseGuard_(u.role);
   const s = { id: u.id, username: u.username, name: u.name, role: u.role };
-  if (perm && permMap_(s.role)[perm] !== true) throw new Error('Permission denied: ' + perm);
+  if (perm && permMap_(s)[perm] !== true) throw new Error('Permission denied: ' + perm);
   return s;
 }
 /** One place for the password rules: 8+ characters with an uppercase letter, a lowercase letter and a number. */
@@ -359,13 +369,20 @@ function changeMyPassword(token, oldPw, newPw) {
 /* ============================ ADMIN: USERS, PERMISSIONS, SETTINGS, AUDIT ============================ */
 function listUsers(token) {
   const s = auth_(token, 'users.manage');
-  const isSys = permMap_(s.role)['system.manage'] === true;
+  const isSys = permMap_(s)['system.manage'] === true;
   // property admins manage staff only; admin and property admin accounts belong to the system administrator
-  return rows_(TBL.USERS).filter(u => isSys || [ADMIN_ROLE, PROPERTY_ROLE].indexOf(u.role) < 0).map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, active: u.active === true, locked: u.locked === true, lastLogin: u.lastLogin || '', email: u.email || '' }));
+  return rows_(TBL.USERS).filter(u => isSys || [ADMIN_ROLE, PROPERTY_ROLE].indexOf(u.role) < 0).map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, active: u.active === true, extra: userExtra_(u), locked: u.locked === true, lastLogin: u.lastLogin || '', email: u.email || '' }));
+}
+/** The options for the extra configuration access, for the user form (system administrator only) */
+function extraPermOptions(token) {
+  auth_(token, 'system.manage');
+  return PERMISSIONS.filter(p => cleanExtra_([p[0]]).length).map(p => [p[0], p[1]]);
 }
 function saveUser(token, d) {
   const s = auth_(token, 'users.manage');
-  const isSys = permMap_(s.role)['system.manage'] === true;
+  const isSys = permMap_(s)['system.manage'] === true;
+  // Extra configuration access: only the system administrator sets it
+  const extraStr = (isSys && d.permExtra !== undefined) ? cleanExtra_(d.permExtra).join(',') : null;
   if (roleNames_().indexOf(d.role) < 0) throw new Error('Invalid role.');
   if (d.role === ADMIN_ROLE && !isSys) throw new Error('Only a system administrator can give the Admin role.');
   if (d.role === PROPERTY_ROLE && !isSys) throw new Error('Only a system administrator can create or change Property Admin accounts.');
@@ -384,6 +401,7 @@ function saveUser(token, d) {
       if (u.role === PROPERTY_ROLE && !isSys) throw new Error('Only a system administrator can change a Property Admin account.');
       if (u.id === s.id && (!active || d.role !== u.role)) throw new Error('You cannot deactivate or demote your own account.');
       const ch = { username: uname, name: d.name || uname, role: d.role, active: active, email: email };
+      if (extraStr !== null) ch.permExtra = extraStr;
       if (d.password) {
         checkNewPassword_(d.password);
         ch.salt = Utilities.getUuid();
@@ -399,7 +417,7 @@ function saveUser(token, d) {
     checkNewPassword_(pw);
     const id = id_('U'), salt = Utilities.getUuid();
     const user = { id: id, username: uname, name: d.name || uname, role: d.role, salt: salt, passHash: storeHash_(salt, pw),
-      active: active, lastLogin: '', createdAt: fmtTs_(new Date()), email: email, mustChange: true };
+      active: active, lastLogin: '', createdAt: fmtTs_(new Date()), email: email, mustChange: true, permExtra: extraStr || '' };
     append_(TBL.USERS, user);
     let mailed = false;
     if (email) { try { sendWelcome_(user, pw); mailed = true; } catch (e) { Logger.log('Welcome email: ' + e.message); } }
@@ -417,7 +435,7 @@ function getSettings(token) {
 }
 function saveSettings(token, d, rid) {
   const s = auth_(token, 'cfg.settings.edit');
-  const isSys = permMap_(s.role)['system.manage'] === true;
+  const isSys = permMap_(s)['system.manage'] === true;
   // 1) Check every value first, so a rejected save changes nothing
   const plan = [];
   Object.keys(SETTINGS_DEFAULT).forEach(k => {
@@ -501,7 +519,7 @@ function unlockUser(token, id) {
   return withLock_(() => {
     const u = rows_(TBL.USERS).find(x => x.id === id);
     if (!u) throw new Error('User not found.');
-    if ([ADMIN_ROLE, PROPERTY_ROLE].indexOf(u.role) >= 0 && permMap_(s.role)['system.manage'] !== true) throw new Error('Only a system administrator can unlock this account.');
+    if ([ADMIN_ROLE, PROPERTY_ROLE].indexOf(u.role) >= 0 && permMap_(s)['system.manage'] !== true) throw new Error('Only a system administrator can unlock this account.');
     patch_(TBL.USERS, u._row, { locked: false, failCount: 0 });
     CacheService.getScriptCache().remove('fail:' + String(u.username).toLowerCase());   // clear the short-term throttle too
     audit_(s.username, 'USER_UNLOCKED', 'User', id, u.username);
@@ -514,7 +532,7 @@ function resetUserPassword(token, id) {
   return withLock_(() => {
     const u = rows_(TBL.USERS).find(x => x.id === id);
     if (!u) throw new Error('User not found.');
-    if ([ADMIN_ROLE, PROPERTY_ROLE].indexOf(u.role) >= 0 && permMap_(s.role)['system.manage'] !== true) throw new Error('Only a system administrator can reset this account.');
+    if ([ADMIN_ROLE, PROPERTY_ROLE].indexOf(u.role) >= 0 && permMap_(s)['system.manage'] !== true) throw new Error('Only a system administrator can reset this account.');
     const pw = genTempPassword_(), salt = Utilities.getUuid();
     patch_(TBL.USERS, u._row, { salt: salt, passHash: storeHash_(salt, pw), mustChange: true, failCount: 0, locked: false });
     let mailed = false;
@@ -541,5 +559,5 @@ function redeemHandover(id) {
   if (!raw) throw new Error('SESSION_EXPIRED');
   const s = JSON.parse(raw);
   return { token: token, user: { id: s.id, username: s.username, name: s.name, role: s.role, mustChange: s.mustChange === true },
-    perms: permMap_(s.role), settings: publicSettings_(), bizDate: bizDate_() };
+    perms: permMap_(s), settings: publicSettings_(), bizDate: bizDate_() };
 }

@@ -31,7 +31,7 @@ function notifSave_(s, st) {
 /** The alerts this user should see: their permissions allow them, and they were not cleared at this count. */
 function notificationsList(token) {
   const s = auth_(token);
-  const perms = permMap_(s.role);
+  const perms = permMap_(s);
   const st = notifState_(s);
   const items = notifItems_(bizDate_())
     .filter(i => perms[i.perm] === true)

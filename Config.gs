@@ -13,7 +13,7 @@ const PAY_TYPE = 'Payment';
 const CHARGE_TYPE = 'Charge';
 
 const TBL = {
-  USERS:     ['Users', ['id','username','name','role','salt','passHash','active','lastLogin','createdAt','email','mustChange','failCount','locked']],
+  USERS:     ['Users', ['id','username','name','role','salt','passHash','active','lastLogin','createdAt','email','mustChange','failCount','locked','permExtra']],
   PERMS:     ['Permissions', ['permission','description'].concat(ROLES)],
   SETTINGS:  ['Settings', ['key','value']],
   ROOMTYPES: ['RoomTypes', ['code','name','baseRate','maxAdults','active','description']],
@@ -89,7 +89,7 @@ const PERMISSIONS = [
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.159';
+const APP_VERSION = '1.2.160';
 const SETTINGS_DEFAULT = {
   maxLoginAttempts: 5,      // wrong passwords before the account is locked (system admin, minimum 5)
   inactivityMinutes: 30,    // idle minutes before sign-out (system admin)
