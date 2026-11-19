@@ -15,7 +15,9 @@ const balCell = v => `<span class="${Number(v) > 0.005 ? 'neg' : 'pos'}">${num(v
 const pill = s => `<span class="pill ${esc(s)}">${esc(s)}</span>`;
 const lnk = resNo => `<span class="lnk" onclick="go('res','${esc(resNo)}')">${esc(resNo)}</span>`;
 const lnkTo = (page, id, label) => `<span class="lnk" onclick="go('${page}','${esc(id)}')">${esc(label)}</span>`;
-const tr = (cells, cls) => `<tr class="${cls || ''}">${cells.map(c => `<td>${c}</td>`).join('')}</tr>`;
+/* Dates show as dd-mm-yyyy. Stored values stay yyyy-mm-dd. Works on text that may hold dates, such as '2026-11-19 14:30'. */
+const dmy = v => String(v == null ? '' : v).replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, '$3-$2-$1');
+const tr = (cells, cls) => `<tr class="${cls || ''}">${cells.map(c => `<td>${dmy(c)}</td>`).join('')}</tr>`;
 const kpi = (l, v) => `<div class="kpi"><span>${esc(l)}</span><b>${v}</b></div>`;
 const kv = pairs => `<dl class="kv">${pairs.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>`;
 function table(headers, rows) {
@@ -208,8 +210,8 @@ function startApp() {
   buildNav();
   const hotelTop = (S.settings && (S.settings.hotelName || S.settings.appName)) || 'Stayline';
   $('who').innerHTML = `<div class="top-hotel"><span class="top-hotel-name">${esc(hotelTop)}</span><span class="top-hotel-sub">${esc((S.settings && S.settings.appName) || 'Stayline')}</span></div>` +
-    `<form class="qs" onsubmit="searchGo(event)"><input name="q" placeholder="Search room, guest, res #, group…" aria-label="Search"></form>` +
-    `<span class="bizchip" title="Business date"><span>Business date</span><b>${esc(S.bizDate)}</b></span>`;
+    `<form class="qs" role="search" onsubmit="searchGo(event)"><input name="q" type="search" placeholder="Search room, guest, res #, group…" aria-label="Search"></form>` +
+    `<span class="bizchip" title="Business date"><span>Business date</span><b>${esc(dmy(S.bizDate))}</b></span>`;
   $('account').innerHTML = acctHtml_();
   idleReset_();
   if (S.user.mustChange) toast('Please choose a new password to continue.');
@@ -547,7 +549,7 @@ async function pgDashboard() {
     <div class="kpis">${kpi('In-house', b.inHouse.length)}${kpi('Arrivals', b.arrivals.length)}${kpi('Departures', b.departures.length)}
       ${kpi('Occupancy', occ)}${kpi('Past-due arrivals', b.pastDue.length)}${kpi('Dirty rooms', b.dirtyRooms)}</div>
     <div class="grid2">
-      <div class="card"><h3>Flash · ${esc(b.bizDate)}</h3>${table(f.headers, f.rows.map(r => tr(r.map(c => typeof c === 'number' ? `<span>${num(c)}</span>` : esc(c)))))}</div>
+      <div class="card"><h3>Flash · ${esc(dmy(b.bizDate))}</h3>${table(f.headers, f.rows.map(r => tr(r.map(c => typeof c === 'number' ? `<span>${num(c)}</span>` : esc(c)))))}</div>
       <div class="card"><h3>Quick actions</h3><div class="acts">
         ${can('frontdesk.checkin') ? '<button class="btn" onclick="go(\'frontdesk\')">Front desk</button>' : ''}
         ${can('reservations.create') ? '<button class="btn" onclick="go(\'newres\')">New reservation</button>' : ''}
@@ -1246,7 +1248,7 @@ async function repLoad(cur) {
   const rep = await api('runReport', cur.type, cur.from, cur.to);
   LAST = Object.assign({}, rep, cur);
   const secs = rep.sections || [{ title: '', headers: rep.headers, rows: rep.rows }];
-  $('repOut').innerHTML = `<h3>${esc(rep.title)}</h3>` + secs.map(sec => (sec.title && rep.sections ? `<h3 class="sec-title">${esc(sec.title)}</h3>` : '') +
+  $('repOut').innerHTML = `<h3>${esc(dmy(rep.title))}</h3>` + secs.map(sec => (sec.title && rep.sections ? `<h3 class="sec-title">${esc(sec.title)}</h3>` : '') +
     table(sec.headers, sec.rows.map(r => tr(r.map(c => typeof c === 'number' ? `<span>${num(c)}</span>` : esc(c)), r[0] === 'TOTAL' ? 'sum' : '')))).join('');
 }
 function repRun(e) {

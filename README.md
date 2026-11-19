@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.10**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.11**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.11: the header is laid out properly (hotel name, a styled search bar and the business date chip). Dates show as dd-mm-yyyy in tables, titles, the header and PDFs. Stored data and CSV files keep yyyy-mm-dd.
 
 Release notes for 1.2.10: browser pop-ups are replaced by styled dialogs. Confirmations (for example deleting a role) show a confirm dialog with Cancel, Enter confirms and Escape cancels. Messages show as a styled notification with an icon.
 

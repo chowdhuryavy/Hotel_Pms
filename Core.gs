@@ -16,6 +16,8 @@ function sh_(t) {
   if (!s) throw new Error('Missing sheet "' + t[0] + '". Run setupDatabase().');
   return s;
 }
+/* Display dates as dd-mm-yyyy (PDF and printed text). Stored values stay yyyy-mm-dd. */
+function dmy_(v) { return String(v == null ? '' : v).replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, '$3-$2-$1'); }
 function fmtD_(d)  { return Utilities.formatDate(d, TZ, 'yyyy-MM-dd'); }
 function fmtTs_(d) { return Utilities.formatDate(d, TZ, 'yyyy-MM-dd HH:mm'); }
 function calToday_() { return fmtD_(new Date()); }

@@ -51,7 +51,20 @@
   .account .btn.ghost:hover{background:rgba(255,255,255,.12)}
   body.sb-collapsed .sidebar{margin-left:-240px}
   .sidebar{transition:margin-left .25s ease}
-  .who{font-size:13px;color:var(--muted)}
+  .who{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:16px;flex:1;min-width:0}
+  .qs{flex:1;max-width:520px;margin:0 auto;min-width:0}
+  .qs input{width:100%;box-sizing:border-box;padding:10px 16px 10px 40px;border-radius:999px;border:1px solid var(--line);background-color:rgba(127,127,127,.08);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23889' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.3-4.3'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:14px center;color:var(--text);font:inherit;font-size:14px;transition:border-color .2s ease,box-shadow .2s ease,background-color .2s ease}
+  .qs input::placeholder{color:var(--muted);opacity:.85}
+  .qs input:hover{border-color:rgba(29,120,116,.45)}
+  .qs input:focus{outline:none;border-color:var(--brand-2);background-color:var(--card);box-shadow:0 0 0 4px rgba(29,120,116,.16)}
+  body.rtl .qs input{background-position:right 14px center;padding:10px 40px 10px 16px}
+  .top-hotel{display:flex;flex-direction:column;line-height:1.25;min-width:0;flex:none}
+  .top-hotel-name{font-weight:800;font-size:16px;color:var(--text);letter-spacing:.2px}
+  .top-hotel-sub{font-size:10.5px;color:var(--brand-2);letter-spacing:1.2px;text-transform:uppercase;font-weight:700}
+  .bizchip{display:inline-flex;flex-direction:column;align-items:flex-start;padding:6px 14px;border-radius:12px;background:linear-gradient(135deg,rgba(242,177,52,.20),rgba(242,177,52,.08));border:1px solid rgba(242,177,52,.55);white-space:nowrap;flex:none;box-shadow:0 2px 8px rgba(242,177,52,.12)}
+  .bizchip span{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700}
+  .bizchip b{font-size:15px;font-variant-numeric:tabular-nums;color:var(--text)}
+  @media (max-width:700px){ .who{gap:10px} .qs{max-width:none} .top-hotel-name{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} }
   .view{padding:20px;max-width:1320px;width:100%}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}

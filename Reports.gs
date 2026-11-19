@@ -182,9 +182,9 @@ function exportReportPdf(token, type, from, to) {
   const logo = hotelLogoHtml_(st);
   const html = '<html><head><style>body{font-family:Arial,sans-serif;font-size:11px}h1{font-size:18px;margin:0}' +
     'table{border-collapse:collapse;width:100%;margin-top:10px}td,th{border:1px solid #999;padding:4px}th{background:#e6efef;text-align:left}</style></head><body>' +
-    logo + '<h1>' + esc(st.hotelName) + '</h1><h3>' + esc(rep.title) + ' · ' + esc(from || '') + ' to ' + esc(to || '') + '</h3>' +
+    logo + '<h1>' + esc(st.hotelName) + '</h1><h3>' + esc(dmy_(rep.title)) + ' · ' + esc(dmy_(from || '')) + ' to ' + esc(dmy_(to || '')) + '</h3>' +
     reportSections_(rep).map(sec => '<h3>' + esc(sec.title) + '</h3><table><tr>' + sec.headers.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr>' +
-    sec.rows.map(r => '<tr>' + r.map(c => '<td>' + esc(c) + '</td>').join('') + '</tr>').join('') + '</table>').join('') +
+    sec.rows.map(r => '<tr>' + r.map(c => '<td>' + esc(dmy_(c)) + '</td>').join('') + '</tr>').join('') + '</table>').join('') +
     '<p>Generated ' + fmtTs_(new Date()) + ' · ' + esc(st.hotelName) + '</p></body></html>';
   const blob = HtmlService.createHtmlOutput(html).getAs('application/pdf');
   audit_(s.username, 'REPORT_EXPORT', 'Report', type, (from || '') + ' to ' + (to || ''));
