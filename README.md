@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.196**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.197**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.197: The password fields on Change password and the forced password change show an eye icon to show or hide the password, like the sign-in page, instead of a Show text button.
 
 Release notes for 1.2.196: A property admin can save a new staff user, with any role they hold. This was blocked by a rule from an early version that only let the system administrator add users.
 

@@ -3574,7 +3574,7 @@ function forcePwGate_() {
 function pwField(name, label, ac, live) {
   return `<label class="wide field"><span>${label}</span><span class="pw">` +
     `<input name="${name}" type="password" autocomplete="${ac}" required${live ? ' oninput="pwLive(this.form)"' : ''}>` +
-    `<button type="button" class="pw-toggle" onclick="pwToggle(this)" aria-label="Show or hide password">Show</button></span></label>`;
+    `<button type="button" class="pw-toggle" onclick="pwToggle(this)" aria-label="Show password" aria-pressed="false" title="Show password"><svg class="eye-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.9 10.9 0 0 1 12 19c-6.4 0-10-7-10-7a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A10.9 10.9 0 0 1 12 4c6.4 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/></svg></button></span></label>`;
 }
 function pwRulesHtml() {
   return '<ul class="rules" id="pwRules">' +
@@ -3597,10 +3597,14 @@ function pwLive(form) {
   const b = form.querySelector('button[type=submit]');
   if (b) b.disabled = !r.ok;
 }
+/* Eye icon: shows or hides the password in this field */
 function pwToggle(btn) {
   const i = btn.parentElement.querySelector('input'), show = i.type === 'password';
   i.type = show ? 'text' : 'password';
-  btn.textContent = show ? 'Hide' : 'Show';
+  btn.classList.toggle('on', show);
+  btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+  btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+  btn.title = show ? 'Hide password' : 'Show password';
 }
 function formErr_(msg) { const e = document.getElementById('fgErr'); if (e) e.textContent = msg || ''; }
 
