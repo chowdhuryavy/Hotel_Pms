@@ -3043,7 +3043,8 @@ function barChart_(labels, values, fmt) {
     const cached = JSON.parse(localStorage.getItem('st_pub') || 'null');
     if (cached && cached.appName) { S.settings = cached; brand(); preloadLogo_(cached.logoUrl); }
   } catch (e) { /* no cache */ }
-  try { S.settings = await rpc('getPublicSettings'); preloadLogo_(S.settings.logoUrl); try { localStorage.setItem('st_pub', JSON.stringify(S.settings)); } catch (x) { /* private mode */ } }
+  let freshSettings = null;   // what the server says right now (name, logo, hotel details)
+  try { freshSettings = await rpc('getPublicSettings'); S.settings = freshSettings; preloadLogo_(S.settings.logoUrl); try { localStorage.setItem('st_pub', JSON.stringify(S.settings)); } catch (x) { /* private mode */ } }
   catch (e) {
     S.settings = { appName: '', hotelName: '', currency: '' };
     // A dropped connection is not a missing database: retry the page once, after a short wait
@@ -3063,7 +3064,10 @@ function barChart_(labels, values, fmt) {
   const saved = loadSession();
   if (saved && saved.token) {
     splashMsg('Welcome back…');
-    S.token = saved.token; S.user = saved.user; S.perms = saved.perms; S.settings = saved.settings || S.settings; S.bizDate = saved.bizDate || '';
+    S.token = saved.token; S.user = saved.user; S.perms = saved.perms;
+    // Saved values first, then the fresh ones from the server, so a changed App name shows at once
+    S.settings = Object.assign({}, saved.settings || {}, freshSettings || {}); S.bizDate = saved.bizDate || '';
+    brand();
     startApp();
     waitSplash_();
   } else {
