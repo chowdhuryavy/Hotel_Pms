@@ -325,6 +325,7 @@ if (require.main === module) {
   run("(() => { saveRolePerms(TOK, 'Property Admin', rows_(TBL.PERMS).filter(p => p['Property Admin'] === true).map(p => p.permission).concat(" + JSON.stringify(PAD_GRANT) + ")); return true; })()");
   ok(run("listRoles('" + PTOK + "').every(r => r.name !== 'Admin' && r.name !== 'Property Admin')"), 'property admin does not see the Admin or Property Admin roles');
   ok(run("healthCheck(TOK).database === 'ok' && healthCheck(TOK).tables > 0"), 'health check reads the database without errors');
+  ok(!tryRun("saveUser('" + PTOK + "', { username: 'newstaff', name: 'New Staff', role: 'FrontDesk', password: 'Staff12345', active: true })").e, 'property admin creates a staff user with a role they hold');
   ok(run("getUserFormData('" + PTOK + "').roles.every(r => r !== 'Admin' && r !== 'Property Admin') && Array.isArray(getUserFormData('" + PTOK + "').users)"), 'staff user form data leaves out the Admin roles and accounts');
   ok(run("roleOptions('" + PTOK + "').every(r => r !== 'Admin' && r !== 'Property Admin')"), 'property admin role choices leave out Admin and Property Admin');
   ok(!!tryRun("saveRolePerms('" + PTOK + "', 'Admin', [])").e, 'property admin cannot change the Admin role');

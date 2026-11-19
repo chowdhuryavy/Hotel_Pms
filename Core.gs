@@ -473,7 +473,6 @@ function saveUser(token, d) {
       audit_(s.username, 'USER_UPDATED', 'User', d.id, uname + ' ' + d.role);
       return { id: d.id, tempPassword: '' };
     }
-    if (!isSys) throw new Error('Only the system administrator can add users.');
     const pw = d.password || genTempPassword_();
     checkNewPassword_(pw);
     const id = id_('U'), salt = Utilities.getUuid();
