@@ -3072,10 +3072,10 @@ function delBtn_(kind, key, perm) {
   return can(perm) ? `<button class="btn sm danger" onclick="deleteConfigAct('${kind}','${esc(String(key))}')">Delete</button>` : '';
 }
 function deleteConfigAct(kind, key) {
-  openModal('Delete', `<p>Delete this item? If it has already been used in a reservation or posting, it is deactivated instead so its history stays intact.</p>
+  openModal('Delete', `<p>Delete this item? It can only be deleted if it has never been used. If it has been used, deleting is refused: edit it and untick Active instead.</p>
     <div class="actions"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn danger" id="dcGo">Delete</button></div>`);
   $('dcGo').addEventListener('click', async () => {
-    try { const r = await api('deleteConfig', kind, key); toast(r.deactivated ? 'Used before, so it was deactivated instead' : 'Deleted'); closeModal(); refresh(); }
+    try { await api('deleteConfig', kind, key); toast('Deleted'); closeModal(); refresh(); }
     catch (e) { toast(e.message, true); }
   });
 }

@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.95**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.96**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.96: Charge codes (transaction codes), rate plans, payment methods, packages and company (AR) accounts can be created, edited and deleted. Delete works only when the item has never been used; if it has been used, deleting is refused and the item is made inactive by unticking Active.
 
 Release notes for 1.2.95: Night audit reports added for a full night audit, even where there is no data yet: revenue by department, taxable charges and tax, expected departures, past-due arrivals, rooms out of order, 7-day forecast, occupancy by room type, guest ledger and group ledger. Every report shows its columns when it has no rows.
 

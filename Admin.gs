@@ -17,15 +17,15 @@ function configKind_(kind) {
     rate:          { tbl: TBL.RATES, key: 'id', perm: 'cfg.rates.delete', label: 'Rate', inUse: () => false },
     chargeCode:    { tbl: TBL.CHARGES, key: 'code', perm: 'cfg.chargecodes.delete', label: 'Charge code',
                      inUse: k => rows_(TBL.POSTINGS).some(p => p.code === k) || rows_(TBL.PAYMETHODS).some(m => m.chargeCode === k) },
-    package:       { tbl: TBL.PACKAGES, key: 'code', perm: 'cfg.packages.delete', label: 'Package', inUse: () => false },
-    paymentMethod: { tbl: TBL.PAYMETHODS, key: 'code', perm: 'cfg.payments.delete', label: 'Payment method', inUse: () => false },
+    package:       { tbl: TBL.PACKAGES, key: 'code', perm: 'cfg.packages.delete', label: 'Package', inUse: k => rows_(TBL.POSTINGS).some(p => p.code === k) },
+    paymentMethod: { tbl: TBL.PAYMETHODS, key: 'code', perm: 'cfg.payments.delete', label: 'Payment method', inUse: k => rows_(TBL.POSTINGS).some(p => p.code === k) },
     account:       { tbl: TBL.ACCOUNTS, key: 'id', perm: 'cfg.accounts.delete', label: 'Company account',
                      inUse: k => rows_(TBL.FOLIOS).some(f => f.accountId === k) }
   };
   return kinds[kind] || null;
 }
 
-/** Deletes a configuration item, or deactivates it when it has already been used. */
+/** Deletes a configuration item. An item that has already been used cannot be deleted: make it inactive instead. */
 function deleteConfig(token, kind, key) {
   const k = configKind_(kind);
   if (!k) throw new Error('Unknown item.');
@@ -33,11 +33,7 @@ function deleteConfig(token, kind, key) {
   return withLock_(() => {
     const row = rows_(k.tbl).find(x => String(x[k.key]) === String(key));
     if (!row) throw new Error(k.label + ' not found.');
-    if (k.inUse(String(key))) {
-      patch_(k.tbl, row._row, { active: false });
-      audit_(s.username, 'CONFIG_DEACTIVATED', 'Config', kind + ':' + key, k.label + ' is in use, so it was deactivated');
-      return { deactivated: true };
-    }
+    if (k.inUse(String(key))) throw new Error(k.label + ' ' + key + ' has already been used, so it cannot be deleted. Edit it and untick Active to make it inactive.');
     sh_(k.tbl).deleteRow(row._row);
     audit_(s.username, 'CONFIG_DELETED', 'Config', kind + ':' + key, k.label);
     return { deleted: true };
