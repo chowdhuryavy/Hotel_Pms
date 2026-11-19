@@ -250,7 +250,9 @@ function waitSplash_() {
     const el = Date.now() - t0;
     if (slowNote < 1 && el > 6000) { slowNote = 1; splashMsg('Still preparing your hotel. The first load can take a little longer…'); }
     if (slowNote < 2 && el > 15000) { slowNote = 2; splashMsg('Slow connection. Still loading your hotel…'); }
-    if ((!VIEW_PENDING && PROGRESS_N === 0) || el > 60000) hideSplash();
+    // The layout is ready as soon as the page skeleton is drawn: the data then fills it in, the splash does not wait for it
+    const drawn = !!document.querySelector('#view .skel, #view > .card, #view > h1');
+    if (drawn || (!VIEW_PENDING && PROGRESS_N === 0) || el > 60000) hideSplash();
     else setTimeout(tick, 150);
   };
   tick();
@@ -1235,7 +1237,7 @@ function renderPage_(page, param) {
   document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('on', a.dataset.p === page));
   const label = (NAV.find(n => n.k === page) || {}).l || 'Change password';
   document.title = label + ' · ' + ((S.settings && S.settings.appName) || '');
-  setView(skeleton_());
+  setView(`<h1>${esc(page === 'f' ? 'Loading…' : label)}</h1>` + skeleton_());   // title and layout show at once; data fills in
   VIEW_PENDING = true;
   PAGES[page]().catch(e => {
     if (isNetErr_(e.message)) { netFailed_(); setView(netCard_()); }
