@@ -1597,7 +1597,8 @@ function abBtn_(icon, label, onclick, cls) {
 function renderPage_(page, param) {
   ADM_BARE = false;   // a page is drawn in full; only a section tab draws a section alone
   setBottomBar_('');
-  if (S.user && S.user.mustChange) page = 'password';        // a temporary password must be changed first
+  // A temporary password must be changed first: the app behind is blurred and nothing in it can be used
+  if (S.user && S.user.mustChange) { forcePwGate_(); tabSetView_(''); return; }
   if (!PAGES[page]) page = firstPage();
   else if (!pageAllowed_(page)) {
     toast('You do not have permission to open that page.', true);
@@ -3534,6 +3535,36 @@ async function roomModal(roomNo) {
 /* ============================================================
  * PASSWORD
  * ============================================================ */
+/* The forced password change: the app is blurred behind it, and only this box works until the password is changed */
+function forcePwGate_() {
+  if (document.getElementById('forcePw')) return;
+  document.body.classList.add('force-pw');
+  const d = document.createElement('div');
+  d.id = 'forcePw'; d.className = 'force-pw-gate';
+  d.innerHTML = `<div class="force-pw-card" role="dialog" aria-modal="true" aria-labelledby="fpwT">
+    <h2 id="fpwT">Choose a new password</h2>
+    <p class="muted">Your password is temporary. Choose a new password to continue.</p>
+    <form id="fPwGate" class="fgrid">
+      ${pwField('oldPw', 'Temporary password', 'current-password', false)}
+      ${pwField('newPw', 'New password', 'new-password', true)}
+      ${pwField('confirm', 'Confirm new password', 'new-password', true)}
+      ${pwRulesHtml()}
+      <p class="err" id="fgErr"></p>
+      <div class="actions"><button class="btn ghost" type="button" onclick="sessionEnd('')">Sign out</button><button class="btn" type="submit" disabled>Change password</button></div>
+    </form></div>`;
+  document.body.appendChild(d);
+  const f = d.querySelector('#fPwGate');
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = f.querySelector('button[type=submit]');
+    btn.disabled = true; formErr_('');
+    try {
+      await api('changeMyPassword', f.oldPw.value, f.newPw.value);
+      S.user.mustChange = false; saveSession(); d.remove(); document.body.classList.remove('force-pw');
+      toast('Password changed'); go(firstPage());
+    } catch (err) { formErr_(err.message); pwLive(f); }
+  });
+}
 /* ------------------------------------------------------------
  * Password fields with a show/hide toggle and a live rules check
  * ------------------------------------------------------------ */
