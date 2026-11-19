@@ -26,7 +26,7 @@ function table(headers, rows) {
 /* Page content. A page that finishes loading after a form tab was opened must not draw over that tab. */
 function setView(html) { if (ACTIVE_TAB !== 'page') return; $('view').innerHTML = html; }
 /* Content of the open form tab */
-function tabSetView_(html) { $('view').innerHTML = html; }
+function tabSetView_(html) { (RUN_PANE && RUN_PANE.isConnected ? RUN_PANE : $('view')).innerHTML = html; }
 
 /* ---------- RPC ---------- */
 function rpc(fn, ...args) {
@@ -403,7 +403,7 @@ function openModal(title, html) {
     openAppTab_(e, l || title);
     return;
   }
-  if (ACTIVE_TAB !== 'page') {
+  if (RUN_PANE && RUN_PANE.isConnected) {
     tabSetView_(`<div class="tabform"><div class="tabform-head"><h1>${esc(title)}</h1><button class="btn ghost" type="button" onclick="closeModal()">Close</button></div><div class="card tabform-body">${html}</div></div>`);
     return;
   }
@@ -422,25 +422,44 @@ function openAppTab_(expr, title) {
   APP_TABS.push(t);
   showAppTab_(t.id);
 }
+/* Shows one tab. A form tab keeps its own container: switching tabs only shows or hides containers,
+   so a form that finishes loading after you switched still fills its own tab, and what you typed is kept. */
+let RUN_PANE = null;   // the container of the form tab that was opened last (its async forms draw here)
+function paneFor_(id) {
+  let p = document.getElementById('pane-' + id);
+  if (!p) {
+    p = document.createElement('div'); p.id = 'pane-' + id; p.className = 'apppane'; p.hidden = true;
+    let host = document.getElementById('appPanes');
+    if (!host) { host = document.createElement('div'); host.id = 'appPanes'; $('view').parentNode.insertBefore(host, $('view').nextSibling); }
+    host.appendChild(p);
+  }
+  return p;
+}
+function applyTabVisibility_() {
+  $('view').hidden = ACTIVE_TAB !== 'page';
+  document.querySelectorAll('#appPanes .apppane').forEach(p => { p.hidden = p.id !== 'pane-' + ACTIVE_TAB; });
+}
 function showAppTab_(id) {
   if (id !== 'page' && !APP_TABS.find(x => x.id === id)) id = 'page';
   ACTIVE_TAB = id;
   renderAppTabs_();
+  if (id !== 'page') paneFor_(id);   // the container exists before it is shown
+  applyTabVisibility_();
   if (id === 'page') { renderPage_(S.page, S.param); return; }
   const t = APP_TABS.find(x => x.id === id);
-  tabSetView_(skeleton_());
+  const pane = paneFor_(id);
+  RUN_PANE = pane;
+  if (t.loaded) return;               // already loaded: show it as it was
+  t.loaded = true;
+  pane.innerHTML = skeleton_();
   Promise.resolve().then(() => (0, eval)(t.expr)).catch(e => {
-    if (ACTIVE_TAB === id) tabSetView_(`<div class="card err">${esc(e.message)}</div>`);
+    if (pane.isConnected) pane.innerHTML = `<div class="card err">${esc(e.message)}</div>`;
   });
 }
-/* A form that fails while loading shows its error in its tab, not a blank tab */
-window.addEventListener('unhandledrejection', e => {
-  if (ACTIVE_TAB === 'page') return;
-  const msg = String((e && e.reason && e.reason.message) || e.reason || 'The form could not be loaded.');
-  tabSetView_('<div class="card err"><h3>This form could not be loaded</h3><p>' + esc(msg) + '</p><p class="muted">Close the tab and open it again. If it keeps happening, tell the system administrator.</p></div>');
-});
 function closeAppTab_(id) {
   APP_TABS = APP_TABS.filter(x => x.id !== id);
+  const p = document.getElementById('pane-' + id); if (p) p.remove();
+  if (RUN_PANE && !RUN_PANE.isConnected) RUN_PANE = null;
   if (ACTIVE_TAB === id) showAppTab_('page'); else renderAppTabs_();
 }
 /* The tab strip: the page first, then one tab per open form. Hidden when no form is open. */
@@ -1286,7 +1305,7 @@ function renderPage_(page, param) {
     page = firstPage();
   }
   if (location.hash !== routeHash_(page, param)) history.replaceState(null, '', routeHash_(page, param));
-  ACTIVE_TAB = 'page'; renderAppTabs_();   // drawing a page brings the page back in front of any form tab
+  ACTIVE_TAB = 'page'; renderAppTabs_(); applyTabVisibility_();   // drawing a page brings the page back in front of any form tab
   S.page = page; S.param = param || null;
   hideModal_();   // not closeModal(): in a tab that would close the window
   document.body.classList.remove('menu-open');
