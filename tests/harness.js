@@ -313,9 +313,10 @@ if (require.main === module) {
   const PTOK = tryRun("login('propadmin','Prop12345')").v.token;
   ok(!!PTOK, 'property admin signs in');
   ok(!!tryRun("listRoles('" + PTOK + "')").e, 'property admin cannot manage roles');
-  ok(run("settings_().appUrl") !== 'https://evil.example' && !!tryRun("saveSettings('" + PTOK + "', { appUrl: 'https://evil.example' })").e, 'property admin cannot change the app link');
+  tryRun("saveSettings('" + PTOK + "', { appUrl: 'https://evil.example' })");
+  ok(run("settings_().appUrl") !== 'https://evil.example', 'property admin cannot change the app link');
   ok(!!tryRun("saveUser('" + PTOK + "', { username: 'boss', name: 'Boss', role: 'Admin', password: 'Boss12345', active: true })").e, 'property admin cannot give the Admin role');
-  ok(!!tryRun("saveSettings('" + PTOK + "', { hotelName: 'Perfection Hotel' })").e && run("permMap_('Property Admin')['cfg.settings.edit']") === false, 'property admin cannot change hotel details by default');
+  ok(!tryRun("saveSettings('" + PTOK + "', { hotelName: 'Perfection Hotel' })").e && run("permMap_('Property Admin')['cfg.settings.edit']") === true, 'property admin can change hotel details');
   ok(run("permMap_('Property Admin')['cfg.roomtypes.edit']") === true && run("permMap_('Property Admin')['cfg.accounts.delete']") === true, 'property admin has configuration rights for rooms, rates and accounts by default');
   ok(run("permMap_('Manager')['cfg.payments.edit']") === false && run("permMap_('Manager')['cfg.roomtypes.edit']") === true, 'manager edits room types only, not payment methods');
   const w = tryRun("saveUser(TOK, { username: 'newbie', name: 'New Bie', email: 'newbie@example.com', role: 'FrontDesk', active: true })");
@@ -527,7 +528,8 @@ if (require.main === module) {
   ok(run("JSON.parse(settings_().menuLayout).groups.length") === 2, 'menu layout is stored');
   ok(!!tryRun("saveSettings(TOK, {menuLayout: 'not json'})").e, 'menu layout must be valid JSON');
   ok(!!tryRun("saveSettings(TOK, {menuLayout: JSON.stringify({groups: [{name: '', items: []}]})})").e, 'every menu group needs a name');
-  ok(!!tryRun("saveSettings(PT2, {menuLayout: JSON.stringify({groups: []})})").e, 'property admin cannot change the menu layout');
+  tryRun("saveSettings(PT2, {menuLayout: JSON.stringify({groups: []})})");
+  ok(run("settings_().menuLayout") !== JSON.stringify({groups: []}), 'property admin cannot change the menu layout');
   ok(!tryRun("saveSettings(TOK, {menuLayout: ''})").e && run("settings_().menuLayout") === '', 'menu layout can be reset to default');
   // Email sending: SMTP through the hotel's relay, or the Google account when SMTP is off
   ok(!!tryRun("getEmailConfig(PT2)").e, 'property admin cannot see email sending settings');
