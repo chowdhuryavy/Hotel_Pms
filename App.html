@@ -235,7 +235,8 @@ async function doLogin(e) {
     S.token = r.token; S.user = r.user; S.perms = r.perms; S.settings = r.settings; S.bizDate = r.bizDate;
     saveSession(); brand();
     const sp = $('splash'); if (sp) sp.classList.remove('gone');
-    splashMsg('Loading your hotel…');
+    splashTheme_();                                   // the saved loading style and message, as set by the system admin
+    if (!(S.settings && S.settings.loadingMessage)) splashMsg('Loading your hotel…');
     startApp();
     waitSplash_();
   } catch (err) {
@@ -1680,7 +1681,7 @@ async function pgAdmin(scope) {
       { name: 'auditorAutoSend', label: 'Email the auditor after each night audit', type: 'select', options: ['false', 'true'], value: String(s.auditorAutoSend) },
       { name: 'licenseStart', label: 'Licence start: first day the client can use the app', type: 'date', value: s.licenseStart || '' },
       { name: 'licenseExpiry', label: 'Licence expiry: last day the app is open (renew before this)', type: 'date', value: s.licenseExpiry || '' },
-      { name: 'loadingScreen', label: 'Loading screen style (default for all users)', type: 'select', options: [opt('random', 'Random each time'), opt('classic', 'Classic'), opt('orbit', 'Orbit'), opt('flip', 'Flip'), opt('pulse', 'Pulse')], value: s.loadingScreen || 'random' },
+      { name: 'loadingScreen', label: 'Loading screen style (default for all users)', type: 'select', options: [opt('random', 'Random each time'), opt('classic', 'Classic'), opt('orbit', 'Orbit'), opt('flip', 'Flip'), opt('pulse', 'Pulse'), opt('ring', 'Ring'), opt('glow', 'Glow'), opt('slide', 'Slide in'), opt('wave', 'Wave dots'), opt('spin', 'Spin 3D'), opt('drop', 'Drop')], value: s.loadingScreen || 'random' },
       { name: 'maxLoginAttempts', label: 'Wrong passwords before the account is locked (minimum 5)', type: 'number', min: 5, value: s.maxLoginAttempts || 5 },
       { name: 'inactivityMinutes', label: 'Sign out after this many idle minutes', type: 'number', min: 1, value: s.inactivityMinutes || 30 },
       { name: 'intPosUrl', label: 'POS address (https)', value: s.intPosUrl, wide: true },
@@ -1721,7 +1722,7 @@ async function pgAdmin(scope) {
   if (ADM === 'settings' && can('cfg.settings.edit')) bindForm('fSt', async d => {
     const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, hotelAddress: d.hotelAddress, logoUrl: d.logoUrl, currency: d.currency,
       taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit, loadingMessage: d.loadingMessage });
-    S.settings = Object.assign({}, S.settings, { appName: out.appName, hotelName: out.hotelName, logoUrl: out.logoUrl, currency: out.currency });
+    S.settings = Object.assign({}, S.settings, { appName: out.appName, hotelName: out.hotelName, logoUrl: out.logoUrl, currency: out.currency, loadingScreen: d.loadingScreen, loadingMessage: d.loadingMessage });
     brand(); toast('Settings saved');
   });
   if (ADM === 'settings') {
@@ -2377,9 +2378,11 @@ function readLogo_(file) {
 /* Loading screen look: the system admin's default, or a random one when set to random */
 function splashTheme_() {
   const sp = document.getElementById('splash'); if (!sp) return;
-  const map = { classic: 1, orbit: 2, flip: 3, pulse: 4 };
-  const n = map[(S.settings && S.settings.loadingScreen) || 'random'] || (1 + Math.floor(Math.random() * 4));
-  sp.className = sp.className.replace(/\btheme-\d\b/g, '').trim() + ' theme-' + n;
+  const map = { classic: 1, orbit: 2, flip: 3, pulse: 4, ring: 5, glow: 6, slide: 7, wave: 8, spin: 9, drop: 10 };
+  const choice = (S.settings && S.settings.loadingScreen) || 'random';
+  const n = map[choice] || (1 + Math.floor(Math.random() * Object.keys(map).length));
+  sp.className = sp.className.replace(/\btheme-\d+\b/g, '').trim() + ' theme-' + n;
+  if (S.settings && S.settings.loadingMessage) splashMsg(S.settings.loadingMessage);
 }
 function splashMsg(m) { const el = $('splashMsg'); if (el) el.textContent = m; }
 function hideSplash() {

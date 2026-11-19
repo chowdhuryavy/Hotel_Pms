@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.23**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.24**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.24: Loading screen: the saved style and message now apply at sign-in and after saving in Settings; six new styles (Ring, Glow, Slide in, Wave dots, Spin 3D, Drop), all with the app logo. Header: removed the accent line beside the hotel name and the background behind the sidebar logo button.
 
 Release notes for 1.2.23: Fixed: Reservation and Billing opened from the in-house list went to the dashboard (detail pages now check their own permission). The loading screen stayed up after login and the dashboard was empty on a fresh load (the first page now draws directly). Dashboard widgets load only for roles that can use them. The header search is hidden on phones. The sidebar follows the white theme. Login-only server functions now check permissions. Reservation change log entries are readable and show a count.
 

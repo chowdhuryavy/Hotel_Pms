@@ -292,7 +292,7 @@ function saveSettings(token, d) {
     if (SYSTEM_SETTINGS.indexOf(k) >= 0 && !isSys) return;   // only the system administrator
     if (k === 'maxLoginAttempts' && Number(d[k]) < 5) throw new Error('Wrong-password limit must be at least 5.');
     if ((k === 'licenseStart' || k === 'licenseExpiry') && d[k] !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(d[k]))) throw new Error('Licence dates must be a date.');
-    if (k === 'loadingScreen' && ['random', 'classic', 'orbit', 'flip', 'pulse'].indexOf(d[k]) < 0) throw new Error('Choose a loading screen style.');
+    if (k === 'loadingScreen' && ['random', 'classic', 'orbit', 'flip', 'pulse', 'ring', 'glow', 'slide', 'wave', 'spin', 'drop'].indexOf(d[k]) < 0) throw new Error('Choose a loading screen style.');
     if (k === 'logoUrl') {
       const v = String(d[k] || '').trim();
       if (v && !/^(https:\/\/|data:image\/(png|jpeg|webp|svg\+xml);base64,)/i.test(v)) throw new Error('Logo must be an https link or an uploaded image.');
