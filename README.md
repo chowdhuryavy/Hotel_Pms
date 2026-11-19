@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.127**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.128**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.128: The spinner now shows on Send code, Verify code and Save new password in the Forgot password flow, while the request runs.
 
 Release notes for 1.2.127: Resend added as a sending option in System admin → Email sending. The Resend API key is entered in the app and stored encrypted in the database, not in the code. Order: SMTP if on, else Resend if on, else the Google account.
 

@@ -3473,6 +3473,13 @@ function formErr_(msg) { const e = document.getElementById('fgErr'); if (e) e.te
 /* ------------------------------------------------------------
  * Forgot password: email → 6-digit code → new password
  * ------------------------------------------------------------ */
+/* Spins the button while a request runs, and stops the spin whatever the outcome */
+async function busyBtn_(btn, fn) {
+  if (!btn) return fn();
+  btn.disabled = true; btn.classList.add('spin-on');
+  try { return await fn(); }
+  finally { btn.disabled = false; btn.classList.remove('spin-on'); }
+}
 function forgotOpen(prefill) {
   openModal('Reset your password', `<form id="fgStart" class="fgrid">
     <p class="muted" style="margin:0 0 14px">Enter the email address or username on your account. We will email you a 6-digit code.</p>
@@ -3482,10 +3489,9 @@ function forgotOpen(prefill) {
   $('fgStart').addEventListener('submit', async e => {
     e.preventDefault();
     const f = e.target, btn = f.querySelector('button[type=submit]'), ident = f.ident.value.trim();
-    btn.disabled = true; btn.classList.add('spin-on'); formErr_('');
-    try { const r = await rpc('forgotRequest', ident); forgotCode(ident, r.sentTo); }
+    formErr_('');
+    try { const r = await busyBtn_(btn, () => rpc('forgotRequest', ident)); forgotCode(ident, r.sentTo); }
     catch (err) { formErr_(err.message); }
-    finally { btn.disabled = false; btn.classList.remove('spin-on'); }
   });
 }
 function forgotCode(ident, sentTo) {
@@ -3537,9 +3543,9 @@ function forgotCode(ident, sentTo) {
     e.preventDefault();
     const code = inputs.map(x => x.value).join(''), btn = e.target.querySelector('button[type=submit]');
     if (code.length !== 6) return formErr_('Enter all 6 digits.');
-    btn.disabled = true; formErr_('');
-    try { const r = await rpc('forgotVerify', ident, code); forgotNew(r.resetToken); }
-    catch (err) { formErr_(err.message); btn.disabled = false; inputs.forEach(x => { x.value = ''; }); inputs[0].focus(); }
+    formErr_('');
+    try { const r = await busyBtn_(btn, () => rpc('forgotVerify', ident, code)); forgotNew(r.resetToken); }
+    catch (err) { formErr_(err.message); inputs.forEach(x => { x.value = ''; }); inputs[0].focus(); }
   });
 }
 function forgotNew(resetToken) {
@@ -3552,9 +3558,9 @@ function forgotNew(resetToken) {
   $('fgNew').addEventListener('submit', async e => {
     e.preventDefault();
     const f = e.target, btn = f.querySelector('button[type=submit]');
-    btn.disabled = true; formErr_('');
+    formErr_('');
     try {
-      await rpc('forgotReset', resetToken, f.newPw.value);
+      await busyBtn_(btn, () => rpc('forgotReset', resetToken, f.newPw.value));
       closeModal(); toast('Password saved. Sign in with your new password.');
     } catch (err) { formErr_(err.message); pwLive(f); }
   });
