@@ -410,7 +410,7 @@ function bindForm(id, fn) {
 const chk = v => v === 'true';
 
 /* Dialogs that open in their own browser tab (see tabOpen_). Only these names are allowed from a link. */
-const TAB_OPEN_OK = ['userModal', 'typeModal', 'roomModal', 'roleModal', 'permModal', 'paymentMethodModal', 'packageModal', 'planModal', 'rateModal', 'codeModal'];
+const TAB_OPEN_OK = ['admSection', 'userModal', 'typeModal', 'roomModal', 'roleModal', 'permModal', 'paymentMethodModal', 'packageModal', 'planModal', 'rateModal', 'codeModal'];
 /** Opens a form in a new browser tab, signed in through a one-time link. The tab opens at once so the browser allows it. */
 async function tabOpen_(fn, args) {
   const w = window.open('about:blank', '_blank');
@@ -2278,7 +2278,7 @@ async function pgAdmin(scope) {
   if (!tabs.length) { setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1><div class="card">You do not have access to this area.</div>`); return; }
   if (!tabs.find(t => t[0] === ADM)) ADM = tabs[0][0];
   if (scope === 'sys' && can('system.manage')) await connCheck_();
-  const bar = `<div class="tabs">${tabs.map(([k, l]) => `<button class="btn ghost${ADM === k ? ' on' : ''}" onclick="admTab('${k}')">${l}</button>`).join('')}</div>`;
+  const bar = `<div class="tabs">${tabs.map(([k, l]) => `<button class="btn ghost${ADM === k ? ' on' : ''}" onclick="admTabOpen('${k}')">${l}${ADM_FORM_TABS.indexOf(k) >= 0 && !window.STAY_TAB ? ' <span class="tab-ext" aria-hidden="true">↗</span>' : ''}</button>`).join('')}</div>`;
   let body = '';
   if (ADM === 'users') {
     const us = await api('listUsers');
@@ -2480,6 +2480,14 @@ async function testEmail() {
   try { const r = await api('sendEmailTest'); toast('Test emails sent to ' + r.sentTo); }
   catch (e) { toast(e.message, true); }
 }
+/* Settings sections with forms open in their own tab (in that tab they are full pages) */
+const ADM_FORM_TABS = ['settings', 'system', 'emails', 'menu'];
+function admTabOpen(k) {
+  if (window.STAY_TAB || ADM_FORM_TABS.indexOf(k) < 0) return admTab(k);
+  tabOpen_('admSection', [k]);
+}
+/** Run in the new tab: shows the chosen admin section as the page */
+function admSection(k) { ADM = k; const t = ADM_TABS.find(x => x[0] === k); go(t && t[3] === 'sys' ? 'sysadmin' : 'admin'); }
 function admTab(k) { ADM = k; const t = ADM_TABS.find(x => x[0] === k); go(t && t[3] === 'sys' ? 'sysadmin' : 'admin'); }
 /* Menu group for each permission prefix, used to group the permission checkboxes. */
 const PERM_GROUPS = { dashboard: 'Front office', rack: 'Front office', frontdesk: 'Front office', reservations: 'Front office', guests: 'Front office', groups: 'Front office',
