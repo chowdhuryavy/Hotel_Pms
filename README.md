@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.138**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.139**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.139: While a button is working, its label stays visible, with the spinner on the left. Before, the label was hidden during the spin on every button, including Sign in.
 
 Release notes for 1.2.138: Password hashes are stored with an "h1:" prefix, so the sheet can't turn a hash into a formula or change it. Accounts with older hashes still sign in, and a password change or reset writes the new format.
 
