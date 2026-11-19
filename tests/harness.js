@@ -609,6 +609,6 @@ if (require.main === module) {
   ok(!!tryRun("login('newbie', 'Definitely-wrong-1')").e && run("(function(){ const a = rows_(TBL.AUDIT).filter(r => r.action === 'LOGIN_FAILED'); const last = a[a.length - 1]; return last.details === 'wrong password' && JSON.stringify(last).indexOf('Definitely-wrong-1') < 0; })()"), 'a wrong password is logged as "wrong password" without the password itself');
   ok(!!tryRun("login('no-such-person-zz', 'Anything-1')").e && run("(function(){ const a = rows_(TBL.AUDIT).filter(r => r.action === 'LOGIN_FAILED'); return a[a.length - 1].details === 'no matching user'; })()"), 'an unknown name is logged as "no matching user"');
   // The app name for the Vercel page is read from Settings, as a callback script
-  ok(run("appNameScript_('nameLoaded').getContent()") === "nameLoaded(" + JSON.stringify({ appName: run("settings_().appName") }) + ");", 'the name script carries the Settings app name');
+  ok(run("appNameScript_('nameLoaded').getContent()") === "nameLoaded(" + JSON.stringify({ appName: run("settings_().appName"), logoUrl: run("settings_().logoUrl || ''") }) + ");", 'the name script carries the Settings app name and logo');
   console.log('done');
 }

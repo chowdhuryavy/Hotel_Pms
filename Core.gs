@@ -463,9 +463,9 @@ function listAudit(token, limit) {
 /* ============================ WEB ENTRY ============================ */
 /* Returns the app name from Settings as a small script, for the Vercel page (?nameFor=callback). Only the name is sent. */
 function appNameScript_(cb) {
-  let name = '';
-  try { name = settings_().appName || ''; } catch (e) { /* database not set up yet */ }
-  return ContentService.createTextOutput(cb + '(' + JSON.stringify({ appName: name }) + ');')
+  let name = '', logo = '';
+  try { const st = settings_(); name = st.appName || ''; logo = st.logoUrl || ''; } catch (e) { /* database not set up yet */ }
+  return ContentService.createTextOutput(cb + '(' + JSON.stringify({ appName: name, logoUrl: logo }) + ');')
     .setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
 function doGet(e) {
