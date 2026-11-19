@@ -97,7 +97,22 @@
     </div>
   </div>
   <div id="toast" class="toast"></div>
-  <script>setTimeout(function () { var s = document.getElementById('splash'); if (s) s.classList.add('gone'); }, 12000);</script>
+  <script>
+  /* Start-up diagnostics: a script error or a server call that never returns shows its reason on screen,
+     instead of a blank page. Shown only while the app has not started. */
+  (function () {
+    function started() { var a = document.getElementById('app'); return !!(a && !a.classList.contains('hidden')); }
+    function show(msg) {
+      if (started()) return;
+      var s = document.getElementById('splash'), m = document.getElementById('splashMsg');
+      if (s) s.classList.remove('gone');
+      if (m) m.textContent = msg;
+    }
+    window.addEventListener('error', function (e) { show('Start-up error: ' + (e.message || 'unknown') + (e.lineno ? ' (line ' + e.lineno + ')' : '')); });
+    window.addEventListener('unhandledrejection', function (e) { show('Start-up error: ' + ((e.reason && e.reason.message) || e.reason || 'unknown')); });
+    setTimeout(function () { show('The app has not started after 25 seconds. Check the connection, then reload. If this stays, tell the administrator.'); }, 25000);
+  })();
+  </script>
 
   <script>
 <?!= include('App') ?>

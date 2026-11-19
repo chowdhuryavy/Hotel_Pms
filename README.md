@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.199**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.200**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.200: A page that cannot start now shows the reason on screen instead of a blank page: a script error, or no answer from the server after 25 seconds.
 
 Release notes for 1.2.199: Sign-in and start-up are restored. The single-write change to `patch_` in 1.2.198 is reverted to the per-field write; the other 1.2.198 changes stay.
 
