@@ -3916,7 +3916,7 @@ function showLogin_() {
     splashTheme_(); applyLanguage_((S.settings && S.settings.defaultLanguage) || 'en');
     startApp();
     waitSplash_();
-    loadFresh_().then(s => { S.settings = Object.assign({}, S.settings, s); brand(); applyLanguage_((S.settings && S.settings.defaultLanguage) || 'en'); })
+    loadFresh_().then(s => { S.settings = Object.assign({}, S.settings, s); brand(); renderLicence_(); applyLanguage_((S.settings && S.settings.defaultLanguage) || 'en'); })
       .catch(() => { /* the page shows the connection state itself */ });
     return;
   }
@@ -3924,7 +3924,7 @@ function showLogin_() {
   if (cached && !saved && !hid) {
     splashTheme_(); applyLanguage_((S.settings && S.settings.defaultLanguage) || 'en');
     showLogin_();
-    loadFresh_().then(s => { S.settings = s; brand(); }).catch(() => { /* keep the saved name and logo */ });
+    loadFresh_().then(s => { S.settings = s; brand(); renderLicence_(); }).catch(() => { /* keep the saved name and logo */ });
     return;
   }
 

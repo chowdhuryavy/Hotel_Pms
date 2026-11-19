@@ -121,9 +121,26 @@ function settings_() {
   m.taxRate = Number(m.taxRate) || 0;
   // the sheet can hold the business date as a date cell, read back as 'yyyy-mm-dd HH:mm'
   if (/^\d{4}-\d{2}-\d{2}/.test(String(m.businessDate))) m.businessDate = String(m.businessDate).slice(0, 10);
+  // Licence dates may come from a date cell, or be typed as text: always read them as yyyy-mm-dd
+  m.licenseStart = normDate_(m.licenseStart);
+  m.licenseExpiry = normDate_(m.licenseExpiry);
   return m;
 }
 function setting_(k) { return settings_()[k]; }
+/* A date from the Settings sheet as yyyy-mm-dd. Accepts a date cell, yyyy-mm-dd (with or without a time), or dd/mm/yyyy.
+   Returns '' when the value is not a date. */
+function normDate_(v) {
+  if (v === '' || v == null) return '';
+  if (v instanceof Date) return isNaN(v.getTime()) ? '' : fmtD_(v);
+  const s = String(v).trim();
+  const p2 = n => String(n).padStart(2, '0');
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);
+  if (m) return m[1] + '-' + p2(m[2]) + '-' + p2(m[3]);
+  m = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/.exec(s);
+  if (m) return m[3] + '-' + p2(m[2]) + '-' + p2(m[1]);
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? '' : fmtD_(d);
+}
 function bizDate_() { return setting_('businessDate') || calToday_(); }
 function flag_(k) { return String(setting_(k)) === 'true'; }
 

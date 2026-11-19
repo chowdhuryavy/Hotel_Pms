@@ -568,5 +568,13 @@ if (require.main === module) {
   const lkTok = run("forgotVerify('lockme', '" + lkCode + "')").resetToken;
   ok(!tryRun("forgotReset('" + lkTok + "', 'Lockme-pass1!')").e, 'reset is accepted for a locked account');
   ok(!tryRun("login('lockme', 'Lockme-pass1!')").e, 'the new password signs in after a reset (account was locked)');
+  // Licence dates typed into the sheet in any usual form are read as yyyy-mm-dd
+  run("(function(){ patch_(TBL.SETTINGS, rows_(TBL.SETTINGS).find(r => r.key === 'licenseExpiry')._row, { value: '31/12/2030' }); return true; })()");
+  ok(run("settings_().licenseExpiry") === '2030-12-31', 'licence expiry typed as dd/mm/yyyy is read as a date');
+  run("(function(){ patch_(TBL.SETTINGS, rows_(TBL.SETTINGS).find(r => r.key === 'licenseExpiry')._row, { value: '2031-02-28 00:00' }); return true; })()");
+  ok(run("settings_().licenseExpiry") === '2031-02-28', 'licence expiry with a time is read as a date');
+  run("(function(){ patch_(TBL.SETTINGS, rows_(TBL.SETTINGS).find(r => r.key === 'licenseExpiry')._row, { value: 'not a date' }); return true; })()");
+  ok(run("settings_().licenseExpiry") === '', 'a value that is not a date is ignored');
+  ok(run("normDate_(new Date('2030-06-15T12:00:00+03:00')) === '2030-06-15'"), 'a date cell is read as its day in Qatar time');
   console.log('done');
 }
