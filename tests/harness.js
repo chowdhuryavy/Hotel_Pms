@@ -18,6 +18,7 @@ function makeSS(id) {
   sheets['Sheet1'] = makeSheet('Sheet1');
   return api;
 }
+const IO = { reads: 0, writes: 0 };   // counts of sheet reads and writes, for the performance measurement
 function makeSheet(name) {
   const data = [];
   const sh = {
@@ -25,17 +26,17 @@ function makeSheet(name) {
     getName: () => name,
     getLastRow: () => data.length,
     getLastColumn: () => data.reduce((m, r) => Math.max(m, r.length), 0),
-    getDataRange: () => ({ getValues: () => data.map(r => r.slice()) }),
-    appendRow(r) { data.push(r.slice()); },
-    deleteRow(r) { data.splice(r - 1, 1); },
+    getDataRange: () => ({ getValues: () => { IO.reads++; return data.map(r => r.slice()); } }),
+    appendRow(r) { IO.writes++; data.push(r.slice()); },
+    deleteRow(r) { IO.writes++; data.splice(r - 1, 1); },
     setFrozenRows() {},
     getRange(row, col, nr, nc) {
       nr = nr || 1; nc = nc || 1;
       const cell = (r, c) => { while (data.length < r) data.push([]); while (data[r-1].length < c) data[r-1].push(''); return data[r-1]; };
       const range = {
-        setValue(v) { cell(row, col)[col-1] = v; return range; },
-        setValues(vals) { vals.forEach((rr, i) => rr.forEach((v, j) => { cell(row+i, col+j)[col+j-1] = v; })); return range; },
-        getValues() { return Array.from({length: nr}, (_, i) => Array.from({length: nc}, (_, j) => (data[row-1+i] || [])[col-1+j] ?? '')); },
+        setValue(v) { IO.writes++; cell(row, col)[col-1] = v; return range; },
+        setValues(vals) { IO.writes++; vals.forEach((rr, i) => rr.forEach((v, j) => { cell(row+i, col+j)[col+j-1] = v; })); return range; },
+        getValues() { IO.reads++; return Array.from({length: nr}, (_, i) => Array.from({length: nc}, (_, j) => (data[row-1+i] || [])[col-1+j] ?? '')); },
         setFontWeight() { return range; }, setBackground() { return range; }, setFontColor() { return range; },
         insertCheckboxes() { return range; }
       };
@@ -89,6 +90,7 @@ Object.assign(sandbox, { mailbox, relayCalls, relayReply });
 vm.createContext(sandbox);
 vm.runInContext(code, sandbox, { filename: 'stayline.js' });
 const run = (expr) => vm.runInContext(expr, sandbox);
+sandbox.__io = IO;
 module.exports = { run, props, books };
 
 if (require.main === module) {
@@ -633,5 +635,18 @@ if (require.main === module) {
   ok(run("appNameScript_('nameLoaded').getContent()") === "nameLoaded(" + JSON.stringify({ appName: run("settings_().appName"), logoUrl: run("settings_().logoUrl || ''") }) + ");", 'the name script carries the Settings app name and logo');
   run("sendMail_('log.test@example.com', 'Log check', 'text', '<p>text</p>')");
   ok(run("listEmailLog(TOK)[0].to") === 'log.test@example.com' && run("listEmailLog(TOK)[0].via") === run("mailRoute_()") && run("listEmailLog(TOK)[0].status") === 'Sent', 'every sent email is logged with the service used');
+  if (process.env.MEASURE) {
+    // Sheet reads and writes per call, for the performance measurement (not a pass/fail test)
+    const calls = ['getUserFormData', 'listUsers', 'myPermissions', 'notificationsList', 'changeStamp', 'listRoles', 'listReservations', 'listRooms', 'frontDeskBoard', 'rackData', 'dashboardBoard', 'dashboardFlash', 'dashboardForecast', 'dashboardNight', 'searchGuests', 'getSettings', 'listAudit'];
+    const todayIso = run("bizDate_()");
+    calls.forEach(fn => {
+      const argsByFn = { listReservations: '' , rackData: '', frontDeskBoard: '', dashboardFlash: "'" + todayIso.slice(0, 8) + "01', '" + todayIso + "'", dashboardNight: "'" + todayIso.slice(0, 8) + "01', '" + todayIso + "'", searchGuests: "'a'", listAudit: '' };
+      const arg = fn === 'myPermissions' || fn === 'changeStamp' || fn === 'notificationsList' || fn === 'getSettings' || fn === 'getUserFormData' || fn === 'listUsers' || fn === 'listRoles' || fn === 'listRooms' || fn === 'dashboardBoard' || fn === 'dashboardForecast' ? '' : (argsByFn[fn] || '');
+      run("__io.reads = 0; __io.writes = 0; ROWS_MEMO_ = {}; SETTINGS_MEMO_ = null; SHEET_MEMO_ = {}; SS_MEMO_ = null;");   // a fresh request: nothing carried over
+      const r = tryRun(fn + "(TOK" + (arg ? ', ' + arg : '') + ")");
+      const reads = run("__io.reads"), writes = run("__io.writes");
+      console.log('MEASURE', fn.padEnd(20), 'sheet reads', String(reads).padStart(4), 'writes', String(writes).padStart(3), r.e ? 'ERR ' + r.e : '');
+    });
+  }
   console.log('done');
 }

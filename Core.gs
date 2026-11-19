@@ -24,8 +24,8 @@ function sh_(t) {
   // A table added by an update is created with its headers, once the database is set up. Rows are never touched.
   if (!s && ss.getSheetByName(TBL.SETTINGS[0])) { s = ss.insertSheet(t[0]); s.getRange(1, 1, 1, t[1].length).setValues([t[1]]); }
   if (!s) throw new Error('Missing sheet "' + t[0] + '". Run setupDatabase().');
-  SHEET_MEMO_[t[0]] = s;
-  return s;
+  SHEET_MEMO_[t[0]] = watchSheet_(s);
+  return SHEET_MEMO_[t[0]];
 }
 /* Display dates as dd-mm-yyyy (PDF and printed text). Stored values stay yyyy-mm-dd. */
 function dmy_(v) { return String(v == null ? '' : v).replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, '$3-$2-$1'); }
@@ -45,7 +45,41 @@ function validRange_(a, d) {
 }
 
 /** Reads a table as objects. Each object carries _row (its sheet row number). */
+/* A table is read from the sheet once per request. Any write to the spreadsheet clears this (see watchSheet_),
+   so a read after a save is always fresh. Each caller gets its own copy of the rows. */
+let ROWS_MEMO_ = {};
 function rows_(t) {
+  const key = t[0];
+  if (!ROWS_MEMO_[key]) ROWS_MEMO_[key] = readRows_(t);
+  return ROWS_MEMO_[key].map(o => Object.assign({}, o));
+}
+const SHEET_WRITES_ = ['appendRow', 'deleteRow', 'insertRow', 'insertRows', 'deleteRows', 'deleteColumn', 'deleteColumns', 'insertColumn', 'insertColumns', 'clear', 'clearContent', 'clearFormats', 'setValues', 'setValue', 'sort', 'setName', 'hideSheet', 'setFrozenRows', 'autoResizeColumns'];
+const RANGE_WRITES_ = ['setValue', 'setValues', 'clear', 'clearContent', 'clearFormat', 'clearFormats', 'setFormula', 'setFormulas', 'insertCheckboxes', 'removeCheckboxes', 'setFontWeight', 'setBackground', 'setFontColor', 'setNumberFormat', 'setDataValidation', 'merge', 'breakApart'];
+/* Wraps a sheet so every write clears the rows read earlier in this request. Reads pass straight through. */
+function watchSheet_(s) {
+  return new Proxy(s, { get(t, p) {
+    const v = t[p];
+    if (typeof v !== 'function') return v;
+    return function (...a) {
+      const out = v.apply(t, a);
+      if (SHEET_WRITES_.indexOf(p) >= 0) ROWS_MEMO_ = {};
+      if (p === 'getRange' && out) return watchRange_(out);
+      return out;
+    };
+  } });
+}
+function watchRange_(r) {
+  return new Proxy(r, { get(t, p) {
+    const v = t[p];
+    if (typeof v !== 'function') return v;
+    return function (...a) {
+      const out = v.apply(t, a);
+      if (RANGE_WRITES_.indexOf(p) >= 0) ROWS_MEMO_ = {};
+      return out === t ? watchRange_(t) : out;
+    };
+  } });
+}
+function readRows_(t) {
   const v = sh_(t).getDataRange().getValues();
   if (v.length < 2) return [];
   const h = v[0];

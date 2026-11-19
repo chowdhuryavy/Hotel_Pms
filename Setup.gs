@@ -18,6 +18,7 @@ function setupDatabase() {
   SS_MEMO_ = null;
   SETTINGS_MEMO_ = null;
   SHEET_MEMO_ = {};
+  ROWS_MEMO_ = {};
   ss.setSpreadsheetTimeZone(TZ);
 
   // 1) Tabs and headers
