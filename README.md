@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.16**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.17**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.17: on phones (700px and narrower) the header shows only the hotel name and search. The business date is still shown on the dashboard and front desk pages.
 
 Release notes for 1.2.16: the system administrator arranges the sidebar in System admin → Menu layout: order the groups and pages, move pages between groups, rename groups, and reset to default. Pages not placed keep their default group.
 
