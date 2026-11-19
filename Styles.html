@@ -821,7 +821,11 @@
   .conn-tile-ico{width:36px;height:36px;border-radius:10px;background:var(--hover);color:var(--brand-2);display:flex;align-items:center;justify-content:center;flex:none}
   .conn-tile b{display:block;font-size:15px;overflow-wrap:anywhere}
   .conn-tile small{display:block;font-size:12px;overflow-wrap:anywhere}
-  .btn.spin-on::after{display:none!important}
+  .btn.spin-on::after{display:block!important;content:''!important;animation:btn-spin .7s linear infinite!important}
+  /* Saving a form: the label stays visible, with the inline spinner beside it */
+  .btn.saving:disabled{opacity:.92;cursor:progress}
+  .btn.saving::after{display:none!important}
+  .btn.saving .btn-spin{display:inline-block!important}
   .btn-spin{display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:btn-spin .8s linear infinite}
 
   /* Posting: stay facts at the top of the room page */

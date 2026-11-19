@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.86**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.87**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.87: Fixed the blank Save button. While saving, the button keeps its label, shows Saving… and a spinner, and goes back to its normal label afterwards. Other buttons that show a spinner get it back too; their spinner had been hidden by a later style rule.
 
 Release notes for 1.2.86: The room posting page shows the guest name, room, rate code, arrival, departure and confirmation number at the top. Post to folio opens the posting form as a popup that can be dragged by its header; posting closes it and refreshes the page. Folios and recent postings stay on the page.
 
