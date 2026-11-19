@@ -89,7 +89,7 @@ function renderMail_(kind, vars) {
 }
 
 /** Sends the two emails to the signed-in admin's own address, so the wording can be checked. */
-function sendEmailTest(token, to) {
+function sendEmailTest(token, to, via) {
   const s = auth_(token, 'system.manage');
   const u = rows_(TBL.USERS).find(x => x.id === s.id);
   const target = String(to || '').trim() || (u && u.email) || '';
@@ -97,7 +97,11 @@ function sendEmailTest(token, to) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) throw new Error('Enter a valid email address for the test.');
   const who = (u && (u.name || u.username)) || 'Administrator';
   const otp = renderMail_('otp', { name: who, code: '123456', minutes: Math.round(OTP_SECONDS / 60) });
-  sendMail_(target, '[Test] ' + otp.subject, otp.text, otp.html);
+  const subject = '[Test] ' + otp.subject;
+  // via: 'smtp' or 'resend' tests that sender itself (its saved settings); blank uses the normal order
+  if (via === 'smtp') sendViaSmtp_(smtpConfig_(), target, subject, otp.text, otp.html);
+  else if (via === 'resend') sendViaResend_(smtpConfig_(), target, subject, otp.text, otp.html);
+  else sendMail_(target, subject, otp.text, otp.html);
   return { sentTo: maskEmail_(target) };
 }
 

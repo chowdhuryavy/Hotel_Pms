@@ -596,5 +596,8 @@ if (require.main === module) {
   ok(!tryRun("saveResendConfig(TOK, {resendActive: true, resendFrom: 'hotel@hotel.com'})").e && run("getEmailConfig(TOK).active === true"), 'saving the Resend form leaves SMTP on');
   ok(!!tryRun("saveResendConfig(TOK, {resendActive: true, resendFrom: ''})").e, 'Resend form needs a from address when on');
   ok(!tryRun("saveSmtpConfig(TOK, {active: false, host: 'mail.h.com', port: 587, security: 'starttls', from: 'a@b.co', relayUrl: 'https://r.example.com'})").e, 'SMTP switched back off');
+  // A test from a form goes through that sender, even when it is switched off in the normal order
+  ok(run("(function(){ relayCalls.length = 0; sendEmailTest(TOK, 't@x.org', 'smtp'); return relayCalls[0].u === 'https://r.example.com'; })()"), 'SMTP test goes through the relay');
+  ok(run("(function(){ relayCalls.length = 0; sendEmailTest(TOK, 't@x.org', 'resend'); return relayCalls[0].u === 'https://api.resend.com/emails'; })()"), 'Resend test goes through the Resend API');
   console.log('done');
 }

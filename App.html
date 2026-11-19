@@ -2991,9 +2991,7 @@ async function pgAdmin(scope) {
         <div class="conn-tile"><div><b>Resend</b><small>${e.resendActive ? 'On' : 'Off'} · ${esc(e.resendFrom || 'not set')}</small>
           <div class="acts" style="margin-top:8px"><button class="btn sm" type="button" onclick="tabOpen_(&#39;emailResendModal&#39;,[])">Set up Resend</button></div></div></div>
       </div>
-      <h4 style="margin:18px 0 6px">Test</h4>
-      <form id="fEmailTest" class="fgrid">${fieldHtml({ name: 'testTo', label: 'Send the test email to (blank = your own address)', value: '', wide: true })}
-        <div class="actions"><button class="btn" type="button" onclick="testEmail(this.form.testTo.value)">Send test email</button></div></form>`;
+      `;
   } else if (ADM === 'types') {
     const ts = await api('listRoomTypes');
     body = `<div class="head-row"><h3>Room types</h3><div class="acts">${can('cfg.roomtypes.edit') ? '<button class="btn" onclick="tabOpen_(&#39;typeModal&#39;,[])">+ Room type</button>' : ''}</div></div>` +
@@ -3165,6 +3163,12 @@ async function menuReset() {
 function secretField_(name, label, isSet, hint) {
   return `<label class="wide field"><span>${label}</span><input name="${name}" type="password" autocomplete="new-password" placeholder="${isSet ? 'Saved. Type a new one to change it' : esc(hint)}"></label>`;
 }
+/* The test inside each form: it sends through that sender's saved settings */
+function emailTestRow_(via) {
+  return `<div class="wide" style="border-top:1px solid var(--line);padding-top:12px"><p class="muted" style="margin:0 0 8px">Save first, then send a test email with the saved settings.</p>
+    <label class="wide field"><span>Send the test email to (blank = your own address)</span><input name="testTo" type="email"></label>
+    <div class="actions"><button class="btn ghost" type="button" onclick="testEmail(this.form.testTo.value,'${via}')">Send test email</button></div></div>`;
+}
 function emailSmtpModal() {
   api('getEmailConfig').then(e => {
     openModal('SMTP settings', formHtml('fSmtp', [
@@ -3177,7 +3181,8 @@ function emailSmtpModal() {
       ...(e.passSet ? [{ name: 'clearPassword', label: 'Remove the saved SMTP password', type: 'check', value: false }] : []),
       { name: 'from', label: 'From address', value: e.from, wide: true },
       { name: 'relayUrl', label: 'Mail relay address (https://…)', value: e.relayUrl, wide: true },
-      { raw: secretField_('relaySecret', 'Mail relay secret', e.secretSet, 'Enter the relay secret') }
+      { raw: secretField_('relaySecret', 'Mail relay secret', e.secretSet, 'Enter the relay secret') },
+      { raw: emailTestRow_('smtp') }
     ], 'Save SMTP'));
     bindForm('fSmtp', async d => {
       await api('saveSmtpConfig', { active: d.active === 'true', host: d.host, port: Number(d.port), security: d.security, user: d.user,
@@ -3192,7 +3197,8 @@ function emailResendModal() {
       { name: 'resendActive', label: 'Send email through Resend (used when SMTP is off)', type: 'check', value: e.resendActive },
       { name: 'resendFrom', label: 'From address (on a domain verified in Resend)', value: e.resendFrom, wide: true },
       { raw: secretField_('resendApiKey', 'Resend API key', e.resendKeySet, 'Enter the Resend API key') },
-      ...(e.resendKeySet ? [{ name: 'clearResendKey', label: 'Remove the saved Resend API key', type: 'check', value: false }] : [])
+      ...(e.resendKeySet ? [{ name: 'clearResendKey', label: 'Remove the saved Resend API key', type: 'check', value: false }] : []),
+      { raw: emailTestRow_('resend') }
     ], 'Save Resend'));
     bindForm('fResend', async d => {
       await api('saveResendConfig', { resendActive: d.resendActive === 'true', resendFrom: d.resendFrom, resendApiKey: d.resendApiKey, clearResendKey: d.clearResendKey === 'true' });
@@ -3200,8 +3206,8 @@ function emailResendModal() {
     });
   });
 }
-async function testEmail(to) {
-  try { const r = await api('sendEmailTest', String(to || '')); toast('Test email sent to ' + r.sentTo); }
+async function testEmail(to, via) {
+  try { const r = await api('sendEmailTest', String(to || ''), via || ''); toast('Test email sent to ' + r.sentTo); }
   catch (e) { toast(e.message, true); }
 }
 /* Set while an admin section is drawn in its own tab: only that section is shown, without the page heading and tab bar */
