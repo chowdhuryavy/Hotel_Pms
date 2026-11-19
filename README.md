@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.34**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.35**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.35: The new-version pop-up now reads "New update available. Version X is available. Please refresh to update."
 
 Release notes for 1.2.34: When the sidebar is open on a phone, the header stays visible with the hotel name and search. The sidebar header shows the logo, the app name and the hotel name in one clean block.
 

@@ -78,7 +78,7 @@ function updateShow_(v) {
   UPD_SHOWING = v;
   let box = document.getElementById('updbox');
   if (!box) { box = document.createElement('div'); box.id = 'updbox'; box.className = 'updbox'; box.setAttribute('role', 'status'); document.body.appendChild(box); }
-  box.innerHTML = `<span class="upd-ico" aria-hidden="true">↻</span><span class="upd-txt"><b>New version available</b><span>Version ${esc(v)} is ready. Refresh to use it.</span></span>
+  box.innerHTML = `<span class="upd-ico" aria-hidden="true">↻</span><span class="upd-txt"><b>New update available</b><span>Version ${esc(v)} is available. Please refresh to update.</span></span>
     <span class="upd-acts"><button type="button" class="btn sm" onclick="location.reload()">Refresh</button><button type="button" class="btn ghost sm" onclick="updateLater_()">Later</button></span>`;
   requestAnimationFrame(() => box.classList.add('show'));
 }
