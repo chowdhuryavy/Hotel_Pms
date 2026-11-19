@@ -99,8 +99,8 @@ function sendEmailTest(token, to, via) {
   const otp = renderMail_('otp', { name: who, code: '123456', minutes: Math.round(OTP_SECONDS / 60) });
   const subject = '[Test] ' + otp.subject;
   // via: 'smtp' or 'resend' tests that sender itself (its saved settings); blank uses the normal order
-  if (via === 'smtp') sendViaSmtp_(smtpConfig_(), target, subject, otp.text, otp.html);
-  else if (via === 'resend') sendViaResend_(smtpConfig_(), target, subject, otp.text, otp.html);
+  if (via === 'smtp') mailSend_('SMTP', target, subject, () => sendViaSmtp_(smtpConfig_(), target, subject, otp.text, otp.html));
+  else if (via === 'resend') mailSend_('Resend', target, subject, () => sendViaResend_(smtpConfig_(), target, subject, otp.text, otp.html));
   else sendMail_(target, subject, otp.text, otp.html);
   return { sentTo: maskEmail_(target) };
 }

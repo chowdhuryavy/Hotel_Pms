@@ -80,15 +80,33 @@ function decryptSetting_(enc) {
 /** Sends one email: through SMTP when it is on, otherwise from the Google account. */
 function sendMail_(to, subject, text, html, att) {
   const c = smtpConfig_();
-  if (c.active) return sendViaSmtp_(c, to, subject, text, html, att);
-  if (c.resendActive) return sendViaResend_(c, to, subject, text, html, att);
+  if (c.active) return mailSend_('SMTP', to, subject, () => sendViaSmtp_(c, to, subject, text, html, att));
+  if (c.resendActive) return mailSend_('Resend', to, subject, () => sendViaResend_(c, to, subject, text, html, att));
+  return mailSend_('Google account', to, subject, () => {
+    try {
+      const opts = { to: to, subject: subject, body: text, htmlBody: html, name: appName_() };
+      if (att && att.b64) opts.attachments = [Utilities.newBlob(Utilities.base64Decode(att.b64), 'application/pdf', att.name || 'attachment.pdf')];
+      MailApp.sendEmail(opts);
+    } catch (e) {
+      throw new Error('The email could not be sent right now. Try again in a few minutes, or ask the administrator.');
+    }
+  });
+}
+/* Runs one send and writes the result to the email log (sent or failed, and the service used) */
+function mailSend_(via, to, subject, fn) {
+  try { fn(); mailLog_(to, subject, via, 'Sent', ''); }
+  catch (e) { mailLog_(to, subject, via, 'Failed', e.message); throw e; }
+}
+/* The email log: system administrator only. Failures are never allowed to stop the email itself. */
+function mailLog_(to, subject, via, status, err) {
   try {
-    const opts = { to: to, subject: subject, body: text, htmlBody: html, name: appName_() };
-    if (att && att.b64) opts.attachments = [Utilities.newBlob(Utilities.base64Decode(att.b64), 'application/pdf', att.name || 'attachment.pdf')];
-    MailApp.sendEmail(opts);
-  } catch (e) {
-    throw new Error('The email could not be sent right now. Try again in a few minutes, or ask the administrator.');
-  }
+    append_(TBL.MAILLOG, { id: id_('M'), at: fmtTs_(new Date()), to: String(to || ''), subject: String(subject || ''), via: via, status: status, error: String(err || '').slice(0, 300) });
+  } catch (e) { Logger.log('Mail log: ' + e.message); }
+}
+/** The latest emails, newest first (system administrator only) */
+function listEmailLog(token) {
+  auth_(token, 'system.manage');
+  return rows_(TBL.MAILLOG).slice(-300).reverse().map(r => ({ at: r.at, to: r.to, subject: r.subject, via: r.via, status: r.status, error: r.error }));
 }
 
 /** The service that sends email now, for the messages to the administrator */

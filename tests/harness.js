@@ -616,5 +616,7 @@ if (require.main === module) {
   ok(!!tryRun("login('no-such-person-zz', 'Anything-1')").e && run("(function(){ const a = rows_(TBL.AUDIT).filter(r => r.action === 'LOGIN_FAILED'); return a[a.length - 1].details === 'no matching user'; })()"), 'an unknown name is logged as "no matching user"');
   // The app name for the Vercel page is read from Settings, as a callback script
   ok(run("appNameScript_('nameLoaded').getContent()") === "nameLoaded(" + JSON.stringify({ appName: run("settings_().appName"), logoUrl: run("settings_().logoUrl || ''") }) + ");", 'the name script carries the Settings app name and logo');
+  run("sendMail_('log.test@example.com', 'Log check', 'text', '<p>text</p>')");
+  ok(run("listEmailLog(TOK)[0].to") === 'log.test@example.com' && run("listEmailLog(TOK)[0].via") === run("mailRoute_()") && run("listEmailLog(TOK)[0].status") === 'Sent', 'every sent email is logged with the service used');
   console.log('done');
 }

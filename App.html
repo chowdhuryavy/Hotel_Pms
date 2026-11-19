@@ -2927,7 +2927,7 @@ async function pgLog() {
  * ============================================================ */
 // [key, label, permission, scope]. 'prop' = property admin (hotel operations); 'sys' = system administrator only.
 const ADM_TABS = [['users', 'Staff users', 'users.manage', 'prop'], ['settings', 'Hotel settings', 'cfg.settings.view', 'prop'], ['types', 'Room types', 'cfg.roomtypes.view', 'prop'], ['rooms', 'Rooms', 'cfg.rooms.view', 'prop'], ['packages', 'Packages', 'cfg.packages.view', 'prop'], ['minibar', 'Minibar items', 'cfg.minibar.view', 'prop'], ['currencies', 'Currencies', 'cfg.currencies.view', 'prop'], ['payments', 'Payment methods', 'cfg.payments.view', 'prop'],
-  ['padmins', 'Property admins', 'system.manage', 'sys'], ['padscreens', 'Property admin screens', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['menu', 'Menu layout', 'system.manage', 'sys'], ['emails', 'Email messages', 'system.manage', 'sys'], ['email', 'Email settings', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys'], ['security', 'Sign-in security', 'system.manage', 'sys'], ['updates', 'App version', 'system.manage', 'sys']];
+  ['padmins', 'Property admins', 'system.manage', 'sys'], ['padscreens', 'Property admin screens', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['menu', 'Menu layout', 'system.manage', 'sys'], ['emails', 'Email messages', 'system.manage', 'sys'], ['email', 'Email settings', 'system.manage', 'sys'], ['maillog', 'Email log', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys'], ['security', 'Sign-in security', 'system.manage', 'sys'], ['updates', 'App version', 'system.manage', 'sys']];
 let SEC_ROLES = [];
 async function pgAdmin(scope) {
   const tabs = ADM_TABS.filter(t => (t[3] === scope || (scope === 'sys' && t[3] === 'prop')) && can(t[2]));
@@ -2940,6 +2940,10 @@ async function pgAdmin(scope) {
     const us = await api('listUsers');
     body = `<div class="head-row"><h3>Users</h3><div class="acts">${can('system.manage') ? '<button class="btn" onclick="tabOpen_(&#39;userModal&#39;,[])">+ User</button>' : ''}</div></div>` +
       table(['Name', 'Username', 'Role', 'Active', 'Last login', ''], us.map(u => tr([esc(u.name), esc(u.username), pill(u.role), u.locked ? pill('Locked') : (u.active ? 'Yes' : 'No'), esc(u.lastLogin), `${u.locked ? `<button class="btn sm ok" onclick="unlockUserAct('${esc(u.id)}')">Unlock</button> ` : ''}<button class="btn sm ghost" onclick="tabOpen_(&#39;userModal&#39;,[&#39;${esc(u.id)}&#39;])">Edit</button> <button class="btn sm ghost" onclick="resetPwAct('${esc(u.id)}')">Reset password</button>`])));
+  } else if (ADM === 'maillog') {
+    const log = await api('listEmailLog');
+    body = `<h3>Email log</h3><p class="muted">The latest 300 emails: when, to whom, the service used (SMTP, Resend or the Google account), and whether it was sent.</p>` +
+      table(['When', 'To', 'Subject', 'Sent by', 'Status', 'Error'], log.map(r => tr([esc(r.at), esc(r.to), esc(r.subject), esc(r.via), pill(r.status), esc(r.error)])));
   } else if (ADM === 'padscreens') {
     body = await padScreensHtml_();
   } else if (ADM === 'menu') {
