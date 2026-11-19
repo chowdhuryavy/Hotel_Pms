@@ -4,9 +4,11 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.102**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.103**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
 
-Release notes for 1.2.102: The night audit report page now has a serial number (#) column, a Choose reports to show setting (admin) that hides reports from the page, and a name search that hides tables with no match and shows the match count. Reports look more professional on screen, in print and in PDF (header with period, right-aligned numbers, bold totals). The night run now saves every report for the business date (NightReports tab). The night audit report page shows the time the night run generated it, and falls back to a live report when no night run was saved. PDF, Print, Excel and CSV appear in each report's header.
+Release notes for 1.2.103: One Download button (with a format choice) and one Print button act on the selected report, replacing the four buttons.
+
+Release notes for 1.2.102: The night audit report page now has a serial number (#) column, a Choose reports to show setting (admin) that hides reports from the page, and a name search that hides tables with no match and shows the match count. Reports look more professional on screen, in print and in PDF (header with period, right-aligned numbers, bold totals). The night run now saves every report for the business date (NightReports tab). The night audit report page shows the time the night run generated it, and falls back to a live report when no night run was saved. One Download button (PDF, Excel or CSV, chosen beside it) and one Print button sit in the report header and act on the selected report.
 
 Release notes for 1.2.101: Fixed the Change password prompt that came back on every load after the password had been changed. Changing the password now also clears the must-change flag in the signed-in session.
 
