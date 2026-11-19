@@ -3076,7 +3076,7 @@ function deleteConfigAct(kind, key) {
     <div class="actions"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn danger" id="dcGo">Delete</button></div>`);
   $('dcGo').addEventListener('click', async () => {
     try { await api('deleteConfig', kind, key); toast('Deleted'); closeModal(); refresh(); }
-    catch (e) { toast(e.message, true); }
+    catch (e) { closeModal(); await appAlert('Cannot delete', e.message, 'bad'); }
   });
 }
 function deleteUserAct(id) {
