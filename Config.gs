@@ -89,7 +89,7 @@ const PERMISSIONS = [
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.131';
+const APP_VERSION = '1.2.132';
 const SETTINGS_DEFAULT = {
   maxLoginAttempts: 5,      // wrong passwords before the account is locked (system admin, minimum 5)
   inactivityMinutes: 30,    // idle minutes before sign-out (system admin)
@@ -109,7 +109,7 @@ const SETTINGS_DEFAULT = {
   logoUrl: '',
   currency: 'QAR',
   otpRoles: '',                        // roles that enter an emailed code at sign-in (system admin), comma-separated
-  loginotpSubject: 'Your sign-in code for {{appName}}',
+  loginotpSubject: 'Your {{appName}} security code: {{code}}',
   loginotpBody: 'Hello {{name}},\n\nYour sign-in code is {{code}}\n\nUse it to finish signing in. It expires in {{minutes}} minutes.\n\nIf you did not try to sign in, change your password and tell the administrator.',
   nightReportTypes: '',                // night audit report page: report keys to show, comma-separated (blank = all)
   taxRate: 0.10,                       // applied to every taxable charge (0.10 = 10%)
@@ -127,7 +127,7 @@ const SETTINGS_DEFAULT = {
   intPosUrl: '', intTvUrl: '', intPhoneUrl: '', intCardUrl: '',   // integration addresses (system admin)
   appUrl: '',                          // link to the app, sent to new users (system admin)
   // Emails. Placeholders: {{name}} {{code}} {{minutes}} {{appName}} {{hotelName}} {{username}} {{tempPassword}} {{role}} {{appUrl}}
-  otpSubject: 'Your verification code for {{appName}}',
+  otpSubject: 'Your {{appName}} security code: {{code}}',
   otpBody: 'Hello {{name}},\n\nYour verification code is {{code}}\n\nUse this code to reset your password. It expires in {{minutes}} minutes.\n\nIf you did not ask for a password reset, you can ignore this email. Your password will not change.',
   doneSubject: 'Your {{appName}} password was changed',
   doneBody: 'Hello {{name}},\n\nYour password was changed just now. If this was not you, contact your administrator at once.',

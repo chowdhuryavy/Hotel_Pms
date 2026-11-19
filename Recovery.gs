@@ -75,10 +75,15 @@ function mailHtml_(bodyHtml) {
     '</table></td></tr></table></body></html>';
 }
 /** Subject, plain text and HTML for one of the editable emails: kind is 'otp' or 'done'. */
+/* Subjects saved by earlier versions. A saved subject that still matches one of these gets the current default. */
+const OLD_CODE_SUBJECTS = ['Your verification code for {{appName}}', 'Your sign-in code for {{appName}}'];
 function renderMail_(kind, vars) {
   const v = Object.assign({ appName: appName_(), hotelName: hotelName_() }, vars);
   const text = tplText_(kind + 'Body', v);
-  let subject = tplText_(kind + 'Subject', v);
+  let saved = settings_()[kind + 'Subject'];
+  if ((kind === 'otp' || kind === 'loginotp') && OLD_CODE_SUBJECTS.indexOf(saved) >= 0) saved = '';
+  const tpl = saved || SETTINGS_DEFAULT[kind + 'Subject'];
+  let subject = String(tpl).replace(/\{\{(\w+)\}\}/g, (m, k) => v[k] != null ? String(v[k]) : '');
   if (v.code && subject.indexOf(v.code) < 0) subject = v.code + ' is your code · ' + subject;
   return { subject: subject, text: text, html: mailHtml_(htmlFromText_(text, v.code || '')) };
 }

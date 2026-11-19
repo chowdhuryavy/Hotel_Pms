@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.131**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.132**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.132: Sign-in and reset code emails now use the subject "Your Stayline security code: 123456", the same pattern as other services' code emails. A subject saved with the old wording is replaced automatically.
 
 Release notes for 1.2.131: The sidebar menu no longer shows a scrollbar on desktop. The menu still scrolls with the mouse wheel, and rows are tighter on shorter screens so most laptops fit the whole menu.
 

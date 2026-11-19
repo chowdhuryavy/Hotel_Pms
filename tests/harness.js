@@ -120,7 +120,7 @@ if (require.main === module) {
   ok(!req.e && /code has been sent/.test(req.v.message) && req.v.sentTo === 'a***@example.com', 'forgot request sends a code (masked address shown)');
   const mail = mailbox[mailbox.length - 1] || {};
   const code = ((mail.body || '').match(/\b(\d{6})\b/) || [])[1];
-  ok(mailbox.length >= 1 && /verification code/i.test(mail.subject || '') && !!code && /<html/i.test(mail.htmlBody || ''), 'code emailed as a professional HTML email');
+  ok(mailbox.length >= 1 && /security code|verification code/i.test(mail.subject || '') && !!code && /<html/i.test(mail.htmlBody || ''), 'code emailed as a professional HTML email');
   ok(/Your verification code is \d{6}/.test(mail.body || ''), 'plain text has a "Your verification code is NNNNNN" line (Gmail copy button)');
   const again = tryRun("forgotRequest('admin@example.com')");
   ok(!again.e && mailbox.length === 1, 'no second email within the cooldown');
@@ -576,5 +576,9 @@ if (require.main === module) {
   run("(function(){ patch_(TBL.SETTINGS, rows_(TBL.SETTINGS).find(r => r.key === 'licenseExpiry')._row, { value: 'not a date' }); return true; })()");
   ok(run("settings_().licenseExpiry") === '', 'a value that is not a date is ignored');
   ok(run("normDate_(new Date('2030-06-15T12:00:00+03:00')) === '2030-06-15'"), 'a date cell is read as its day in Qatar time');
+  // Code emails use the Vercel-style subject, and an old saved subject is replaced by the new default
+  ok(run("renderMail_('otp', { code: '246810' }).subject") === 'Your ' + "Stayline" + ' security code: 246810' || run("renderMail_('otp', { code: '246810' }).subject").indexOf('security code: 246810') > 0, 'reset code subject follows the security code pattern');
+  run("(function(){ patch_(TBL.SETTINGS, rows_(TBL.SETTINGS).find(r => r.key === 'otpSubject') ? rows_(TBL.SETTINGS).find(r => r.key === 'otpSubject')._row : 1, { value: 'Your verification code for {{appName}}' }); return true; })()");
+  ok(run("renderMail_('otp', { code: '246810' }).subject").indexOf('security code: 246810') > 0, 'an old saved subject gets the new pattern');
   console.log('done');
 }
