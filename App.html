@@ -1931,6 +1931,7 @@ async function pgNewRes() {
   </div>`;
 
   if (NR.type) {
+    NR.roomList = (((NR.avail || []).find(t => t.type === NR.type)) || {}).rooms || [];
     const q = await api('quoteRates', NR.type, NR.plan || 'BAR', NR.arrival, NR.departure);
     const g = NR.guest || {};
     html += `<div class="card"><h3>2. Guest</h3>
@@ -1946,7 +1947,10 @@ async function pgNewRes() {
         <span>${esc(NR.type)} · ${nightsOf_()} night(s)</span>
         <span>Total <b>${money(q.total)}</b></span><span>Average <b>${money(q.average)}</b> / night</span>
       </div>
+      <div class="toolbar"><label><span>Filter free rooms</span><input id="nrRoomFilter" placeholder="Room number, e.g. 20" oninput="nrRoomFilter(this.value)"></label>
+        <span class="muted">${NR.roomList.length} free ${esc(NR.type)} room(s) for these dates</span></div>
       ${formHtml('fNR', [
+        { name: 'roomNo', label: 'Room (free rooms for these dates)', type: 'select', wide: true, options: [['', 'Auto: first free room']].concat(NR.roomList.map(x => [x, 'Room ' + x])), value: NR.roomNo || '' },
         { name: 'firstName', label: 'First name', required: true, value: g.first || '' },
         { name: 'lastName', label: 'Last name', required: true, value: g.last || '' },
         { name: 'email', label: 'Email', type: 'email', value: g.email || '' },
@@ -1977,7 +1981,16 @@ async function nrSearch(e) {
   try { NR.avail = await api('availability', d.arrival, d.departure, ''); go('newres'); }
   catch (err) { toast(err.message, true); }
 }
-function nrPick(type) { NR.type = type; go('newres'); }
+function nrPick(type) { NR.type = type; NR.roomNo = ''; go('newres'); }
+/* Narrows the free-room list by room number; Auto stays the first option */
+function nrRoomFilter(q) {
+  const t = String(q || '').trim().toLowerCase();
+  const sel = document.querySelector('#fNR select[name=roomNo]');
+  if (!sel) return;
+  const list = (NR.roomList || []).filter(x => !t || String(x).toLowerCase().indexOf(t) >= 0);
+  sel.innerHTML = ['<option value="">Auto: first free room</option>'].concat(list.map(x => '<option value="' + esc(x) + '">Room ' + esc(x) + '</option>')).join('');
+  NR.roomNo = '';
+}
 async function nrGuestSearch(e) {
   e.preventDefault();
   const q = new FormData(e.target).get('q');
