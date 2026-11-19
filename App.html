@@ -879,11 +879,37 @@ async function integTest(channel) {
 let LISTS = [];
 /* ---------- Posting window: charges, payments and packages for one room, on its own page ---------- */
 let POST_KIND = 'charge';
+/* Find a stay to post to: by guest name, reservation number, room, phone, e-mail, company or group */
+function postFindHtml_() {
+  return `<div class="card"><h3>Find a guest or stay</h3>
+    <form class="toolbar" onsubmit="postFind(event)">
+      <label><span>Search by</span><select name="by">
+        <option value="guest">Guest name</option><option value="resNo">Reservation number</option><option value="room">Room number</option>
+        <option value="phone">Phone</option><option value="email">E-mail</option><option value="company">Company</option><option value="group">Group</option>
+      </select></label>
+      <label><span>Search for</span><input name="text" placeholder="Type part of it" required></label>
+      <button class="btn ghost" type="submit">Search</button>
+    </form>
+    <div id="postFound"></div></div>`;
+}
+async function postFind(e) {
+  e.preventDefault();
+  const f = new FormData(e.target), box = $('postFound');
+  box.innerHTML = '<div class="loading">Searching…</div>';
+  try {
+    const list = await api('billingSearch', f.get('by'), f.get('text'));
+    box.innerHTML = list.length
+      ? table(['Guest', 'Room', 'Reservation', 'Status', 'Company', ''], list.map(x => tr([
+          esc(x.guestName), esc(x.roomNo || '—'), esc(x.resNo), pill(x.status), esc(x.company), x.roomNo
+            ? `<button class="btn sm" type="button" onclick="go('post','${esc(x.roomNo)}')">Post</button>` : '<span class="muted">No room yet</span>'])))
+      : '<p class="muted">No stay matches.</p>';
+  } catch (err) { box.innerHTML = ''; toast(err.message, true); }
+}
 async function pgPost(param) {
   const room = String(param || '').trim();
   const head = `<h1>Posting <small>charges, payments and packages</small></h1>
     <form class="card toolbar" onsubmit="postLoad(event)"><label><span>Room number</span><input name="room" value="${esc(room)}" placeholder="e.g. 204" autofocus></label>
-      <button class="btn" type="submit">Open room</button></form>`;
+      <button class="btn" type="submit">Open room</button></form>${postFindHtml_()}`;
   if (!room) { setView(head + '<div class="card muted">Enter a room number to post to its folios.</div>'); return; }
   const d = await api('billingRoom', room);
   if (!d.res) { setView(head + `<div class="card">Room ${esc(room)} has no in-house or reserved stay.</div>`); return; }

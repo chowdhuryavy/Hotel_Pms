@@ -334,3 +334,35 @@ function splitPosting(token, postingId, parts, reason) {
     return { ids: newIds };
   });
 }
+
+/**
+ * Posting window search: find an in-house or reserved stay by guest name, reservation number,
+ * room, phone, e-mail, company or group. Returns the first 30 matches, ordered by room.
+ */
+function billingSearch(token, by, text) {
+  auth_(token, 'folio.view');
+  const q = String(text || '').trim().toLowerCase();
+  if (!q) return [];
+  const guests = {};
+  rows_(TBL.GUESTS).forEach(g => { guests[g.id] = g; });
+  const hay = {
+    guest: (r, g) => [r.guestName, g.firstName, g.lastName].join(' '),
+    resNo: r => r.resNo,
+    room: r => r.roomNo,
+    phone: (r, g) => g.phone,
+    email: (r, g) => g.email,
+    company: r => r.company,
+    group: r => r.groupId
+  };
+  const field = hay[by];
+  if (!field) throw new Error('Unknown search.');
+  return rows_(TBL.RES)
+    .filter(r => RES_ACTIVE.indexOf(r.status) >= 0)
+    .filter(r => String(field(r, guests[r.guestId] || {}) || '').toLowerCase().indexOf(q) >= 0)
+    .sort((a, b) => String(a.roomNo || '').localeCompare(String(b.roomNo || ''), undefined, { numeric: true }))
+    .slice(0, 30)
+    .map(r => {
+      const g = guests[r.guestId] || {};
+      return { resNo: r.resNo, guestName: r.guestName || '', roomNo: String(r.roomNo || ''), status: r.status, company: r.company || '', phone: g.phone || '' };
+    });
+}

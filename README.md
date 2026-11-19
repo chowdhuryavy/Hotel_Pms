@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.81**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.82**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.82: The posting window has a "Find a guest or stay" search. Search by guest name, reservation number, room number, phone, e-mail, company or group, then choose Post to open that room.
 
 Release notes for 1.2.81: Property admin screens now lists every configuration function: Hotel settings, Room types, Rooms, Rate plans, Seasonal rates, Charge codes, Packages, Payment methods, Company accounts and Fixed charges. Each has See, Change and Delete limits that System admin sets once; the Property Admin gets exactly those.
 
