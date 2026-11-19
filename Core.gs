@@ -6,10 +6,14 @@
  */
 
 /* ============================ DATABASE ============================ */
+/* The database is opened once per request (opening it is slow); the setup clears this when it changes the database */
+let SS_MEMO_ = null;
 function ss_() {
+  if (SS_MEMO_) return SS_MEMO_;
   const id = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
   if (!id) throw new Error('Database not set up. Run setupDatabase() from the Apps Script editor.');
-  return SpreadsheetApp.openById(id);
+  SS_MEMO_ = SpreadsheetApp.openById(id);
+  return SS_MEMO_;
 }
 function sh_(t) {
   const ss = ss_();

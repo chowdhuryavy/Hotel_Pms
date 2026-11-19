@@ -15,6 +15,7 @@ function setupDatabase() {
   const created = !existing;
   const ss = existing ? SpreadsheetApp.openById(existing) : SpreadsheetApp.create('Stayline Database');
   props.setProperty('SHEET_ID', ss.getId());
+  SS_MEMO_ = null;
   ss.setSpreadsheetTimeZone(TZ);
 
   // 1) Tabs and headers
