@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.47**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.48**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.48: The update pop-up's Refresh button sends the browser to the web app's own address with a new version number, so the newest version loads. The server supplies that address to the page.
 
 Release notes for 1.2.47: On phones the menu opens from the top edge of the screen and covers the header. Its hotel name is shown once, in the menu, and a close button in the menu header closes it. The header's hotel name is hidden while the menu is open.
 

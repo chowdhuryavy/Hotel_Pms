@@ -82,15 +82,21 @@ function updateShow_(v) {
     <span class="upd-acts"><button type="button" class="btn sm" onclick="updateRefresh_()">Refresh</button><button type="button" class="btn ghost sm" onclick="updateLater_()">Later</button></span>`;
   requestAnimationFrame(() => box.classList.add('show'));
 }
-/* Refresh: reloads the current page in place, with a new address so the newest code is fetched.
-   The app runs in a frame, so the reload stays in that frame (navigating the top window would open the frame's own address).
-   The current route is saved first, so the same page opens again after the reload. */
+/* Refresh: loads the newest version of the app. The app runs inside Google's frame, which blocks a reload of the
+   frame itself, so the top window is sent to the web app's own address with a new version number. That address
+   comes from the server (meta exec-url). The route cannot be carried across, so the main page opens. */
 function updateRefresh_() {
+  const base = ((document.querySelector('meta[name="exec-url"]') || {}).content || '').trim();
   try { sessionStorage.setItem('st_resume', location.hash); } catch (e) { /* private mode */ }
+  const dest = base ? base + (base.indexOf('?') >= 0 ? '&' : '?') + 'v=' + Date.now() : '';
+  if (dest) {
+    try { window.top.location.href = dest; return; } catch (e) { /* the frame cannot navigate the top window */ }
+    try { window.open(dest, '_top'); return; } catch (e) { /* fall through */ }
+  }
   const u = new URL(location.href);
   u.searchParams.set('v', String(Date.now()));
   try { location.replace(u.href); } catch (e) { /* fall back to the reload below */ }
-  setTimeout(() => { try { location.reload(); } catch (e) { location.href = u.href; } }, 700);   // only runs if the browser ignored the navigation
+  setTimeout(() => { try { location.reload(); } catch (e) { location.href = u.href; } }, 700);
 }
 /** Reads and clears the route saved by the refresh button. */
 function takeResume_() {

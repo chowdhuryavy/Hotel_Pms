@@ -351,6 +351,7 @@ function doGet() {
   const t = HtmlService.createTemplateFromFile('Index');
   t.appName = name;
   t.appVersion = APP_VERSION;
+  t.execUrl = ScriptApp.getService().getUrl();   // the web app's own address, used by the update Refresh button
   return t.evaluate().setTitle(name).addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 /** Inlines a file (Styles) into Index as HTML. */
