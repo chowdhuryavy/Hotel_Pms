@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.21**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.22**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.22: Redesigned buttons (one primary style, a quiet secondary, and clear success and danger colours) without the sweeping hover effect. Status badges such as In-House, Reserved, Dirty and Cancelled now have tinted backgrounds with a dot and read well in both themes. Inputs in toolbars and forms match the theme.
 
 Release notes for 1.2.21: Dark theme by default with a white theme toggle in the header. Posting window: its own page for charges, payments and packages, with + New folio. Dashboard: 7-night revenue bar chart and quick action buttons. The business date is no longer in the header, and the hotel name has a styled sub line.
 
