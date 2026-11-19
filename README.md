@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.44**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.45**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.45: The update pop-up's Refresh button saves the current page before reloading, reloads in place, and falls back to a normal reload if the browser ignores the first attempt. The page is restored after the reload even if the address hash was lost.
 
 Release notes for 1.2.44: The sign-in page has icons in the username and password fields, and a more polished desktop layout with a grid texture, a footer line and an accent bar on the sign-in card.
 

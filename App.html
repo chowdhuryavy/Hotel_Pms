@@ -82,14 +82,19 @@ function updateShow_(v) {
     <span class="upd-acts"><button type="button" class="btn sm" onclick="updateRefresh_()">Refresh</button><button type="button" class="btn ghost sm" onclick="updateLater_()">Later</button></span>`;
   requestAnimationFrame(() => box.classList.add('show'));
 }
-/* Refresh: loads the newest version of the app. The app runs inside Google's frame, so the reload is
-   sent to the top window with a new address (the fresh version is never served from the old cache). */
-/* Reloads the current page in place, keeping the current route (the URL hash). The app runs in a frame,
-   so the reload must stay in that frame: navigating the top window would open the frame's own address instead. */
+/* Refresh: reloads the current page in place, with a new address so the newest code is fetched.
+   The app runs in a frame, so the reload stays in that frame (navigating the top window would open the frame's own address).
+   The current route is saved first, so the same page opens again after the reload. */
 function updateRefresh_() {
+  try { sessionStorage.setItem('st_resume', location.hash); } catch (e) { /* private mode */ }
   const u = new URL(location.href);
-  u.searchParams.set('v', String(Date.now()));   // new address each time, so the browser fetches the newest code
-  try { location.replace(u.href); } catch (e) { location.reload(); }
+  u.searchParams.set('v', String(Date.now()));
+  try { location.replace(u.href); } catch (e) { /* fall back to the reload below */ }
+  setTimeout(() => { try { location.reload(); } catch (e) { location.href = u.href; } }, 700);   // only runs if the browser ignored the navigation
+}
+/** Reads and clears the route saved by the refresh button. */
+function takeResume_() {
+  try { const r = sessionStorage.getItem('st_resume') || ''; sessionStorage.removeItem('st_resume'); return r; } catch (e) { return ''; }
 }
 function updateLater_() {
   UPD_SNOOZE = Date.now() + 30 * 60 * 1000;   // ask again in 30 minutes
@@ -427,7 +432,8 @@ function startApp() {
   idleReset_();
   if (S.user.mustChange) toast('Please choose a new password to continue.');
   // Draw the first page directly. Relying on the hashchange event left the loading screen up until its 20-second limit.
-  const want = parseHash_();
+  const resume = takeResume_();
+  const want = parseHash_(location.hash || resume);
   const ok = want.page && pageAllowed_(want.page);
   const page = ok ? want.page : firstPage(), param = ok ? want.param : null;
   history.replaceState(null, '', routeHash_(page, param));
@@ -950,8 +956,8 @@ const PAGES = {
 };
 /* ---------- Routing: every page has its own address (#/reservations, #/res?"RES1") ---------- */
 function routeHash_(page, param) { return '#/' + page + (param != null ? '?' + encodeURIComponent(JSON.stringify(param)) : ''); }
-function parseHash_() {
-  const h = location.hash.replace(/^#\/?/, ''), i = h.indexOf('?');
+function parseHash_(hash) {
+  const h = String(hash != null ? hash : location.hash).replace(/^#\/?/, ''), i = h.indexOf('?');
   let param = null;
   if (i >= 0) { try { param = JSON.parse(decodeURIComponent(h.slice(i + 1))); } catch (e) { param = null; } }
   return { page: i < 0 ? h : h.slice(0, i), param: param };
