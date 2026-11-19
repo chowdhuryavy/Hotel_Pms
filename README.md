@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.128**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.129**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.129: A password reset now also clears a lock and the wrong-password count, so the new password works on a locked account.
 
 Release notes for 1.2.128: The spinner now shows on Send code, Verify code and Save new password in the Forgot password flow, while the request runs.
 

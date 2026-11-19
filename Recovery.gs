@@ -175,9 +175,11 @@ function forgotReset(resetToken, newPassword) {
     const u = rows_(TBL.USERS).find(x => x.id === userId && x.active === true);
     if (!u) throw new Error('This account is no longer active.');
     const salt = Utilities.getUuid();
-    patch_(TBL.USERS, u._row, { salt: salt, passHash: hash_(salt, newPassword) });
+    // A reset proves who the person is, so it also clears a lock and the wrong-password count
+    patch_(TBL.USERS, u._row, { salt: salt, passHash: hash_(salt, newPassword), failCount: 0, locked: false });
     cache.remove(key);
     cache.remove('fail:' + String(u.username).toLowerCase());
+    cache.remove('fail:' + String(u.email || '').toLowerCase());
     audit_('system', 'PASSWORD_RESET', 'User', u.id, u.username);
     if (u.email) {
       const who = u.name || u.username;

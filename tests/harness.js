@@ -560,5 +560,13 @@ if (require.main === module) {
   ok(run("(function(){ relayCalls.length = 0; sendMail_('g@x.com', 'Hi', 'B', 'B'); return relayCalls[0].u === 'https://r.example.com'; })()"), 'SMTP wins when both are on');
   ok(!tryRun("saveEmailConfig(TOK, {active: false, host: 'mail.h.com', port: 587, security: 'starttls', from: 'a@b.co', relayUrl: 'https://r.example.com', resendActive: false, resendFrom: 'hotel@hotel.com', clearResendKey: true})").e && run("getEmailConfig(TOK).resendKeySet") === false, 'the Resend key can be removed');
   ok(run("(function(){ const n = mailbox.length; sendMail_('g@x.com', 'Hi', 'B', 'B'); return mailbox.length === n + 1; })()"), 'with both off, mail goes out from the Google account');
+  // Reset clears a lock: a locked account can sign in with the new password
+  run("(function(){ const r = rows_(TBL.USERS).find(x => x.username === 'lockme'); patch_(TBL.USERS, r._row, { email: 'lockme@h.com', locked: true, failCount: 5 }); return true; })()");
+  run("CacheService.getScriptCache().remove('otpcd:' + rows_(TBL.USERS).find(x => x.username === 'lockme').id)");
+  run("forgotRequest('lockme')");
+  const lkCode = /verification code is (\d{6})/.exec(mailbox[mailbox.length - 1].body)[1];
+  const lkTok = run("forgotVerify('lockme', '" + lkCode + "')").resetToken;
+  ok(!tryRun("forgotReset('" + lkTok + "', 'Lockme-pass1!')").e, 'reset is accepted for a locked account');
+  ok(!tryRun("login('lockme', 'Lockme-pass1!')").e, 'the new password signs in after a reset (account was locked)');
   console.log('done');
 }
