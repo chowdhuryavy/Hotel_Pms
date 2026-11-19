@@ -88,6 +88,16 @@ if (require.main === module) {
   ok(run('TOK') && run('TOK').length > 10, 'admin login works');
   const bad = tryRun("login('admin','wrong')");
   ok(!!bad.e, 'wrong password rejected');
+  // admin password reset: sets a new password from ADMIN_PASSWORD, and the old one stops working
+  props.ADMIN_PASSWORD = 'Reset12345';
+  const r1 = tryRun("resetAdminPassword()");
+  ok(!r1.e && /Admin password is set/.test(r1.v), 'resetAdminPassword sets the password');
+  const oldPw = tryRun("login('admin','Admin12345')");
+  ok(!!oldPw.e, 'old admin password is refused after reset');
+  const newPw = tryRun("login('admin','Reset12345').token");
+  ok(!newPw.e && String(newPw.v).length > 10, 'new admin password signs in after reset');
+  props.ADMIN_PASSWORD = 'Admin12345';
+  tryRun("resetAdminPassword()");
   const bd = run('bizDate_()');
   console.log('business date', bd);
   const av = run("availability(TOK, bizDate_(), addDays_(bizDate_(), 2), '')");
