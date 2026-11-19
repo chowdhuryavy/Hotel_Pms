@@ -675,7 +675,19 @@ function sessionEnd(msg) {
   $('loginErr').textContent = msg || '';
   closeModal();
 }
-async function logout() { try { await rpc('logout', S.token); } catch (e) {} try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} sessionEnd(''); }
+async function logout() {
+  // A cashier with an open shift is reminded to close it (cash count and cashier report) before signing out
+  try {
+    const m = await api('myShift');
+    if (m && m.shift) {
+      const leave = await appConfirm('Open cashier shift', 'Your cashier shift is still open. Close it now with the cash count and print the cashier report?', { ok: 'Sign out anyway', cancel: 'Close shift first', tone: 'warn' });
+      if (!leave) { go('cashier'); return; }
+    }
+  } catch (e) { /* if the shift cannot be read, sign out as usual */ }
+  try { await rpc('logout', S.token); } catch (e) {}
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  sessionEnd('');
+}
 function startApp() {
   $('login').classList.add('hidden');
   $('app').classList.remove('hidden');
