@@ -15,12 +15,16 @@ function ss_() {
   SS_MEMO_ = SpreadsheetApp.openById(id);
   return SS_MEMO_;
 }
+/* Sheet objects opened in this request, so each table is looked up once per request */
+let SHEET_MEMO_ = {};
 function sh_(t) {
+  if (SHEET_MEMO_[t[0]]) return SHEET_MEMO_[t[0]];
   const ss = ss_();
   let s = ss.getSheetByName(t[0]);
   // A table added by an update is created with its headers, once the database is set up. Rows are never touched.
   if (!s && ss.getSheetByName(TBL.SETTINGS[0])) { s = ss.insertSheet(t[0]); s.getRange(1, 1, 1, t[1].length).setValues([t[1]]); }
   if (!s) throw new Error('Missing sheet "' + t[0] + '". Run setupDatabase().');
+  SHEET_MEMO_[t[0]] = s;
   return s;
 }
 /* Display dates as dd-mm-yyyy (PDF and printed text). Stored values stay yyyy-mm-dd. */
@@ -247,8 +251,10 @@ function healthCheck(token) {
   const t0 = Date.now();
   try {
     const names = Object.keys(TBL);
-    out.created = ensureAllTabsOnce_(true);          // a tab added by an update is created, not reported as an error
-    names.forEach(k => sh_(TBL[k]));                 // every table must exist
+    out.created = ensureAllTabsOnce_(false);         // checked once per version (cached), not on every visit
+    const have = {};
+    ss_().getSheets().forEach(x => { have[x.getName()] = true; });   // one call for the list of tabs
+    names.forEach(k => { if (!have[TBL[k][0]]) sh_(TBL[k]); });       // a missing table is created
     out.settingsRows = rows_(TBL.SETTINGS).length;   // a real read of the sheet
     out.tables = names.length;
   } catch (e) {

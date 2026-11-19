@@ -316,7 +316,8 @@ function spinEnd_(b) {
   b._spin = Math.max(0, (b._spin || 1) - 1);
   if (!b._spin) b.classList.remove('spin-on');
 }
-function progressStart_() { PROGRESS_N++; const p = document.getElementById('progress'); if (p) p.classList.add('on'); }
+/* The top bar is for actions and background reads. A page that is drawing already shows its skeleton, so the bar stays off then. */
+function progressStart_() { PROGRESS_N++; const p = document.getElementById('progress'); if (p && !VIEW_PENDING) p.classList.add('on'); }
 function progressEnd_() { PROGRESS_N = Math.max(0, PROGRESS_N - 1); if (!PROGRESS_N) { const p = document.getElementById('progress'); if (p) p.classList.remove('on'); } }
 function skeleton_() {
   const cards = [0, 1, 2, 3].map(() => '<div class="sk-card"><div class="sk-line w60"></div><div class="sk-line w40"></div></div>').join('');

@@ -22,6 +22,7 @@ function makeSheet(name) {
   const data = [];
   const sh = {
     name,
+    getName: () => name,
     getLastRow: () => data.length,
     getLastColumn: () => data.reduce((m, r) => Math.max(m, r.length), 0),
     getDataRange: () => ({ getValues: () => data.map(r => r.slice()) }),
@@ -321,6 +322,7 @@ if (require.main === module) {
   const PAD_GRANT = ['cfg.settings.view', 'cfg.settings.edit', 'users.manage', 'fixed.manage'].concat(['roomtypes', 'rooms', 'rates', 'accounts', 'packages', 'payments', 'rateplans', 'chargecodes'].reduce((a, k) => a.concat(['view', 'edit', 'delete'].map(x => 'cfg.' + k + '.' + x)), []));
   run("(() => { saveRolePerms(TOK, 'Property Admin', rows_(TBL.PERMS).filter(p => p['Property Admin'] === true).map(p => p.permission).concat(" + JSON.stringify(PAD_GRANT) + ")); return true; })()");
   ok(run("listRoles('" + PTOK + "').every(r => r.name !== 'Admin' && r.name !== 'Property Admin')"), 'property admin does not see the Admin or Property Admin roles');
+  ok(run("healthCheck(TOK).database === 'ok' && healthCheck(TOK).tables > 0"), 'health check reads the database without errors');
   ok(run("getUserFormData('" + PTOK + "').roles.every(r => r !== 'Admin' && r !== 'Property Admin') && Array.isArray(getUserFormData('" + PTOK + "').users)"), 'staff user form data leaves out the Admin roles and accounts');
   ok(run("roleOptions('" + PTOK + "').every(r => r !== 'Admin' && r !== 'Property Admin')"), 'property admin role choices leave out Admin and Property Admin');
   ok(!!tryRun("saveRolePerms('" + PTOK + "', 'Admin', [])").e, 'property admin cannot change the Admin role');

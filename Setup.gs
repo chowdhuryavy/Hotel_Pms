@@ -17,6 +17,7 @@ function setupDatabase() {
   props.setProperty('SHEET_ID', ss.getId());
   SS_MEMO_ = null;
   SETTINGS_MEMO_ = null;
+  SHEET_MEMO_ = {};
   ss.setSpreadsheetTimeZone(TZ);
 
   // 1) Tabs and headers
