@@ -43,7 +43,22 @@ function rpc(fn, ...args) {
       })[fn](...args);
   });
 }
-const api = (fn, ...a) => { progressStart_(); return rpc(fn, S.token, ...a).finally(progressEnd_); };
+/* Google's script runner sometimes fails a call in transit ("Network error"). Reads are retried; saves are not,
+ * because a repeated save could duplicate the record. */
+const NET_ERR_RE = /network error|server error|failed to fetch|timed out|connection|service invoked too many/i;
+const READ_FN_RE = /^(get|list|run|front|billing|occupancy|availability|search|my|report|ar[A-Z]|account|guest|folio|audit|dashboard|rack|export|reportTypes|frontDesk|cashier|housekeeping|night|group)/;
+const isNetErr_ = m => NET_ERR_RE.test(String(m || ''));
+const api = (fn, ...a) => {
+  progressStart_();
+  const attempt = n => rpc(fn, S.token, ...a).catch(e => {
+    if (isNetErr_(e.message) && READ_FN_RE.test(fn) && n < 2) return new Promise(r => setTimeout(r, 700 * (n + 1))).then(() => attempt(n + 1));
+    if (isNetErr_(e.message)) throw new Error(READ_FN_RE.test(fn)
+      ? 'The connection to Google was interrupted. Please try again.'
+      : 'The connection to Google was interrupted. Check whether it was saved before you try again.');
+    throw e;
+  });
+  return attempt(0).finally(progressEnd_);
+};
 let PROGRESS_N = 0;
 let VIEW_PENDING = false;          // true while a page is loading its data from the sheet
 /* Keeps the loading screen up until the first page has its data (or 20 seconds have passed). */
@@ -2243,7 +2258,18 @@ function hideSplash() {
   const pg = document.createElement('div'); pg.id = 'progress'; document.body.appendChild(pg);
   try { if (localStorage.getItem('st_sb') === '0') document.body.classList.add('sb-collapsed'); } catch (e) { /* ignore */ }
   try { S.settings = await rpc('getPublicSettings'); }
-  catch (e) { S.settings = { appName: 'Stayline', hotelName: '', currency: '' }; splashMsg('Database not set up yet. Use Stayline → Set up database.'); }
+  catch (e) {
+    S.settings = { appName: 'Stayline', hotelName: '', currency: '' };
+    // A dropped connection is not a missing database: retry the page once, after a short wait
+    const last = Number(sessionStorage.getItem('st_retry') || 0);
+    if (isNetErr_(e.message) && Date.now() - last > 30000) {
+      try { sessionStorage.setItem('st_retry', String(Date.now())); } catch (x) { /* ignore */ }
+      splashMsg('Connection problem. Reconnecting…');
+      setTimeout(() => location.reload(), 2500);
+      return;
+    }
+    splashMsg(isNetErr_(e.message) ? 'Connection problem. Please refresh the page.' : 'Database not set up yet. Use Stayline → Set up database.');
+  }
   brand();
   splashTheme_();
   if (S.settings && S.settings.loadingMessage) splashMsg(S.settings.loadingMessage);
