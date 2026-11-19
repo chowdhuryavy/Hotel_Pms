@@ -1,6 +1,6 @@
 const fs = require('fs'), vm = require('vm'), crypto = require('crypto');
 const SRC = '../';
-const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','FixedCharges','Documents','Backup','Recovery','Roles','Billing','Ledger','Admin','EodReports','FrontSearch','Menu','Updater','Currency','GuestService','Minibar'];
+const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','FixedCharges','Documents','Backup','Recovery','Email','Roles','Billing','Ledger','Admin','EodReports','FrontSearch','Menu','Updater','Currency','GuestService','Minibar'];
 const code = files.map(f => fs.readFileSync(SRC + f + '.gs', 'utf8')).join('\n;\n');
 
 // ---- in-memory Spreadsheet ----
@@ -45,11 +45,14 @@ function makeSheet(name) {
 }
 const props = {};
 const mailbox = [];
+const relayCalls = [];
+let relayReply = { next: null };
 const cache = new Map();
 const sandbox = {
   Logger: { log: (...a) => { if (process.env.VERBOSE) console.log('LOG', ...a); } },
   MailApp: { sendEmail: m => { mailbox.push(m); } },
-  PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; } }) },
+  PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: k => { delete props[k]; } }) },
+  UrlFetchApp: { fetch: (u, o) => { relayCalls.push({ u, o }); return relayReply.next || { getResponseCode: () => 200, getContentText: () => '{}' }; } },
   CacheService: { getScriptCache: () => ({ get: k => cache.get(k) || null, put: (k, v) => cache.set(k, v), remove: k => cache.delete(k) }) },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   SpreadsheetApp: {
@@ -75,6 +78,7 @@ const sandbox = {
   console
 };
 sandbox.global = sandbox;
+Object.assign(sandbox, { mailbox, relayCalls, relayReply });
 vm.createContext(sandbox);
 vm.runInContext(code, sandbox, { filename: 'stayline.js' });
 const run = (expr) => vm.runInContext(expr, sandbox);
@@ -519,5 +523,21 @@ if (require.main === module) {
   ok(!!tryRun("saveSettings(TOK, {menuLayout: JSON.stringify({groups: [{name: '', items: []}]})})").e, 'every menu group needs a name');
   ok(!!tryRun("saveSettings(PT2, {menuLayout: JSON.stringify({groups: []})})").e, 'property admin cannot change the menu layout');
   ok(!tryRun("saveSettings(TOK, {menuLayout: ''})").e && run("settings_().menuLayout") === '', 'menu layout can be reset to default');
+  // Email sending: SMTP through the hotel's relay, or the Google account when SMTP is off
+  ok(!!tryRun("getEmailConfig(PT2)").e, 'property admin cannot see email sending settings');
+  ok(!tryRun("saveEmailConfig(TOK, {active: false})").e && run("getEmailConfig(TOK).active") === false, 'email sending can stay off');
+  ok(!!tryRun("saveEmailConfig(TOK, {active: true, host: '', from: 'a@b.co', relayUrl: 'https://r.example.com'})").e, 'SMTP on needs a server name');
+  ok(!!tryRun("saveEmailConfig(TOK, {active: true, host: 'mail.h.com', from: 'bad', relayUrl: 'https://r.example.com'})").e, 'SMTP from address must be an email');
+  ok(!!tryRun("saveEmailConfig(TOK, {active: true, host: 'mail.h.com', port: 70000, security: 'starttls', from: 'a@b.co', relayUrl: 'https://r.example.com'})").e, 'SMTP port must be 1-65535');
+  ok(!!tryRun("saveEmailConfig(TOK, {active: true, host: 'mail.h.com', port: 587, security: 'starttls', from: 'a@b.co', relayUrl: 'http://r.example.com'})").e, 'relay address must be https');
+  ok(!tryRun("saveEmailConfig(TOK, {active: false, host: 'mail.h.com', port: 587, security: 'starttls', user: 'u@h.com', from: 'a@b.co', relayUrl: 'https://r.example.com', password: 'S3cret-pass', relaySecret: 'relay-key-1'})").e, 'SMTP settings save');
+  ok(run("getEmailConfig(TOK).passSet && getEmailConfig(TOK).secretSet") === true, 'saved password and relay secret are reported as set');
+  ok(run("JSON.stringify(getEmailConfig(TOK)).indexOf('S3cret-pass') < 0 && JSON.stringify(getEmailConfig(TOK)).indexOf('relay-key-1') < 0"), 'password and relay secret are never sent back to the screen');
+  ok(run("(function(){ saveEmailConfig(TOK, {active: false, host: 'mail.h.com', port: 587, security: 'starttls', from: 'a@b.co', relayUrl: 'https://r.example.com'}); return getEmailConfig(TOK).passSet; })()") === true, 'blank password keeps the saved one');
+  ok(run("(function(){ const n = mailbox.length; sendMail_('g@x.com', 'Hi', 'Body', '<p>Body</p>'); return mailbox.length === n + 1 && relayCalls.length === 0; })()"), 'SMTP off: mail goes out from the Google account');
+  ok(!tryRun("saveEmailConfig(TOK, {active: true, host: 'mail.h.com', port: 587, security: 'starttls', user: 'u@h.com', from: 'a@b.co', relayUrl: 'https://r.example.com'})").e, 'SMTP switched on');
+  ok(run("(function(){ const n = mailbox.length; relayCalls.length = 0; sendMail_('g@x.com', 'Hi', 'Body', '<p>Body</p>'); const c = relayCalls[0]; return mailbox.length === n && relayCalls.length === 1 && c.u === 'https://r.example.com' && c.o.headers['X-Relay-Secret'] === 'relay-key-1' && JSON.parse(c.o.payload).smtp.host === 'mail.h.com'; })()"), 'SMTP on: mail goes through the relay');
+  ok(run("(function(){ relayReply.next = { getResponseCode: () => 502, getContentText: () => JSON.stringify({error: '535 Authentication failed'}) }; try { sendMail_('g@x.com', 'Hi', 'B', 'B'); return false; } catch (e) { relayReply.next = null; return /535 Authentication failed/.test(e.message); } })()"), 'SMTP error from the relay is shown to the admin');
+  ok(!tryRun("saveEmailConfig(TOK, {active: false, host: 'mail.h.com', port: 587, security: 'starttls', from: 'a@b.co', relayUrl: 'https://r.example.com', clearPassword: true})").e && run("getEmailConfig(TOK).passSet") === false, 'saved password can be removed');
   console.log('done');
 }

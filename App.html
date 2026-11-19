@@ -2875,7 +2875,7 @@ async function pgLog() {
  * ============================================================ */
 // [key, label, permission, scope]. 'prop' = property admin (hotel operations); 'sys' = system administrator only.
 const ADM_TABS = [['users', 'Staff users', 'users.manage', 'prop'], ['settings', 'Hotel settings', 'cfg.settings.view', 'prop'], ['types', 'Room types', 'cfg.roomtypes.view', 'prop'], ['rooms', 'Rooms', 'cfg.rooms.view', 'prop'], ['packages', 'Packages', 'cfg.packages.view', 'prop'], ['minibar', 'Minibar items', 'cfg.minibar.view', 'prop'], ['currencies', 'Currencies', 'cfg.currencies.view', 'prop'], ['payments', 'Payment methods', 'cfg.payments.view', 'prop'],
-  ['padmins', 'Property admins', 'system.manage', 'sys'], ['padscreens', 'Property admin screens', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['menu', 'Menu layout', 'system.manage', 'sys'], ['emails', 'Email messages', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys'], ['security', 'Sign-in security', 'system.manage', 'sys'], ['updates', 'App version', 'system.manage', 'sys']];
+  ['padmins', 'Property admins', 'system.manage', 'sys'], ['padscreens', 'Property admin screens', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['menu', 'Menu layout', 'system.manage', 'sys'], ['emails', 'Email messages', 'system.manage', 'sys'], ['email', 'Email sending (SMTP)', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys'], ['security', 'Sign-in security', 'system.manage', 'sys'], ['updates', 'App version', 'system.manage', 'sys']];
 let SEC_ROLES = [];
 async function pgAdmin(scope) {
   const tabs = ADM_TABS.filter(t => (t[3] === scope || (scope === 'sys' && t[3] === 'prop')) && can(t[2]));
@@ -2980,6 +2980,23 @@ async function pgAdmin(scope) {
       { name: 'doneBody', label: 'Password changed email: message', type: 'textarea', value: s.doneBody, wide: true }
     ], 'Save email messages', false) + `<p class="muted">Email placeholders: <code>{{name}}</code> <code>{{username}}</code> <code>{{tempPassword}}</code> <code>{{role}}</code> <code>{{appUrl}}</code> <code>{{code}}</code> <code>{{minutes}}</code> <code>{{appName}}</code> <code>{{hotelName}}</code>. Keep the reset code on its own line, for example “Your verification code is {{code}}”, so Gmail can offer to copy it.</p>`
       + `<div class="acts"><button class="btn ghost" type="button" onclick="testEmail()">Send the reset and password emails to me as a test</button></div>`;
+  } else if (ADM === 'email') {
+    const e = await api('getEmailConfig');
+    const secret = (name, label, isSet, hint) => `<label class="wide field"><span>${label}</span><input name="${name}" type="password" autocomplete="new-password" placeholder="${isSet ? 'Saved. Type a new one to change it' : esc(hint)}"></label>`;
+    body = `<h3>Email sending (SMTP)</h3><p class="muted">When this is on, every email (sign-in codes, reset codes, welcome and password emails, night audit reports) goes through your SMTP server. When it is off, mail goes out from the Google account the app runs under.</p>
+      <p class="muted">Apps Script cannot connect to an SMTP server directly, so the SMTP details are passed over HTTPS to a small mail relay you run (see <code>mail-relay/README.md</code>). The relay address and its secret come from that setup.</p>` +
+      `<form id="fEmail" class="fgrid">` +
+      fieldHtml({ name: 'active', label: 'Send email through my SMTP server', type: 'check', value: e.active }) +
+      fieldHtml({ name: 'host', label: 'SMTP server (for example smtp.office365.com)', value: e.host, wide: true }) +
+      fieldHtml({ name: 'port', label: 'Port', type: 'number', value: e.port }) +
+      fieldHtml({ name: 'security', label: 'Connection security', type: 'select', value: e.security, options: [['starttls', 'STARTTLS (usually port 587)'], ['ssl', 'SSL/TLS (usually port 465)'], ['none', 'None (not recommended)']] }) +
+      fieldHtml({ name: 'user', label: 'SMTP username', value: e.user, wide: true }) +
+      secret('password', 'SMTP password', e.passSet, 'Enter the SMTP password') +
+      (e.passSet ? fieldHtml({ name: 'clearPassword', label: 'Remove the saved SMTP password', type: 'check', value: false }) : '') +
+      fieldHtml({ name: 'from', label: 'From address (emails are sent from this address)', value: e.from, wide: true }) +
+      fieldHtml({ name: 'relayUrl', label: 'Mail relay address (https://…)', value: e.relayUrl, wide: true }) +
+      secret('relaySecret', 'Mail relay secret', e.secretSet, 'Enter the relay secret') +
+      `<div class="actions"><button class="btn ghost" type="button" onclick="testEmail()">Send a test email to me</button><button class="btn" type="submit">Save email sending</button></div></form>`;
   } else if (ADM === 'types') {
     const ts = await api('listRoomTypes');
     body = `<div class="head-row"><h3>Room types</h3><div class="acts">${can('cfg.roomtypes.edit') ? '<button class="btn" onclick="tabOpen_(&#39;typeModal&#39;,[])">+ Room type</button>' : ''}</div></div>` +
@@ -3018,6 +3035,12 @@ async function pgAdmin(scope) {
     await api('saveSettings', { appUrl: d.appUrl, welcomeSubject: d.welcomeSubject, welcomeBody: d.welcomeBody, otpSubject: d.otpSubject,
       otpBody: d.otpBody, doneSubject: d.doneSubject, doneBody: d.doneBody });
     toast('Email messages saved');
+  });
+  if (ADM === 'email') bindForm('fEmail', async d => {
+    const out = await api('saveEmailConfig', { active: d.active === 'true', host: d.host, port: Number(d.port), security: d.security,
+      user: d.user, password: d.password, clearPassword: d.clearPassword === 'true', from: d.from, relayUrl: d.relayUrl, relaySecret: d.relaySecret });
+    toast(out.active ? 'Email sending saved: SMTP is on' : 'Email sending saved: SMTP is off');
+    pgAdmin('sys');   // redraws, so the saved hints show and typed secrets clear
   });
   if (ADM === 'security') bindForm('fSec', async d => {
     const picked = SEC_ROLES.filter((n, i) => d['r' + i] === 'true');

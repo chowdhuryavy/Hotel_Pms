@@ -23,13 +23,6 @@ function maskEmail_(e) {
   const s = String(e || ''), at = s.indexOf('@');
   return at > 0 ? s.charAt(0) + '***' + s.slice(at) : '';
 }
-function sendMail_(to, subject, text, html) {
-  try {
-    MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: html, name: appName_() });
-  } catch (e) {
-    throw new Error('The email could not be sent right now. Try again in a few minutes, or ask the administrator.');
-  }
-}
 function hotelName_() {
   try { return settings_().hotelName || appName_(); } catch (e) { return appName_(); }
 }

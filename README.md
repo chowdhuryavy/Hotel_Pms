@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.125**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.126**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.126: Email sending can go through the hotel's own SMTP server. Set it up in System admin → Email sending (SMTP). Apps Script cannot connect to SMTP directly, so mail-relay/ holds a small Cloudflare Worker that sends it. When SMTP is off, mail goes out from the Google account as before.
 
 Release notes for 1.2.125: Fixed the reset code never being sent. The request was passing the session token in place of the username or email, so the server found no account and sent nothing. The Forgot password and Resend code buttons now send the request correctly.
 
