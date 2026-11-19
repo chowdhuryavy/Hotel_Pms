@@ -8,24 +8,18 @@
   <style>
     html, body { margin: 0; height: 100%; background: #0f3d3e; }
     iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; }
-    .fallback { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 2;
-      font: 14px/1.4 system-ui, sans-serif; color: #fff; background: rgba(0,0,0,.45); padding: 8px 14px; border-radius: 10px; text-decoration: none; }
   </style>
 </head>
 <body>
   <iframe src="https://script.google.com/macros/s/AKfycby7xsmwCZNBMgMet7dMtFrY5YdkU_ZC6_1NtWWrIG7Tn5KY6JcZOvm0yYo22xP_vICGeA/exec"
     title="Stayline" allow="clipboard-read; clipboard-write" referrerpolicy="no-referrer-when-downgrade"></iframe>
-  <a class="fallback" id="open" href="#" target="_blank" rel="noopener">Open in a new tab</a>
   <script>
     // The app name comes from its Settings sheet, so nothing is typed in here
     function nameLoaded(d) {
       var n = d && d.appName;
       if (!n) return;
       document.title = n;
-      document.getElementById('open').textContent = 'Open ' + n + ' in a new tab';
     }
-    // The link opens this page's own address (the Vercel URL)
-    document.getElementById('open').href = location.href;
   </script>
   <script src="https://script.google.com/macros/s/AKfycby7xsmwCZNBMgMet7dMtFrY5YdkU_ZC6_1NtWWrIG7Tn5KY6JcZOvm0yYo22xP_vICGeA/exec?nameFor=nameLoaded"></script>
 </body>
