@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.72**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.73**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.73: A table tab missing from the sheet (for example RoomCharges) is created with its headers the first time any page needs it, once the database is set up. The Missing sheet error no longer appears for tabs added by an update. No rows are changed.
 
 Release notes for 1.2.72: A tab added in an update (for example FixedRules) is now created automatically, so the Database error no longer appears after an update. The connection panel in System admin shows a status card, a handshake bar, and tiles for the app server, database, version and server time, each with an icon.
 

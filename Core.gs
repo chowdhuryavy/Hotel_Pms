@@ -12,7 +12,10 @@ function ss_() {
   return SpreadsheetApp.openById(id);
 }
 function sh_(t) {
-  const s = ss_().getSheetByName(t[0]);
+  const ss = ss_();
+  let s = ss.getSheetByName(t[0]);
+  // A table added by an update is created with its headers, once the database is set up. Rows are never touched.
+  if (!s && ss.getSheetByName(TBL.SETTINGS[0])) { s = ss.insertSheet(t[0]); s.getRange(1, 1, 1, t[1].length).setValues([t[1]]); }
   if (!s) throw new Error('Missing sheet "' + t[0] + '". Run setupDatabase().');
   return s;
 }
