@@ -1,6 +1,6 @@
 const fs = require('fs'), vm = require('vm'), crypto = require('crypto');
 const SRC = '../';
-const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','Recovery','Roles','Billing','Ledger','Admin','Menu','Updater'];
+const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','Recovery','Roles','Billing','Ledger','Admin','EodReports','Menu','Updater'];
 const code = files.map(f => fs.readFileSync(SRC + f + '.gs', 'utf8')).join('\n;\n');
 
 // ---- in-memory Spreadsheet ----
@@ -453,5 +453,8 @@ if (require.main === module) {
   ok(!!tryRun("saveSettings(TOK, {loadingScreen: 'neon'})").e, 'loading screen rejects unknown styles');
   ok(!tryRun("saveSettings(TOK, {loadingScreen: 'pulse'})").e && run("publicSettings_().loadingScreen") === 'pulse', 'system admin sets the default loading screen');
   ok(run("publicSettings_().loadingScreen") === 'pulse' && !tryRun("saveSettings(TOK, {loadingScreen: 'random'})").e, 'loading screen can be reset to random');
+  ok(run("runReport(TOK,'eod','','').sections.map(s => s.key).join()") === 'mgrflash,trial,guest,package,aging', 'end-of-day report has the five sections');
+  ok(run("runReport(TOK,'eod','','').sections.every(s => s.rows.every(r => r.length === s.headers.length))"), 'every end-of-day row matches its headers');
+  ok(run("runReport(TOK,'eod','','').sections.find(s => s.key === 'trial').headers.join()") === 'Code,Lines,Debit (charges),Credit (payments),Net', 'trial balance columns');
   console.log('done');
 }

@@ -1204,7 +1204,9 @@ async function pgReports() {
 async function repLoad(cur) {
   const rep = await api('runReport', cur.type, cur.from, cur.to);
   LAST = Object.assign({}, rep, cur);
-  $('repOut').innerHTML = `<h3>${esc(rep.title)}</h3>` + table(rep.headers, rep.rows.map(r => tr(r.map(c => typeof c === 'number' ? `<span>${num(c)}</span>` : esc(c)), r[0] === 'TOTAL' ? 'sum' : '')));
+  const secs = rep.sections || [{ title: '', headers: rep.headers, rows: rep.rows }];
+  $('repOut').innerHTML = `<h3>${esc(rep.title)}</h3>` + secs.map(sec => (sec.title && rep.sections ? `<h3 class="sec-title">${esc(sec.title)}</h3>` : '') +
+    table(sec.headers, sec.rows.map(r => tr(r.map(c => typeof c === 'number' ? `<span>${num(c)}</span>` : esc(c)), r[0] === 'TOTAL' ? 'sum' : '')))).join('');
 }
 function repRun(e) {
   e.preventDefault();
@@ -1224,7 +1226,10 @@ async function repPdf() {
 function repCsv() {
   if (!LAST) return;
   const q = c => '"' + String(c == null ? '' : c).replace(/"/g, '""') + '"';
-  const csv = [LAST.headers].concat(LAST.rows).map(r => r.map(q).join(',')).join('\r\n');
+  const secs = LAST.sections || [{ title: '', headers: LAST.headers, rows: LAST.rows }];
+  const lines = [];
+  secs.forEach((sec, i) => { if (i) lines.push([]); if (LAST.sections) lines.push([sec.title]); lines.push(sec.headers); sec.rows.forEach(r => lines.push(r)); });
+  const csv = lines.map(r => r.map(q).join(',')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
   a.download = LAST.type + '.csv';
@@ -1245,7 +1250,7 @@ async function pgLog() {
  * ============================================================ */
 // [key, label, permission, scope]. 'prop' = property admin (hotel operations); 'sys' = system administrator only.
 const ADM_TABS = [['users', 'Staff users', 'users.manage', 'prop'], ['settings', 'Hotel settings', 'settings.manage', 'prop'], ['types', 'Room types', 'rooms.manage', 'prop'], ['rooms', 'Rooms', 'rooms.manage', 'prop'], ['packages', 'Packages', 'rates.manage', 'prop'], ['payments', 'Payment methods', 'settings.manage', 'prop'],
-  ['padmins', 'Property admins', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys']];
+  ['padmins', 'Property admins', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['emails', 'Email messages', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys']];
 async function pgAdmin(scope) {
   const tabs = ADM_TABS.filter(t => t[3] === scope && can(t[2]));
   if (!tabs.length) { setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1><div class="card">You do not have access to this area.</div>`); return; }
@@ -1295,23 +1300,27 @@ async function pgAdmin(scope) {
       { name: 'auditorEmail', label: 'Auditor email (night audit and AR reports)', value: s.auditorEmail, wide: true },
       { name: 'auditorAutoSend', label: 'Email the auditor after each night audit', type: 'select', options: ['false', 'true'], value: String(s.auditorAutoSend) },
       { name: 'loadingScreen', label: 'Loading screen style (default for all users)', type: 'select', options: [opt('random', 'Random each time'), opt('classic', 'Classic'), opt('orbit', 'Orbit'), opt('flip', 'Flip'), opt('pulse', 'Pulse')], value: s.loadingScreen || 'random' },
-      { name: 'appUrl', label: 'App link (sent to new users)', value: s.appUrl, wide: true },
       { name: 'maxLoginAttempts', label: 'Wrong passwords before the account is locked (minimum 5)', type: 'number', min: 5, value: s.maxLoginAttempts || 5 },
       { name: 'inactivityMinutes', label: 'Sign out after this many idle minutes', type: 'number', min: 1, value: s.inactivityMinutes || 30 },
+      { name: 'intPosUrl', label: 'POS address (https)', value: s.intPosUrl, wide: true },
+      { name: 'intTvUrl', label: 'Television address (https)', value: s.intTvUrl, wide: true },
+      { name: 'intPhoneUrl', label: 'Telephone address (https)', value: s.intPhoneUrl, wide: true },
+      { name: 'intCardUrl', label: 'Card terminal address (https)', value: s.intCardUrl, wide: true }
+    ], 'Save system settings', false) +
+    `<h3>Integrations</h3><p class="muted">Each system receives JSON posts with the header X-Stayline-Key, whose value is the INTEGRATION_KEY script property. Save an address, then test it. A system must answer with status 200.</p>
+    <div class="acts"><button class="btn ghost" type="button" onclick="integTest('pos')">Test POS</button><button class="btn ghost" type="button" onclick="integTest('tv')">Test television</button><button class="btn ghost" type="button" onclick="integTest('phone')">Test telephone</button><button class="btn ghost" type="button" onclick="integTest('card')">Test card terminal</button></div>`;
+  } else if (ADM === 'emails') {
+    const s = await api('getSettings');
+    body = `<h3>Email messages</h3><p class="muted">Only system administrators see this tab. These messages go to users for welcome, reset codes and password changes.</p>` + formHtml('fEmails', [
+      { name: 'appUrl', label: 'App link (sent to new users)', value: s.appUrl, wide: true },
       { name: 'welcomeSubject', label: 'Welcome email: subject', value: s.welcomeSubject, wide: true },
       { name: 'welcomeBody', label: 'Welcome email: message', type: 'textarea', value: s.welcomeBody, wide: true },
       { name: 'otpSubject', label: 'Reset code email: subject', value: s.otpSubject, wide: true },
       { name: 'otpBody', label: 'Reset code email: message', type: 'textarea', value: s.otpBody, wide: true },
       { name: 'doneSubject', label: 'Password changed email: subject', value: s.doneSubject, wide: true },
-      { name: 'doneBody', label: 'Password changed email: message', type: 'textarea', value: s.doneBody, wide: true },
-      { name: 'intPosUrl', label: 'POS address (https)', value: s.intPosUrl, wide: true },
-      { name: 'intTvUrl', label: 'Television address (https)', value: s.intTvUrl, wide: true },
-      { name: 'intPhoneUrl', label: 'Telephone address (https)', value: s.intPhoneUrl, wide: true },
-      { name: 'intCardUrl', label: 'Card terminal address (https)', value: s.intCardUrl, wide: true }
-    ], 'Save system settings', false) + `<p class="muted">Email placeholders: <code>{{name}}</code> <code>{{username}}</code> <code>{{tempPassword}}</code> <code>{{role}}</code> <code>{{appUrl}}</code> <code>{{code}}</code> <code>{{minutes}}</code> <code>{{appName}}</code> <code>{{hotelName}}</code>. Keep the reset code on its own line, for example “Your verification code is {{code}}”, so Gmail can offer to copy it.</p>
-    <div class="acts"><button class="btn ghost" type="button" onclick="testEmail()">Send the reset and password emails to me as a test</button></div>
-    <h3>Integrations</h3><p class="muted">Each system receives JSON posts with the header X-Stayline-Key, whose value is the INTEGRATION_KEY script property. Save an address, then test it. A system must answer with status 200.</p>
-    <div class="acts"><button class="btn ghost" type="button" onclick="integTest('pos')">Test POS</button><button class="btn ghost" type="button" onclick="integTest('tv')">Test television</button><button class="btn ghost" type="button" onclick="integTest('phone')">Test telephone</button><button class="btn ghost" type="button" onclick="integTest('card')">Test card terminal</button></div>`;
+      { name: 'doneBody', label: 'Password changed email: message', type: 'textarea', value: s.doneBody, wide: true }
+    ], 'Save email messages', false) + `<p class="muted">Email placeholders: <code>{{name}}</code> <code>{{username}}</code> <code>{{tempPassword}}</code> <code>{{role}}</code> <code>{{appUrl}}</code> <code>{{code}}</code> <code>{{minutes}}</code> <code>{{appName}}</code> <code>{{hotelName}}</code>. Keep the reset code on its own line, for example “Your verification code is {{code}}”, so Gmail can offer to copy it.</p>`
+      + `<div class="acts"><button class="btn ghost" type="button" onclick="testEmail()">Send the reset and password emails to me as a test</button></div>`;
   } else if (ADM === 'types') {
     const ts = await api('listRoomTypes');
     body = `<div class="head-row"><h3>Room types</h3><div class="acts"><button class="btn" onclick="typeModal()">+ Room type</button></div></div>` +
@@ -1345,9 +1354,13 @@ async function pgAdmin(scope) {
     const lc = $('logoClear');
     if (lc) lc.addEventListener('click', () => { lu.value = ''; setLogoPreview(''); });
   }
-  if (ADM === 'system') bindForm('fSys', async d => {
+  if (ADM === 'emails') bindForm('fEmails', async d => {
     await api('saveSettings', { appUrl: d.appUrl, welcomeSubject: d.welcomeSubject, welcomeBody: d.welcomeBody, otpSubject: d.otpSubject,
-      otpBody: d.otpBody, doneSubject: d.doneSubject, doneBody: d.doneBody, intPosUrl: d.intPosUrl, intTvUrl: d.intTvUrl,
+      otpBody: d.otpBody, doneSubject: d.doneSubject, doneBody: d.doneBody });
+    toast('Email messages saved');
+  });
+  if (ADM === 'system') bindForm('fSys', async d => {
+    await api('saveSettings', { intPosUrl: d.intPosUrl, intTvUrl: d.intTvUrl,
       intPhoneUrl: d.intPhoneUrl, intCardUrl: d.intCardUrl, defaultLanguage: d.defaultLanguage, defaultCurrency: d.defaultCurrency,
       auditorEmail: d.auditorEmail, auditorAutoSend: d.auditorAutoSend, loadingScreen: d.loadingScreen, maxLoginAttempts: Number(d.maxLoginAttempts) || 5, inactivityMinutes: Number(d.inactivityMinutes) || 30 });
     toast('System settings saved');

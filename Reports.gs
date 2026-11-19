@@ -5,6 +5,7 @@
  */
 const REPORT_TYPES = [
   ['flash', 'Daily flash (business date)'],
+  ['eod', 'End-of-day report (all sections)'],
   ['nightaudit', 'Night audit report (business dates)'],
   ['journal', 'Journal by charge code'],
   ['occupancy', 'Occupancy & ADR by day'],
@@ -18,6 +19,11 @@ const REPORT_TYPES = [
   ['shifts', 'Cashier shifts & cash variance'],
   ['housekeeping', 'Housekeeping status & assignments']
 ];
+
+/** A report is one table, or several sections (the end-of-day report). */
+function reportSections_(rep) {
+  return rep.sections || [{ title: rep.title, headers: rep.headers, rows: rep.rows }];
+}
 
 /** Hotel logo for printed documents (folio, registration card, reports). Fetched and embedded so the PDF
  *  converter does not need to load it from the web. Falls back to the link, and to no logo if neither works. */
@@ -42,6 +48,7 @@ function buildReport_(type, from, to) {
   const f = from || bd, t = to || bd;
   if (!isDate_(f) || !isDate_(t) || t < f) throw new Error('Choose a valid date range.');
   const inRange = d => d >= f && d <= t;
+  if (type === 'eod') return eodReport_(f);
   const res = rows_(TBL.RES);
   const posts = rows_(TBL.POSTINGS).filter(p => p.voided !== true && String(p.resNo).indexOf('GRP:') !== 0);
   const rooms = roomsAll_().filter(r => r.status === 'Active').length;
@@ -176,9 +183,9 @@ function exportReportPdf(token, type, from, to) {
   const html = '<html><head><style>body{font-family:Arial,sans-serif;font-size:11px}h1{font-size:18px;margin:0}' +
     'table{border-collapse:collapse;width:100%;margin-top:10px}td,th{border:1px solid #999;padding:4px}th{background:#e6efef;text-align:left}</style></head><body>' +
     logo + '<h1>' + esc(st.hotelName) + '</h1><h3>' + esc(rep.title) + ' · ' + esc(from || '') + ' to ' + esc(to || '') + '</h3>' +
-    '<table><tr>' + rep.headers.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr>' +
-    rep.rows.map(r => '<tr>' + r.map(c => '<td>' + esc(c) + '</td>').join('') + '</tr>').join('') +
-    '</table><p>Generated ' + fmtTs_(new Date()) + ' · ' + esc(st.hotelName) + '</p></body></html>';
+    reportSections_(rep).map(sec => '<h3>' + esc(sec.title) + '</h3><table><tr>' + sec.headers.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr>' +
+    sec.rows.map(r => '<tr>' + r.map(c => '<td>' + esc(c) + '</td>').join('') + '</tr>').join('') + '</table>').join('') +
+    '<p>Generated ' + fmtTs_(new Date()) + ' · ' + esc(st.hotelName) + '</p></body></html>';
   const blob = HtmlService.createHtmlOutput(html).getAs('application/pdf');
   audit_(s.username, 'REPORT_EXPORT', 'Report', type, (from || '') + ' to ' + (to || ''));
   return { name: rep.title.replace(/\W+/g, '_') + '.pdf', base64: Utilities.base64Encode(blob.getBytes()) };
