@@ -146,7 +146,8 @@ function modifyReservation(token, resNo, d) {
   const s = auth_(token, 'reservations.modify');
   return withLock_(() => {
     const r = findRes_(resNo);
-    if (r.status !== 'Reserved') throw new Error('Only Reserved bookings can be modified here (status: ' + r.status + ').');
+    if (r.status === 'In-House') return modifyInHouse_(r, s, d);
+    if (r.status !== 'Reserved') throw new Error('Only Reserved or In-House bookings can be updated here (status: ' + r.status + ').');
     const arrival = d.arrival || r.arrival, departure = d.departure || r.departure;
     const roomType = d.roomType || r.roomType, plan = d.plan || r.plan;
     validRange_(arrival, departure);
@@ -160,10 +161,12 @@ function modifyReservation(token, resNo, d) {
     const nightly = quoteNights_(roomType, plan, arrival, departure);
     const override = Number(d.rateOverride) > 0 ? num_(d.rateOverride) : null;
     writeRateSchedule_(r.resNo, nightly.map(n => ({ date: n.date, rate: override || n.rate })));
+    const vip = d.vip !== undefined ? (d.vip === true || d.vip === 'true') : r.vip === true;
+    const company = d.company !== undefined ? String(d.company || '') : (r.company || '');
     patch_(TBL.RES, r._row, {
       arrival: arrival, departure: departure, roomType: roomType, roomNo: roomNo, plan: plan,
       adults: Number(d.adults) || r.adults, rate: override || num_(nightly.reduce((a, n) => a + n.rate, 0) / nightly.length),
-      notes: d.notes !== undefined ? d.notes : r.notes, updatedAt: fmtTs_(new Date())
+      notes: d.notes !== undefined ? d.notes : r.notes, company: company, vip: vip, updatedAt: fmtTs_(new Date())
     });
     const newAdults = Number(d.adults) || r.adults, newNotes = d.notes !== undefined ? d.notes : r.notes;
     const changes = [['arrival', r.arrival, arrival], ['departure', r.departure, departure], ['room type', r.roomType, roomType],
@@ -173,6 +176,24 @@ function modifyReservation(token, resNo, d) {
     audit_(s.username, 'RES_MODIFIED', 'Reservation', resNo, detail);
     return { resNo: resNo, roomNo: roomNo };
   });
+}
+
+/** Updating an in-house stay: only details that do not change posted charges. Dates are changed by Extend stay,
+ *  the room by Move room. Arrival, room type and rate are fixed for the stay. */
+function modifyInHouse_(r, s, d) {
+  if (d.arrival && d.arrival !== r.arrival) throw new Error('The arrival of an in-house stay cannot change. Use Move room or Extend stay.');
+  if (d.roomType && d.roomType !== r.roomType) throw new Error('The room type of an in-house stay cannot change here. Use Move room.');
+  if (d.plan && d.plan !== r.plan) throw new Error('The rate plan of an in-house stay cannot change here.');
+  if (Number(d.rateOverride) > 0) throw new Error('The rate of an in-house stay cannot change here.');
+  const adults = Number(d.adults) || r.adults;
+  const notes = d.notes !== undefined ? d.notes : (r.notes || '');
+  const company = d.company !== undefined ? String(d.company || '') : (r.company || '');
+  const vip = d.vip !== undefined ? (d.vip === true || d.vip === 'true') : r.vip === true;
+  patch_(TBL.RES, r._row, { adults: adults, notes: notes, company: company, vip: vip, updatedAt: fmtTs_(new Date()) });
+  const changes = [['adults', r.adults, adults], ['company', r.company || '', company], ['vip', r.vip === true, vip], ['notes', r.notes || '', notes]];
+  const detail = changes.filter(c => String(c[1]) !== String(c[2])).map(c => c[0] + ' ' + c[1] + ' > ' + c[2]).join('; ') || 'no field changed';
+  audit_(s.username, 'RES_MODIFIED', 'Reservation', r.resNo, detail);
+  return { resNo: r.resNo, roomNo: r.roomNo };
 }
 
 function cancelReservation(token, resNo, reason) {

@@ -473,5 +473,11 @@ if (require.main === module) {
   ok(run("frontSearch(TOK,'inhouse',{q:'no-such-guest-zzz'}).count") === 0, 'a search with no match returns nothing');
   ok(!!tryRun("frontSearch(TOK,'arrivals',{from:'2026-02-02',to:'2026-01-01'})").e, 'arrivals reject a "to" date before "from"');
   ok(!!tryRun("frontSearch(TOK,'rooms',{})").e, 'unknown front desk list is refused');
+  // Reservation screen: in-house stays are updated with their fixed details kept
+  const IHR = run("rows_(TBL.RES).find(r => r.status === 'In-House').resNo");
+  ok(!tryRun("modifyReservation(TOK, '" + IHR + "', {notes: 'Guest asked for a late checkout', company: 'Test Co', vip: 'true'})").e && run("rows_(TBL.RES).find(r => r.resNo === '" + IHR + "').notes") === 'Guest asked for a late checkout', 'in-house stay: notes, company and VIP can be updated');
+  ok(!!tryRun("modifyReservation(TOK, '" + IHR + "', {arrival: '2099-01-01'})").e, 'in-house stay: arrival cannot change');
+  ok(!!tryRun("modifyReservation(TOK, '" + IHR + "', {roomType: 'ZZZ'})").e, 'in-house stay: room type cannot change here');
+  ok(!!tryRun("modifyReservation(TOK, '" + IHR + "', {rateOverride: 10})").e, 'in-house stay: rate cannot change here');
   console.log('done');
 }

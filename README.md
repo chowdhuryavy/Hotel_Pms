@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.13**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.14**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.14: every booking opens its reservation screen from the front desk board, the arrivals, departures and in-house lists, the billing room page and the search results. The reservation screen has Update reservation for reserved and in-house stays (an in-house stay keeps its arrival, room type and rate; use Extend stay and Move room for those), a Billing button, and the change log and copy functions.
 
 Release notes for 1.2.13: run Stayline → Set up database once after updating (adds the new permission rows and settings).
 Configuration permissions: the system administrator sets, per role, what each user can view, edit and delete for room types, rooms, rate plans, seasonal rates, charge codes, packages, payment methods, company accounts and hotel details. Property admins can change configuration but not hotel details by default.
