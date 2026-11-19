@@ -402,6 +402,12 @@ function showAppTab_(id) {
     if (ACTIVE_TAB === id) setView(`<div class="card err">${esc(e.message)}</div>`);
   });
 }
+/* A form that fails while loading shows its error in its tab, not a blank tab */
+window.addEventListener('unhandledrejection', e => {
+  if (ACTIVE_TAB === 'page') return;
+  const msg = String((e && e.reason && e.reason.message) || e.reason || 'The form could not be loaded.');
+  setView('<div class="card err"><h3>This form could not be loaded</h3><p>' + esc(msg) + '</p><p class="muted">Close the tab and open it again. If it keeps happening, tell the system administrator.</p></div>');
+});
 function closeAppTab_(id) {
   APP_TABS = APP_TABS.filter(x => x.id !== id);
   if (ACTIVE_TAB === id) showAppTab_('page'); else renderAppTabs_();
@@ -1240,6 +1246,7 @@ function abBtn_(icon, label, onclick, cls) {
   return `<button type="button" class="ab ${cls || ''}" onclick="${onclick}"><span class="ab-i">${AB_ICON_[icon]}</span><span>${label}</span></button>`;
 }
 function renderPage_(page, param) {
+  ADM_BARE = false;   // a page is drawn in full; only a section tab draws a section alone
   setBottomBar_('');
   if (S.user && S.user.mustChange) page = 'password';        // a temporary password must be changed first
   if (!PAGES[page]) page = firstPage();
@@ -2431,7 +2438,8 @@ async function pgAdmin(scope) {
       table(['Role', 'Users', 'Permissions', ''], rl.map(r => tr([esc(r.name) + (r.builtIn ? ' <span class="pill">built-in</span>' : ''), r.users, r.permissions + ' of ' + r.total,
         `<div class="acts"><button class="btn sm ghost" onclick="tabOpen_(&#39;permModal&#39;,[&#39;${esc(r.name)}&#39;])">${r.builtIn ? 'View' : 'Permissions'}</button>${r.builtIn || r.users ? '' : `<button class="btn sm danger" onclick="removeRole('${esc(r.name)}')">Delete</button>`}</div>`])));
   }
-  setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1>${scope === 'sys' ? connPanelHtml_() : ''}<p class="muted">${scope === 'sys' ? 'System administrator only: property admin accounts, roles and permissions, system settings and email templates.' : 'Hotel operations: staff users, hotel settings, rooms, packages and payment methods.'}</p>${bar}<div class="card">${body}</div>`);
+  if (ADM_BARE) { setView(`<h1>${esc((ADM_TABS.find(t => t[0] === ADM) || [])[1] || '')}</h1><div class="card">${body}</div>`); }
+  else setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1>${scope === 'sys' ? connPanelHtml_() : ''}<p class="muted">${scope === 'sys' ? 'System administrator only: property admin accounts, roles and permissions, system settings and email templates.' : 'Hotel operations: staff users, hotel settings, rooms, packages and payment methods.'}</p>${bar}<div class="card">${body}</div>`);
   if (ADM === 'settings' && can('cfg.settings.edit')) bindForm('fSt', async d => {
     const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, ownerName: d.ownerName, hotelAddress: d.hotelAddress, hotelPhone: d.hotelPhone, hotelEmail: d.hotelEmail, hotelAppUrl: d.hotelAppUrl, logoUrl: d.logoUrl, currency: d.currency,
       taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit, loadingMessage: d.loadingMessage });
@@ -2541,6 +2549,8 @@ async function testEmail() {
   try { const r = await api('sendEmailTest'); toast('Test emails sent to ' + r.sentTo); }
   catch (e) { toast(e.message, true); }
 }
+/* Set while an admin section is drawn in its own tab: only that section is shown, without the page heading and tab bar */
+let ADM_BARE = false;
 /* App version: system admin can run an older version if the newest has problems */
 async function updatesHtml_() {
   const r = await api('listVersions');
@@ -2567,7 +2577,7 @@ function admTabOpen(k) {
   openAppTab_('admSection(' + JSON.stringify(k) + ')', (ADM_TABS.find(x => x[0] === k) || [])[1] || k);
 }
 /** Run in the new tab: shows the chosen admin section as the page */
-function admSection(k) { ADM = k; const t = ADM_TABS.find(x => x[0] === k); return pgAdmin(t && t[3] === 'sys' ? 'sys' : 'prop'); }
+function admSection(k) { ADM = k; ADM_BARE = true; const t = ADM_TABS.find(x => x[0] === k); return pgAdmin(t && t[3] === 'sys' ? 'sys' : 'prop'); }
 function admTab(k) { ADM = k; const t = ADM_TABS.find(x => x[0] === k); go(t && t[3] === 'sys' ? 'sysadmin' : 'admin'); }
 /* Menu group for each permission prefix, used to group the permission checkboxes. */
 const PERM_GROUPS = { dashboard: 'Front office', rack: 'Front office', frontdesk: 'Front office', reservations: 'Front office', guests: 'Front office', groups: 'Front office',
