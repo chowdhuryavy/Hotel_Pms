@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.82**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.83**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.83: Billing shows the in-house and reserved rooms by default; All rooms is a button for the rest. The posting window lists the in-house and reserved rooms before any search, each with a Post button. The Billing status column is labelled Status.
 
 Release notes for 1.2.82: The posting window has a "Find a guest or stay" search. Search by guest name, reservation number, room number, phone, e-mail, company or group, then choose Post to open that room.
 
