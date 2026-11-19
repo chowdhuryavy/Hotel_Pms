@@ -348,6 +348,21 @@
   .login-btn.busy .spinner{opacity:1}
   .login-btn .btn-label{transition:opacity .2s}
   .login-panel .ver{margin-top:0;font-size:12px;opacity:.6}
+  /* Login: field icons, accent bar, desktop art panel */
+  .login-box .inp,.login-box .pw{position:relative;display:block}
+  .login-box .ico{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--muted);pointer-events:none;z-index:1}
+  .login-box .inp input,.login-box .pw input{padding-left:42px}
+  .login-box:focus-within .ico{color:var(--brand-2)}
+  .login-box::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:linear-gradient(90deg,var(--brand-2),var(--accent))}
+  .login-box{position:relative;overflow:hidden}
+  .login-art::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.08) 1px,transparent 1px);background-size:22px 22px;pointer-events:none}
+  .login-art .art-inner{z-index:1}
+  .art-foot{margin:34px 0 0;font-size:12.5px;letter-spacing:.4px;opacity:.6;padding-top:16px;border-top:1px solid rgba(255,255,255,.18)}
+  @media (min-width:901px){
+    .art-title{font-size:42px}
+    .art-inner{max-width:520px}
+    .login-box{padding:46px 42px 38px}
+  }
   .rules{list-style:none;padding:0;margin:10px 0 8px;display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;font-size:12.5px;color:var(--muted)}
   .rules li{display:flex;align-items:center;gap:8px;transition:color .2s}
   .rules li::before{content:"";width:14px;height:14px;border-radius:50%;border:1.5px solid var(--line);flex:none;transition:all .2s}
