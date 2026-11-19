@@ -288,6 +288,9 @@ function changeMyPassword(token, oldPw, newPw) {
     if (hash_(u.salt, String(oldPw || '')) !== u.passHash) throw new Error('Current password is incorrect.');
     const salt = Utilities.getUuid();
     patch_(TBL.USERS, u._row, { salt: salt, passHash: hash_(salt, newPw), mustChange: false });
+    // The session kept at sign-in still says a change is due: clear it, or the prompt returns on every load
+    const cache = CacheService.getScriptCache(), raw = cache.get('s:' + token);
+    if (raw) cache.put('s:' + token, JSON.stringify(Object.assign({}, JSON.parse(raw), { mustChange: false })), SESSION_SECONDS);
     audit_(s.username, 'PASSWORD_CHANGED', 'User', s.id, '');
     return true;
   });
