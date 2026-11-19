@@ -405,10 +405,11 @@ async function act(fn, msg, ...args) {
   try { await api(fn, ...args); if (msg) toast(msg); refresh(); }
   catch (e) { toast(e.message, true); }
 }
-/* Re-reads this user's permissions, so a change made by the system administrator shows without signing in again */
+/* Re-reads this user's permissions, so a change made by the system administrator shows without signing in again.
+   A background check: it does not use the top loading bar (only the page's own data does). */
 function syncPerms_() {
   if (!S.token) return Promise.resolve();
-  return api('myPermissions').then(p => {
+  return withTimeout_(rpc('myPermissions', S.token), 20000).then(p => {
     if (JSON.stringify(p) !== JSON.stringify(S.perms)) { S.perms = p; buildNav(); }
   }).catch(() => { /* keep the current menu if the check cannot run */ });
 }
