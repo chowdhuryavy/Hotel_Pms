@@ -1391,8 +1391,6 @@ function toggleSidebar() {
     try { localStorage.setItem('st_sb', collapsed ? '0' : '1'); } catch (e) { /* private mode */ }
   }
   b.setAttribute('aria-expanded', String(open));
-  b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin');
-  clearTimeout(b._spinT); b._spinT = setTimeout(() => b.classList.remove('spin'), 1600);
 }
 
 /* ---------- Navigation ---------- */
