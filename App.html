@@ -819,9 +819,15 @@ async function bellAct_(kind) {
 }
 document.addEventListener('click', e => { if (BELL_OPEN && !(e.target.closest && e.target.closest('.bell-wrap'))) toggleBell_(); });
 
+/* True while the person is typing in a field on screen: a redraw would wipe what they entered */
+function isEditing_() {
+  const a = document.activeElement;
+  if (!a || !/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)) return false;
+  return !!(($('view') && $('view').contains(a)) || (RUN_PANE && RUN_PANE.contains(a)));
+}
 function onDataChanged_() {
   const modalOpen = !$('modal').classList.contains('hidden');
-  if (modalOpen) { toast('Updated by another user. Close this window to see the latest data.'); return; }   // never replace a form being filled
+  if (modalOpen || isEditing_()) { toast('Updated by another user. Finish or close this, then the screen refreshes.'); return; }   // never replace a form being filled
   toast('Updated by another user. Refreshing…');
   renderPage_(S.page, S.param);
 }
@@ -1662,12 +1668,13 @@ async function pgDashboard() {
   // One server call returns every widget's data (saves three round trips)
   // The four parts load together; a part that fails shows its own message
   const part = (on, fn) => on ? fn().catch(e => ({ error: e.message })) : Promise.resolve(null);
-  const [b, f, fc, na] = await Promise.all([
-    part(canBoard, () => api('dashboardBoard')),
-    part(canReports, () => api('dashboardFlash', from7, S.bizDate)),
-    part(can('dashboard.view'), () => api('dashboardForecast')),
-    part(canReports, () => api('dashboardNight', from7, S.bizDate))
-  ]);
+  // Each widget draws as soon as its own data arrives; a widget still loading shows nothing yet.
+  const WAIT = {};
+  const st = { b: canBoard ? WAIT : null, f: canReports ? WAIT : null, fc: can('dashboard.view') ? WAIT : null, na: canReports ? WAIT : null };
+  const seq = PAGE_SEQ;
+  const clean = x => (x === WAIT ? null : x);
+  const show = () => { if (seq === PAGE_SEQ) draw(clean(st.b), clean(st.f), clean(st.fc), clean(st.na)); };
+  const draw = (b, f, fc, na) => {
   const note = x => `<div class="card err">${esc(x.error)}</div>`;
   const occ = f && !f.error ? ((f.rows.find(r => r[0] === 'Occupancy %') || [])[1] || '0%') : '—';
   const kpis = !b ? '' : b.error ? note(b) : `<div class="kpis">${kpi('In-house', b.inHouse.length, 'inhouse')}${kpi('Arrivals', b.arrivals.length, 'arrivals')}${kpi('Departures', b.departures.length, 'departures')}
@@ -1721,6 +1728,15 @@ async function pgDashboard() {
     <div class="grid3">${gauge}${mix}${move}</div>
     ${forecast}`);
   clockStart_();
+};
+  show();
+  const one = (on, key, call) => on ? call().catch(e => ({ error: e.message })).then(r => { st[key] = r; show(); }) : Promise.resolve();
+  await Promise.all([
+    one(canBoard, 'b', () => api('dashboardBoard')),
+    one(canReports, 'f', () => api('dashboardFlash', from7, S.bizDate)),
+    one(can('dashboard.view'), 'fc', () => api('dashboardForecast')),
+    one(canReports, 'na', () => api('dashboardNight', from7, S.bizDate))
+  ]);
 }
 
 /* ============================================================
@@ -2892,7 +2908,7 @@ function repXls() {
     '<tr>' + sec.headers.map(h => '<th>' + e(h) + '</th>').join('') + '</tr>' +
     sec.rows.map(r => '<tr>' + r.map(c => '<td' + (typeof c === 'number' ? ' x:num' : '') + '>' + e(typeof c === 'number' ? c : c) + '</td>').join('') + '</tr>').join('')).join('<tr><td></td></tr>');
   const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">' +
-    '<head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Report</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>' +
+    '<head><meta charset="utf-8"><\x21--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Report</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>' +
     '<body><table>' + body + '</table></body></html>';
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8' }));

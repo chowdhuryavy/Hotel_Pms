@@ -100,7 +100,7 @@
   <script>setTimeout(function () { var s = document.getElementById('splash'); if (s) s.classList.add('gone'); }, 12000);</script>
 
   <script>
-    (0, eval)(new TextDecoder().decode(Uint8Array.from(atob("<?= include64('App') ?>"), c => c.charCodeAt(0))));
+<?!= include('App') ?>
   </script>
 </body>
 </html>
