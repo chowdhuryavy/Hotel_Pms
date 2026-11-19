@@ -430,11 +430,10 @@
   /* Hotel name block in the header: name with an accent bar, and a small tracked sub line */
   .top-hotel{display:flex;align-items:center;min-width:0;margin-right:auto;flex:0 1 auto}
   .top-hotel-txt{display:flex;flex-direction:column;min-width:0;line-height:1.15}
-  .top-hotel-name{font-weight:800;font-size:16.5px;letter-spacing:.2px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+  .top-hotel-name{font-weight:800;font-size:16.5px;line-height:1.2;letter-spacing:.2px;color:var(--text);white-space:normal;overflow-wrap:anywhere}
   .top-hotel-sub{display:inline-flex;align-items:center;gap:6px;margin-top:4px;width:max-content;max-width:100%;font-size:9.5px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:var(--brand-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.92}
   .top-hotel-sub::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(242,177,52,.18);flex:none}
-  @media (max-width:900px){ .top-hotel-name{max-width:170px;font-size:15px} .top-hotel-sub{font-size:9px;letter-spacing:1.4px} }
-  @media (max-width:420px){ .top-hotel-name{max-width:120px} }
+  @media (max-width:900px){ .top-hotel-name{font-size:15px} .top-hotel-sub{font-size:9px;letter-spacing:1.4px} }
   body.rtl .avatar-wrap.top .user-menu{left:0;right:auto}
   body.rtl .avatar-wrap.side .user-menu{right:0;left:auto}
   body.rtl .sidebar{left:auto;right:-250px}
@@ -594,4 +593,9 @@
   .ab.spin-on{pointer-events:none}
   .ab.spin-on .ab-i{background:var(--hover)}
   .ab.spin-on .ab-i svg{animation:btn-spin .8s linear infinite}
+  /* Hotel name: shown in full on every screen size; long names wrap onto a second line */
+  .top-hotel{max-width:calc(100% - 200px)}
+  .top-hotel-txt{min-width:0}
+  .top-hotel-sub{max-width:100%}
+  @media (max-width:700px){ .top-hotel{max-width:calc(100% - 64px)} }
 </style>

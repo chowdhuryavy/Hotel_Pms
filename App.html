@@ -272,7 +272,8 @@ function startApp() {
   brand();
   buildNav();
   const hotelTop = (S.settings && (S.settings.hotelName || S.settings.appName)) || 'Stayline';
-  $('who').innerHTML = `<div class="top-hotel"><div class="top-hotel-txt"><span class="top-hotel-name">${esc(hotelTop)}</span><span class="top-hotel-sub">${esc((S.settings && S.settings.appName) || 'Stayline')}</span></div></div>` +
+  const subLine = (S.settings && (S.settings.ownerName || S.settings.appName)) || 'Stayline';
+  $('who').innerHTML = `<div class="top-hotel"><div class="top-hotel-txt"><span class="top-hotel-name">${esc(hotelTop)}</span><span class="top-hotel-sub">${esc(subLine)}</span></div></div>` +
     `<form class="qs" role="search" onsubmit="searchGo(event)"><input name="q" type="search" placeholder="Search room, guest, res #, group…" aria-label="Search"></form>`;
   $('account').innerHTML = acctHtml_();
   idleReset_();
@@ -1690,6 +1691,7 @@ async function pgAdmin(scope) {
     body = formHtml('fSt', [
       { name: 'appName', label: 'App name', value: s.appName, required: true },
       { name: 'hotelName', label: 'Hotel name', value: s.hotelName, required: true },
+      { name: 'ownerName', label: 'Owner or designer (shown under the hotel name)', value: s.ownerName || '' },
       { name: 'hotelAddress', label: 'Address', value: s.hotelAddress, wide: true },
       { name: 'loadingMessage', label: 'Loading screen message', value: s.loadingMessage, wide: true },
       { name: 'logoUrl', label: 'Logo (https link, or upload below)', value: s.logoUrl, wide: true },
@@ -1760,9 +1762,9 @@ async function pgAdmin(scope) {
   }
   setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1><p class="muted">${scope === 'sys' ? 'System administrator only: property admin accounts, roles and permissions, system settings and email templates.' : 'Hotel operations: staff users, hotel settings, rooms, packages and payment methods.'}</p>${bar}<div class="card">${body}</div>`);
   if (ADM === 'settings' && can('cfg.settings.edit')) bindForm('fSt', async d => {
-    const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, hotelAddress: d.hotelAddress, logoUrl: d.logoUrl, currency: d.currency,
+    const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, ownerName: d.ownerName, hotelAddress: d.hotelAddress, logoUrl: d.logoUrl, currency: d.currency,
       taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit, loadingMessage: d.loadingMessage });
-    S.settings = Object.assign({}, S.settings, { appName: out.appName, hotelName: out.hotelName, logoUrl: out.logoUrl, currency: out.currency, loadingScreen: d.loadingScreen, loadingMessage: d.loadingMessage });
+    S.settings = Object.assign({}, S.settings, { appName: out.appName, hotelName: out.hotelName, ownerName: d.ownerName, logoUrl: out.logoUrl, currency: out.currency, loadingScreen: d.loadingScreen, loadingMessage: d.loadingMessage });
     brand(); toast('Settings saved');
   });
   if (ADM === 'settings') {
