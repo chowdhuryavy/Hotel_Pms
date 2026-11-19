@@ -50,8 +50,25 @@ function validRange_(a, d) {
 let ROWS_MEMO_ = {};
 function rows_(t) {
   const key = t[0];
-  if (!ROWS_MEMO_[key]) ROWS_MEMO_[key] = readRows_(t);
+  if (!ROWS_MEMO_[key]) ROWS_MEMO_[key] = CROSS_TBLS_.indexOf(key) >= 0 ? crossRows_(t) : readRows_(t);
   return ROWS_MEMO_[key].map(o => Object.assign({}, o));
+}
+/* Small tables read on every request (users for the session check, settings for the inactivity limit) are kept
+   in the script cache between requests for one minute. Every write clears them at once (see uncacheTbls_). */
+const CROSS_TBLS_ = ['Users', 'Settings'];
+function crossRows_(t) {
+  const c = CacheService.getScriptCache();
+  const k = 'tbl:' + t[0];
+  const raw = c.get(k);
+  if (raw) { try { return JSON.parse(raw); } catch (e) { /* unreadable: read the sheet */ } }
+  const rows = readRows_(t);
+  const txt = JSON.stringify(rows);
+  if (txt.length < 90000) c.put(k, txt, 60);
+  return rows;
+}
+function uncacheTbls_() {
+  const c = CacheService.getScriptCache();
+  CROSS_TBLS_.forEach(n => c.remove('tbl:' + n));
 }
 const SHEET_WRITES_ = ['appendRow', 'deleteRow', 'insertRow', 'insertRows', 'deleteRows', 'deleteColumn', 'deleteColumns', 'insertColumn', 'insertColumns', 'clear', 'clearContent', 'clearFormats', 'setValues', 'setValue', 'sort', 'setName', 'hideSheet', 'setFrozenRows', 'autoResizeColumns'];
 const RANGE_WRITES_ = ['setValue', 'setValues', 'clear', 'clearContent', 'clearFormat', 'clearFormats', 'setFormula', 'setFormulas', 'insertCheckboxes', 'removeCheckboxes', 'setFontWeight', 'setBackground', 'setFontColor', 'setNumberFormat', 'setDataValidation', 'merge', 'breakApart'];
@@ -62,7 +79,7 @@ function watchSheet_(s) {
     if (typeof v !== 'function') return v;
     return function (...a) {
       const out = v.apply(t, a);
-      if (SHEET_WRITES_.indexOf(p) >= 0) ROWS_MEMO_ = {};
+      if (SHEET_WRITES_.indexOf(p) >= 0) { ROWS_MEMO_ = {}; uncacheTbls_(); }
       if (p === 'getRange' && out) return watchRange_(out);
       return out;
     };
@@ -74,7 +91,7 @@ function watchRange_(r) {
     if (typeof v !== 'function') return v;
     return function (...a) {
       const out = v.apply(t, a);
-      if (RANGE_WRITES_.indexOf(p) >= 0) ROWS_MEMO_ = {};
+      if (RANGE_WRITES_.indexOf(p) >= 0) { ROWS_MEMO_ = {}; uncacheTbls_(); }
       return out === t ? watchRange_(t) : out;
     };
   } });
