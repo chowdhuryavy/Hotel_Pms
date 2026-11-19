@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.92**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.93**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.93: The System admin area lists every Property admin function (Staff users, Hotel settings, Room types, Rooms, Packages, Payment methods) as well as its own, and Property admin screens assigns each function to the Property Admin with See / Change / Delete. A Property Admin sees only the functions given to the role, plus their own permissions. Security check of the server functions: permissions are checked on every write, and Property Admins cannot give, change, reset or unlock System Admin accounts.
 
 Release notes for 1.2.92: New reservation links to the other profiles. Guest step has + New guest profile; Stay & rate has + New company profile, which returns to the reservation with the new company selected. Company is now a dropdown of company profiles (None = guest pays).
 

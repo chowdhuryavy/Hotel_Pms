@@ -2631,7 +2631,7 @@ async function pgLog() {
 const ADM_TABS = [['users', 'Staff users', 'users.manage', 'prop'], ['settings', 'Hotel settings', 'cfg.settings.view', 'prop'], ['types', 'Room types', 'cfg.roomtypes.view', 'prop'], ['rooms', 'Rooms', 'cfg.rooms.view', 'prop'], ['packages', 'Packages', 'cfg.packages.view', 'prop'], ['payments', 'Payment methods', 'cfg.payments.view', 'prop'],
   ['padmins', 'Property admins', 'system.manage', 'sys'], ['padscreens', 'Property admin screens', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['menu', 'Menu layout', 'system.manage', 'sys'], ['emails', 'Email messages', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys'], ['updates', 'App version', 'system.manage', 'sys']];
 async function pgAdmin(scope) {
-  const tabs = ADM_TABS.filter(t => t[3] === scope && can(t[2]));
+  const tabs = ADM_TABS.filter(t => (t[3] === scope || (scope === 'sys' && t[3] === 'prop')) && can(t[2]));
   if (!tabs.length) { setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1><div class="card">You do not have access to this area.</div>`); return; }
   if (!tabs.find(t => t[0] === ADM)) ADM = tabs[0][0];
   if (scope === 'sys' && can('system.manage')) connCheck_();   // shows its result when it arrives; the page does not wait
@@ -2910,8 +2910,8 @@ function admTabOpen(k) {
   openAppTab_('admSection(' + JSON.stringify(k) + ')', (ADM_TABS.find(x => x[0] === k) || [])[1] || k);
 }
 /** Run in the new tab: shows the chosen admin section as the page */
-function admSection(k) { ADM = k; ADM_BARE = true; const t = ADM_TABS.find(x => x[0] === k); return pgAdmin(t && t[3] === 'sys' ? 'sys' : 'prop'); }
-function admTab(k) { ADM = k; const t = ADM_TABS.find(x => x[0] === k); go(t && t[3] === 'sys' ? 'sysadmin' : 'admin'); }
+function admSection(k) { ADM = k; ADM_BARE = true; return pgAdmin(can('system.manage') ? 'sys' : 'prop'); }
+function admTab(k) { ADM = k; go(can('system.manage') ? 'sysadmin' : 'admin'); }
 /* Menu group for each permission prefix, used to group the permission checkboxes. */
 const PERM_GROUPS = { dashboard: 'Front office', rack: 'Front office', frontdesk: 'Front office', reservations: 'Front office', guests: 'Front office', groups: 'Front office',
   housekeeping: 'Housekeeping', hkmobile: 'Room attendant', rooms: 'Housekeeping', folio: 'Cashier & billing', shifts: 'Cashier & billing', accounts: 'Cashier & billing',
