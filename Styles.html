@@ -233,12 +233,16 @@
   .dlg-acts .btn{min-width:120px;padding:10px 18px;font-size:14px}
   .dlg-acts .btn:focus-visible{outline:3px solid rgba(242,177,52,.7);outline-offset:2px}
 
+  .sb-close{display:none}
   @media (max-width:900px){
-    /* The header stays on top; the menu opens below it, so the sidebar's own header (full hotel name, app name) shows */
+    /* The menu slides in over the full height of the screen, from the top edge. While it is open the header's
+       hotel name is hidden, so the hotel name shows once, in the menu's own header. */
     .topbar{height:80px}
     .top-hotel-name{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:15px;line-height:1.2}
-    .sidebar{position:fixed;top:80px;left:-250px;z-index:40;transition:left .2s;height:calc(100vh - 80px)}
-    body.menu-open .sidebar{left:0}
+    .sidebar{position:fixed;top:0;left:-250px;z-index:40;transition:left .2s;height:100vh}
+    body.menu-open .sidebar{left:0;z-index:50}
+    body.menu-open .who{visibility:hidden}
+    .sb-close{display:inline-flex;align-items:center;justify-content:center;margin-left:auto;width:36px;height:36px;flex:none;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;cursor:pointer}
     /* open menu: dim the page, keep the menu button above the sidebar so the same button closes it */
     body.menu-open::after{content:'';position:fixed;inset:0;background:rgba(5,15,18,.45);z-index:35;animation:fade .2s ease}
     body.menu-open .topbar{z-index:45}
