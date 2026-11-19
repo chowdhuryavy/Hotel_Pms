@@ -912,4 +912,6 @@ body.force-pw #app{visibility:hidden}
 .force-pw-card h2{margin:0 0 6px}
 .force-pw-card .actions{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 
+  /* No spinner on buttons: the top bar is the only loading signal */
+  .btn.spin-on::after,.btn.ghost.spin-on::after{display:none!important;animation:none!important}
 </style>

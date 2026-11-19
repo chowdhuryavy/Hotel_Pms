@@ -308,18 +308,18 @@ function spinStart_() {
   const b = CLICK_BTN;
   if (!b || !b.isConnected || Date.now() - CLICK_T > 3000) return null;
   b._spin = (b._spin || 0) + 1;
-  b.classList.add('spin-on');
-  return b;
+  return b;   // no spinner on buttons: the top bar shows the work
 }
 function spinEnd_(b) {
   if (!b) return;
   b._spin = Math.max(0, (b._spin || 1) - 1);
-  if (!b._spin) b.classList.remove('spin-on');
+  if (!b._spin) b.classList.remove('spin-on');   // (no spinner is drawn)
 }
 /* The top bar is for actions and background reads. A page that is drawing already shows its skeleton, so the bar stays off then. */
 function progressStart_() { PROGRESS_N++; const p = document.getElementById('progress'); if (p && !VIEW_PENDING) p.classList.add('on'); }
 function progressEnd_() { PROGRESS_N = Math.max(0, PROGRESS_N - 1); if (!PROGRESS_N) { const p = document.getElementById('progress'); if (p) p.classList.remove('on'); } }
 function skeleton_() {
+  return '';   // no placeholder blocks: the top bar is the only loading signal
   const cards = [0, 1, 2, 3].map(() => '<div class="sk-card"><div class="sk-line w60"></div><div class="sk-line w40"></div></div>').join('');
   return `<div class="skel" aria-busy="true"><div class="sk-line w30 big"></div><div class="sk-grid">${cards}</div><div class="sk-card tall"><div class="sk-line w80"></div><div class="sk-line w70"></div><div class="sk-line w90"></div></div></div>`;
 }
@@ -1009,7 +1009,7 @@ async function pgService() {
   setView(`<h1>Guest service</h1>
     <div class="card toolbar"><label><span>Show</span><select onchange="svcFilter(this.value)">${['Active', 'Open', 'In progress', 'Done', 'Cancelled', 'All'].map(x => `<option${x === SVC_FILTER ? ' selected' : ''}>${x}</option>`).join('')}</select></label>
       ${can('service.manage') ? '<div class="acts"><button class="btn" type="button" onclick="svcNew()">+ New request</button></div>' : ''}</div>
-    <div class="card" id="svcOut"><div class="loading">Loading…</div></div>`);
+    <div class="card" id="svcOut"></div>`);
   await svcLoad();
 }
 function svcFilter(v) { SVC_FILTER = v; svcLoad().catch(e => toast(e.message, true)); }
@@ -1248,7 +1248,7 @@ async function pgFrontList(kind) {
         ${filters}
         <div class="fl-acts"><button class="btn" type="submit">Search</button><button class="btn ghost" type="button" onclick="go('${kind}')">Reset</button></div>
       </form>
-      <div id="flOut"><div class="loading">Loading…</div></div>
+      <div id="flOut"></div>
     </div>`);
   await flLoad_(kind, {});
 }
@@ -1614,7 +1614,7 @@ function renderPage_(page, param) {
   document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('on', a.dataset.p === page));
   const label = (NAV.find(n => n.k === page) || {}).l || 'Change password';
   document.title = label + ' · ' + ((S.settings && S.settings.appName) || '');
-  setView(`<h1>${esc(page === 'f' ? 'Loading…' : label)}</h1>` + skeleton_());   // title and layout show at once; data fills in
+  setView(`<h1>${esc(page === 'f' ? '' : label)}</h1>` + skeleton_());   // title and layout show at once; data fills in
   VIEW_PENDING = true;
   RENDER_RID = ++PAGE_SEQ;
   PAGES[page]().catch(e => {
@@ -2443,7 +2443,7 @@ async function pgRoomHistory() {
       <label><span>Guest, reservation, phone or company</span><input name="q" placeholder="Search" style="min-width:220px"></label>
       <button class="btn" type="submit">Show</button>
     </form>
-    <div class="card" id="rhOut"><div class="loading">Loading…</div></div>`);
+    <div class="card" id="rhOut"></div>`);
   await rhLoad({ from: from, to: bd });
 }
 function rhRun(e) {
