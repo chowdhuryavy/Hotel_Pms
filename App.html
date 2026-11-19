@@ -172,10 +172,38 @@ function connRows_() {
     ['Last checked', when]
   ];
 }
+const CONN_ICON_ = {
+  ok: '<path d="M20 6 9 17l-5-5"/>',
+  slow: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  bad: '<path d="M18 6 6 18M6 6l12 12"/>',
+  off: '<path d="M1 1l22 22"/><path d="M16.7 11.4A10 10 0 0 1 22 12"/>',
+  wait: '<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>',
+  cloud: '<path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 1 0 6 19z"/>',
+  db: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
+  tag: '<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+};
+function connSvg_(d) { return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`; }
 function connPanelHtml_() {
-  return `<div class="card conn-panel"><div class="head-row"><h3>Connection</h3><div class="acts"><button class="btn ghost sm" onclick="connCheck_(true).then(()=>renderPage_('sysadmin'))">Check now</button></div></div>
-    <div class="conn-grid">${connRows_().map(([k, v]) => `<div><span class="muted">${esc(k)}</span><b class="conn-v">${esc(v)}</b></div>`).join('')}</div>
-    <p class="muted" style="margin:10px 0 0">Status: <span class="conn ${CONN.state || 'checking'}" style="cursor:default"><span class="conn-dot"></span><span class="conn-txt">${esc(CONN_LABEL_[CONN.state] || 'Checking…')}</span></span>. Checked each time this page opens.</p></div>`;
+  const st = CONN.state || 'checking';
+  const tone = st === 'ok' ? 'good' : st === 'slow' ? 'warn' : (st === 'checking' ? 'wait' : 'bad');
+  const heroIco = { ok: CONN_ICON_.ok, slow: CONN_ICON_.slow, db: CONN_ICON_.bad, down: CONN_ICON_.bad, offline: CONN_ICON_.off }[st] || CONN_ICON_.wait;
+  const ms = CONN.totalMs || 0;
+  const pct = Math.max(4, Math.min(100, Math.round(ms / 50)));   // 5 seconds fills the bar
+  const tile = (ico, label, value, sub) => `<div class="conn-tile"><span class="conn-tile-ico">${connSvg_(ico)}</span><div><span class="muted">${esc(label)}</span><b class="conn-v">${esc(value)}</b>${sub ? `<small class="muted">${esc(sub)}</small>` : ''}</div></div>`;
+  const serverTile = CONN.server === 'ok'
+    ? tile(CONN_ICON_.cloud, 'App server', 'Connected', 'Answered in ' + ms + ' ms')
+    : tile(CONN_ICON_.cloud, 'App server', 'No answer', CONN.error || 'Not checked yet');
+  const dbTile = CONN.database === 'ok'
+    ? tile(CONN_ICON_.db, 'Database', 'Connected', (CONN.tables || 0) + ' tables · read in ' + (CONN.dbMs || 0) + ' ms')
+    : tile(CONN_ICON_.db, 'Database', CONN.server === 'ok' ? 'Problem' : 'Not checked', CONN.dbError || CONN.error || '');
+  const created = CONN.created && CONN.created.length ? `<p class="muted" style="margin:0 0 10px">Created missing tables: ${esc(CONN.created.join(', '))}.</p>` : '';
+  return `<div class="card conn-panel">
+    <div class="head-row"><h3>Connection</h3><div class="acts"><button class="btn ghost sm" onclick="connCheck_(true).then(()=>renderPage_('sysadmin'))">Check now</button></div></div>
+    <div class="conn-hero ${tone}"><span class="conn-hero-ico">${connSvg_(heroIco)}</span><div><b>${esc(CONN_LABEL_[st] || 'Checking…')}</b><small class="muted">${CONN.checkedAt ? 'Last checked ' + esc(new Date(CONN.checkedAt).toLocaleTimeString()) : 'Checking the server…'}</small></div></div>
+    ${CONN.server === 'ok' ? `<div class="conn-bar" title="Handshake time"><span style="width:${pct}%"></span></div>` : ''}
+    <div class="conn-tiles">${serverTile}${dbTile}${tile(CONN_ICON_.tag, 'Version', CONN.version || (S.settings && S.settings.appVersion) || '—')}${tile(CONN_ICON_.clock, 'Server time', CONN.serverTime || '—')}</div>
+    ${created}<p class="muted" style="margin:10px 0 0">Checked every two minutes, or when you press Check now.</p></div>`;
 }
 
 /* ---------- Connection: detect, diagnose and recover ---------- */

@@ -183,11 +183,12 @@ function getPublicSettings() { return publicSettings_(); }
     sheet is present and can be read now. Timed, so the screen can show a slow connection too. */
 function healthCheck(token) {
   const s = auth_(token, 'system.manage');
-  const out = { server: 'ok', database: 'ok', dbError: '', tables: 0, settingsRows: 0, version: APP_VERSION,
+  const out = { server: 'ok', database: 'ok', dbError: '', created: [], tables: 0, settingsRows: 0, version: APP_VERSION,
     serverTime: fmtTs_(new Date()), user: s.username, dbMs: 0 };
   const t0 = Date.now();
   try {
     const names = Object.keys(TBL);
+    out.created = ensureAllTabsOnce_(true);          // a tab added by an update is created, not reported as an error
     names.forEach(k => sh_(TBL[k]));                 // every table must exist
     out.settingsRows = rows_(TBL.SETTINGS).length;   // a real read of the sheet
     out.tables = names.length;
@@ -199,6 +200,17 @@ function healthCheck(token) {
   return out;
 }
 
+/* Creates any table tab that is missing (headers only, no rows are touched). Checked once per version and cached. */
+function ensureAllTabsOnce_(force) {
+  const cache = CacheService.getScriptCache();
+  const key = 'tabs_ok_' + APP_VERSION;
+  if (!force && cache.get(key)) return [];
+  const ss = ss_();
+  const missing = Object.keys(TBL).map(k => TBL[k]).filter(t => !ss.getSheetByName(t[0]));
+  if (missing.length) ensureTabs_(missing);
+  cache.put(key, '1', 21600);
+  return missing.map(t => t[0]);
+}
 function maxAttempts_() { return Math.max(5, Number(settings_().maxLoginAttempts) || 5); }
 function inactivityMinutes_() { return Math.max(1, Number(settings_().inactivityMinutes) || 30); }
 function login(username, password) {
@@ -386,6 +398,7 @@ function listAudit(token, limit) {
 function doGet() {
   try { ensureAutoUpdate_(); } catch (e) { Logger.log('Auto update timer: ' + e.message); }
   try { ensureBackupTrigger_(); } catch (e) { Logger.log('Backup timer: ' + e.message); }
+  try { ensureAllTabsOnce_(); } catch (e) { Logger.log('Tabs check: ' + e.message); }
   let name = '';
   try { name = settings_().appName || name; } catch (e) { /* database not set up yet */ }
   const t = HtmlService.createTemplateFromFile('Index');

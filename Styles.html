@@ -805,4 +805,20 @@
   .apptab .apptab-name{border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;padding:0}
   .apptab .apptab-x{border:0;background:transparent;color:inherit;font-size:16px;line-height:1;cursor:pointer;width:22px;height:22px;border-radius:50%;padding:0}
   .apptab .apptab-x:hover{background:rgba(127,127,127,.25)}
+  .conn-hero{display:flex;gap:12px;align-items:center;padding:12px 14px;border-radius:14px;background:var(--hover);margin:4px 0 10px}
+  .conn-hero b{display:block;font-size:17px}
+  .conn-hero small{display:block;font-size:12px}
+  .conn-hero-ico{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none}
+  .conn-hero-ico svg,.conn-tile-ico svg{width:24px;height:24px}
+  .conn-hero.good .conn-hero-ico{background:#e3f6ec;color:#1f9d63}
+  .conn-hero.warn .conn-hero-ico{background:#fdf1dc;color:#c27a10}
+  .conn-hero.bad .conn-hero-ico{background:#fde5e5;color:#c0392b}
+  .conn-hero.wait .conn-hero-ico{background:var(--line);color:var(--muted)}
+  .conn-bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden;margin:0 0 12px}
+  .conn-bar span{display:block;height:100%;background:var(--brand-2);border-radius:99px}
+  .conn-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+  .conn-tile{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:12px;min-width:0}
+  .conn-tile-ico{width:36px;height:36px;border-radius:10px;background:var(--hover);color:var(--brand-2);display:flex;align-items:center;justify-content:center;flex:none}
+  .conn-tile b{display:block;font-size:15px;overflow-wrap:anywhere}
+  .conn-tile small{display:block;font-size:12px;overflow-wrap:anywhere}
 </style>

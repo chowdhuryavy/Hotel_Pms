@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.71**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.72**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.72: A tab added in an update (for example FixedRules) is now created automatically, so the Database error no longer appears after an update. The connection panel in System admin shows a status card, a handshake bar, and tiles for the app server, database, version and server time, each with an icon.
 
 Release notes for 1.2.71: Fixed a form tab showing the dashboard underneath: a page that finished loading after the tab opened no longer draws over it. A form tab fills the whole content area. Closing it returns to the page you were on.
 
