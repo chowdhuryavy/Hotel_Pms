@@ -36,6 +36,7 @@ const TBL = {
   AUDIT:     ['AuditLog', ['time','user','action','entity','entityId','details']],
   RESLOG:    ['ResLog', ['id','resNo','at','user','action','details']],
   ARAGING:   ['ARAging', ['bizDate','code','name','current','d31','d61','d90','total','snapshotAt']],
+  NIGHTRPT:  ['NightReports', ['bizDate','type','part','data','generatedAt','generatedBy']],
   FIXEDRULES: ['FixedRules', ['id','scope','target','code','description','amount','frequency','startDate','endDate','active','lastPostedOn','createdBy','createdAt']],
   ROOMCHG:   ['RoomCharges', ['id','roomNo','bizDate','code','description','amount','ruleId','roomStatus','postedBy','createdAt']]
 };
@@ -83,7 +84,7 @@ const PERMISSIONS = [
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.101';
+const APP_VERSION = '1.2.102';
 const SETTINGS_DEFAULT = {
   maxLoginAttempts: 5,      // wrong passwords before the account is locked (system admin, minimum 5)
   inactivityMinutes: 30,    // idle minutes before sign-out (system admin)
@@ -102,6 +103,7 @@ const SETTINGS_DEFAULT = {
   loadingScreen: 'random',             // system admin: random, classic, orbit, flip or pulse
   logoUrl: '',
   currency: 'QAR',
+  nightReportTypes: '',                // night audit report page: report keys to show, comma-separated (blank = all)
   taxRate: 0.10,                       // applied to every taxable charge (0.10 = 10%)
   checkInTime: '14:00',
   checkOutTime: '12:00',

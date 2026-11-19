@@ -180,6 +180,8 @@ function runNightAudit(token) {
     // 3) Close open cashier shifts and save the AR aging as of this date
     const shiftsClosed = closeOpenShifts_(bd, s.username);
     const aging = arAgingSnapshot_(bd);
+    // 3b) Save every report for this date as the night run leaves it
+    const savedReports = snapshotNightReports_(bd, s.username, fmtTs_(new Date()));
 
     // 4) Close the date and advance
     const next = addDays_(bd, 1);
@@ -190,6 +192,6 @@ function runNightAudit(token) {
     audit_(s.username, 'NIGHT_AUDIT', 'BusinessDate', bd, roomsPosted + ' rooms, ' + num_(total) + ' room revenue, ' + noShows + ' no-shows, ' + shiftsClosed + ' shifts closed, AR ' + aging.total + '; next ' + next);
     let emailed = false;
     try { sendAuditorReport_(bd); emailed = true; } catch (e) { Logger.log('Auditor report: ' + e.message); }
-    return { closed: bd, next: next, roomsPosted: roomsPosted, roomRevenue: num_(total), noShows: noShows, shiftsClosed: shiftsClosed, aging: aging, fixed: fixed, emailed: emailed };
+    return { closed: bd, next: next, roomsPosted: roomsPosted, roomRevenue: num_(total), noShows: noShows, shiftsClosed: shiftsClosed, aging: aging, fixed: fixed, reports: savedReports, emailed: emailed };
   });
 }

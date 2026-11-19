@@ -2267,21 +2267,38 @@ async function pgNightAudit() {
 }
 /* Night audit report: any report for a business date (the previous day by default), with search */
 async function pgNightReport() {
-  const rt = await api('reportTypes');
+  const rt = await api('nightReportTypes');
   const types = Array.isArray(rt) && rt.length ? rt : [['nightaudit', 'Night audit report']];
   const d = addDaysIso(S.bizDate, -1);
+  NR_TYPE = types.some(x => x[0] === 'nightaudit') ? 'nightaudit' : types[0][0];
   setView(`<h1>Night audit report</h1>
     <p><button class="btn ghost sm" type="button" onclick="go('nightaudit')">&larr; Night audit</button></p>
     <form class="card toolbar" id="nrForm" onsubmit="nrRun(event)">
       <label><span>Business date</span><input type="date" name="date" value="${d}" required></label>
       <button class="btn ghost" type="submit">Refresh this report</button>
+      ${can('cfg.settings.edit') ? '<button class="btn ghost" type="button" onclick="nrConfig()">Choose reports to show</button>' : ''}
     </form>
-    <div class="card"><h3>Choose a report</h3><div class="na-reports">${types.map(([k, l]) => `<button type="button" class="btn ghost sm${k === 'nightaudit' ? ' on' : ''}" data-type="${k}" onclick="nrPickType('${k}')">${esc(l)}</button>`).join('')}</div></div>
-    <div class="card toolbar"><label><span>Search (name, room, reservation, any text)</span><input id="nrSearch" placeholder="Type to filter the rows" oninput="nrFilter(this.value)"></label>
-      ${can('reports.export') ? '<div class="acts">' + repButtons_() + '</div>' : ''}</div>
+    <div class="card"><h3>Choose a report</h3><div class="na-reports">${types.map(([k, l]) => `<button type="button" class="btn ghost sm${k === NR_TYPE ? ' on' : ''}" data-type="${k}" onclick="nrPickType('${k}')">${esc(l)}</button>`).join('')}</div></div>
+    <div class="card toolbar"><label><span>Search by name or any text (guest, room, reservation, company)</span><input id="nrSearch" placeholder="Type a name to filter the rows" oninput="nrFilter(this.value)"></label>
+      <span class="muted" id="nrCount"></span></div>
     <div class="card" id="repOut"><div class="loading">Running…</div></div>`);
-  NR_TYPE = 'nightaudit';
   await nrLoad(NR_TYPE, d);
+}
+/* Admin: tick the reports that show on the night audit report page */
+async function nrConfig() {
+  const list = await api('reportTypeConfig');
+  openModal('Reports to show on night audit', `<p class="muted">Untick a report to hide it from the night audit report page. Every report stays available on the Reports page.</p>
+    <form id="fNRC" class="nrc-grid">${list.map(x => `<label class="fl-check"><input type="checkbox" name="rt" value="${esc(x.key)}"${x.on ? ' checked' : ''}><span>${esc(x.label)}</span></label>`).join('')}</form>
+    <div class="actions"><button class="btn ghost" type="button" onclick="closeModal()">Cancel</button><button class="btn" type="button" onclick="nrConfigSave()">Save</button></div>`);
+}
+async function nrConfigSave() {
+  const keys = Array.from(document.querySelectorAll('#fNRC input[name=rt]:checked')).map(i => i.value);
+  try {
+    await api('saveNightReportTypes', keys);
+    closeModal();
+    toast('Night audit reports saved.');
+    await pgNightReport();
+  } catch (e) { toast(e.message, true); }
 }
 let NR_TYPE = 'nightaudit';   // the report on the night audit report page
 function nrRun(e) {
@@ -2296,15 +2313,29 @@ function nrPickType(k) {
 }
 async function nrLoad(type, date) {
   if (!date) return;
-  await repLoad({ type: type, from: date, to: date });
+  await repLoad({ type: type, from: date, to: date, serial: true, night: true });
   nrFilter($('nrSearch') ? $('nrSearch').value : '');
 }
-/* Shows only the rows that contain the text */
+/* Shows only the rows that contain the text (a name, room, reservation, anything). Empty tables are hidden. */
 function nrFilter(q) {
   const t = String(q || '').trim().toLowerCase();
-  document.querySelectorAll('#repOut tbody tr').forEach(row => {
-    row.style.display = !t || row.innerText.toLowerCase().indexOf(t) >= 0 ? '' : 'none';
+  let shown = 0;
+  document.querySelectorAll('#repOut .tbl').forEach(box => {
+    let n = 0;
+    const rows = box.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+      const ok = !t || row.innerText.toLowerCase().indexOf(t) >= 0;
+      row.style.display = ok ? '' : 'none';
+      if (ok) n++;
+    });
+    const hide = !!t && n === 0 && rows.length > 0;
+    box.style.display = hide ? 'none' : '';
+    const h = box.previousElementSibling;
+    if (h && h.classList.contains('sec-title')) h.style.display = hide ? 'none' : '';
+    shown += n;
   });
+  const c = $('nrCount');
+  if (c) c.textContent = t ? shown + ' matching row' + (shown === 1 ? '' : 's') : '';
 }
 async function pgNightRun() {
   const [info, hist] = await Promise.all([api('businessDateInfo'), api('listBizDates')]);
@@ -2589,11 +2620,28 @@ function eodRun(e) {
   repLoad({ type: 'eod', from: d, to: d }).catch(err => toast(err.message, true));
 }
 async function repLoad(cur) {
-  const rep = await api('runReport', cur.type, cur.from, cur.to);
+  const rep = await api(cur.night ? 'nightRunReport' : 'runReport', cur.type, cur.from, cur.to, !!cur.serial);
   LAST = Object.assign({}, rep, cur);
   const secs = rep.sections || [{ title: '', headers: rep.headers, rows: rep.rows }];
-  $('repOut').innerHTML = `<h3>${esc(dmy(rep.title))}</h3>` + secs.map(sec => (sec.title && rep.sections ? `<h3 class="sec-title">${esc(sec.title)}</h3>` : '') +
-    table(sec.headers, sec.rows.map(r => tr(r.map(c => typeof c === 'number' ? `<span>${num(c)}</span>` : esc(c)), r[0] === 'TOTAL' ? 'sum' : '')))).join('');
+  const period = esc(dmy(cur.from || '')) + (cur.to && cur.to !== cur.from ? ' to ' + esc(dmy(cur.to)) : '');
+  const buttons = cur.night && can('reports.export') ? '<div class="acts">' + repButtons_() + '</div>' : '';
+  $('repOut').innerHTML = `<div class="rep-head"><div><div class="rep-kicker">Report</div><h2>${esc(dmy(rep.title))}</h2></div>` +
+    `<div class="rep-meta">${period ? 'Period: ' + period : ''}${rep.source ? '<br>' + esc(rep.source) : ''}</div>${buttons}</div>` +
+    secs.map(sec => (sec.title && rep.sections ? `<h3 class="sec-title">${esc(sec.title)}</h3>` : '') + repTable_(sec.headers, sec.rows, !!cur.serial)).join('');
+}
+/* A report table: right-aligned numbers, serial column centred, totals in bold */
+function repTable_(headers, rows, serial) {
+  const isNum = c => typeof c === 'number';
+  const numCol = headers.map((h, i) => i > 0 && rows.some(r => isNum(r[i])));
+  const head = headers.map((h, i) => `<th class="${i === 0 && serial ? 'sn' : ''}${numCol[i] ? ' num' : ''}">${esc(h)}</th>`).join('');
+  const body = rows.length ? rows.map(r => {
+    const tot = r[0] === 'TOTAL' || r[1] === 'TOTAL';
+    return `<tr class="${tot ? 'sum' : ''}">` + r.map((c, i) => {
+      const cls = (i === 0 && serial) ? 'sn' : (numCol[i] ? 'num' : '');
+      return `<td class="${cls}">${isNum(c) ? num(c) : esc(dmy(c))}</td>`;
+    }).join('') + '</tr>';
+  }).join('') : `<tr><td colspan="${headers.length}" class="muted">No records</td></tr>`;
+  return `<div class="tbl rep-tbl"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 function repRun(e) {
   e.preventDefault();
@@ -2604,7 +2652,7 @@ function repRun(e) {
 async function repPdf() {
   if (!LAST) return;
   try {
-    const f = await api('exportReportPdf', LAST.type, LAST.from, LAST.to);
+    const f = await api('exportReportPdf', LAST.type, LAST.from, LAST.to, !!LAST.serial, !!LAST.night);
     const a = document.createElement('a');
     a.href = 'data:application/pdf;base64,' + f.base64; a.download = f.name;
     document.body.appendChild(a); a.click(); a.remove();
