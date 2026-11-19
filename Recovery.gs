@@ -24,7 +24,11 @@ function maskEmail_(e) {
   return at > 0 ? s.charAt(0) + '***' + s.slice(at) : '';
 }
 function sendMail_(to, subject, text, html) {
-  MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: html, name: appName_() });
+  try {
+    MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: html, name: appName_() });
+  } catch (e) {
+    throw new Error('The email could not be sent right now. Try again in a few minutes, or ask the administrator.');
+  }
 }
 function hotelName_() {
   try { return settings_().hotelName || appName_(); } catch (e) { return appName_(); }
@@ -81,7 +85,9 @@ function mailHtml_(bodyHtml) {
 function renderMail_(kind, vars) {
   const v = Object.assign({ appName: appName_(), hotelName: hotelName_() }, vars);
   const text = tplText_(kind + 'Body', v);
-  return { subject: tplText_(kind + 'Subject', v), text: text, html: mailHtml_(htmlFromText_(text, v.code || '')) };
+  let subject = tplText_(kind + 'Subject', v);
+  if (v.code && subject.indexOf(v.code) < 0) subject = v.code + ' is your code · ' + subject;
+  return { subject: subject, text: text, html: mailHtml_(htmlFromText_(text, v.code || '')) };
 }
 
 /** Sends the two emails to the signed-in admin's own address, so the wording can be checked. */
@@ -101,9 +107,9 @@ function sendLoginCode_(user) {
   const pid = Utilities.getUuid().replace(/-/g, '');
   const code = String(100000 + Math.floor(Math.random() * 900000));
   const salt = Utilities.getUuid();
-  CacheService.getScriptCache().put('lc:' + pid, JSON.stringify({ u: user.id, h: hash_(salt, code), s: salt, t: 0 }), OTP_SECONDS);
   const m = renderMail_('loginotp', { name: user.name || user.username, code: code, minutes: Math.round(OTP_SECONDS / 60) });
   sendMail_(user.email, m.subject, m.text, m.html);
+  CacheService.getScriptCache().put('lc:' + pid, JSON.stringify({ u: user.id, h: hash_(salt, code), s: salt, t: 0 }), OTP_SECONDS);
   withLock_(() => audit_(user.username, 'LOGIN_CODE_SENT', 'User', user.id, maskEmail_(user.email)));
   return { otpRequired: true, pending: pid, sentTo: maskEmail_(user.email) };
 }
@@ -136,11 +142,10 @@ function forgotRequest(identifier) {
   if (cache.get('otpcd:' + u.id)) return generic;               // a code was sent a moment ago
   const code = String(100000 + Math.floor(Math.random() * 900000));
   const salt = Utilities.getUuid();
-  cache.put('otp:' + u.id, JSON.stringify({ h: hash_(salt, code), s: salt, t: 0 }), OTP_SECONDS);
-  cache.put('otpcd:' + u.id, '1', OTP_COOLDOWN);
-  const who = u.name || u.username;
   const m = renderMail_('otp', { name: u.name || u.username, code: code, minutes: Math.round(OTP_SECONDS / 60) });
   sendMail_(u.email, m.subject, m.text, m.html);
+  cache.put('otp:' + u.id, JSON.stringify({ h: hash_(salt, code), s: salt, t: 0 }), OTP_SECONDS);
+  cache.put('otpcd:' + u.id, '1', OTP_COOLDOWN);
   withLock_(() => audit_('system', 'PASSWORD_RESET_CODE_SENT', 'User', u.id, u.username));
   return { message: generic.message, sentTo: maskEmail_(u.email) };
 }
