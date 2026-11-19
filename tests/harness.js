@@ -604,5 +604,8 @@ if (require.main === module) {
   run("(function(){ const u = rows_(TBL.USERS).find(x => x.username === 'newbie'); patch_(TBL.USERS, u._row, { passHash: hash_(u.salt, 'Legacy-pass1') }); return true; })()");
   ok(!tryRun("login('newbie', 'Legacy-pass1')").e, 'an older unprefixed hash still signs in');
   ok(!!tryRun("login('newbie', 'Wrong-pass1')").e, 'a wrong password is still refused for an older hash');
+  // A failed sign-in records why in the audit log, never the password
+  ok(!!tryRun("login('newbie', 'Definitely-wrong-1')").e && run("(function(){ const a = rows_(TBL.AUDIT).filter(r => r.action === 'LOGIN_FAILED'); const last = a[a.length - 1]; return last.details === 'wrong password' && JSON.stringify(last).indexOf('Definitely-wrong-1') < 0; })()"), 'a wrong password is logged as "wrong password" without the password itself');
+  ok(!!tryRun("login('no-such-person-zz', 'Anything-1')").e && run("(function(){ const a = rows_(TBL.AUDIT).filter(r => r.action === 'LOGIN_FAILED'); return a[a.length - 1].details === 'no matching user'; })()"), 'an unknown name is logged as "no matching user"');
   console.log('done');
 }

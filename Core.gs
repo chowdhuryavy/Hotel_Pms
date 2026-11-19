@@ -260,7 +260,9 @@ function login(username, password) {
         left = Math.max(0, max - n);
         patch_(TBL.USERS, user._row, { failCount: n, locked: n >= max });
       }
-      audit_(u || '?', 'LOGIN_FAILED', 'User', u, user && left === 0 ? 'account locked' : '');
+      // The reason is recorded for the administrator. The password itself is never stored.
+      const why = !user ? 'no matching user' : user.active !== true ? 'inactive account' : left === 0 ? 'account locked' : 'wrong password';
+      audit_(u || '?', 'LOGIN_FAILED', 'User', u, why);
     });
     if (user && left === 0) throw new Error('Wrong password. This account is now locked after ' + max + ' attempts. Ask the system administrator to unlock it.');
     throw new Error('Invalid username or password.' + (user && left <= 2 ? ' ' + left + ' attempt(s) left before the account is locked.' : ''));

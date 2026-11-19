@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.139**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.140**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.140: Failed sign-ins are recorded in the audit log with the reason (wrong password, no matching user, inactive account, or locked). The password is never recorded.
 
 Release notes for 1.2.139: While a button is working, its label stays visible, with the spinner on the left. Before, the label was hidden during the spin on every button, including Sign in.
 
