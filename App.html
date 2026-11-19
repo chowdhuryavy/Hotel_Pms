@@ -2481,7 +2481,7 @@ async function pgLog() {
  * ============================================================ */
 // [key, label, permission, scope]. 'prop' = property admin (hotel operations); 'sys' = system administrator only.
 const ADM_TABS = [['users', 'Staff users', 'users.manage', 'prop'], ['settings', 'Hotel settings', 'cfg.settings.view', 'prop'], ['types', 'Room types', 'cfg.roomtypes.view', 'prop'], ['rooms', 'Rooms', 'cfg.rooms.view', 'prop'], ['packages', 'Packages', 'cfg.packages.view', 'prop'], ['payments', 'Payment methods', 'cfg.payments.view', 'prop'],
-  ['padmins', 'Property admins', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['menu', 'Menu layout', 'system.manage', 'sys'], ['emails', 'Email messages', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys'], ['updates', 'App version', 'system.manage', 'sys']];
+  ['padmins', 'Property admins', 'system.manage', 'sys'], ['padscreens', 'Property admin screens', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['menu', 'Menu layout', 'system.manage', 'sys'], ['emails', 'Email messages', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys'], ['updates', 'App version', 'system.manage', 'sys']];
 async function pgAdmin(scope) {
   const tabs = ADM_TABS.filter(t => t[3] === scope && can(t[2]));
   if (!tabs.length) { setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1><div class="card">You do not have access to this area.</div>`); return; }
@@ -2493,6 +2493,8 @@ async function pgAdmin(scope) {
     const us = await api('listUsers');
     body = `<div class="head-row"><h3>Users</h3><div class="acts">${can('system.manage') ? '<button class="btn" onclick="tabOpen_(&#39;userModal&#39;,[])">+ User</button>' : ''}</div></div>` +
       table(['Name', 'Username', 'Role', 'Active', 'Last login', ''], us.map(u => tr([esc(u.name), esc(u.username), pill(u.role), u.locked ? pill('Locked') : (u.active ? 'Yes' : 'No'), esc(u.lastLogin), `${u.locked ? `<button class="btn sm ok" onclick="unlockUserAct('${esc(u.id)}')">Unlock</button> ` : ''}<button class="btn sm ghost" onclick="tabOpen_(&#39;userModal&#39;,[&#39;${esc(u.id)}&#39;])">Edit</button> <button class="btn sm ghost" onclick="resetPwAct('${esc(u.id)}')">Reset password</button>`])));
+  } else if (ADM === 'padscreens') {
+    body = await padScreensHtml_();
   } else if (ADM === 'menu') {
     MENU_DRAFT = null;
     body = `<h3>Menu layout</h3><p class="muted">Arrange the sidebar: order the groups, move pages between groups and rename groups. Only items the user has permission for are shown. A page you do not place keeps its default group.</p><div id="menuEd">${menuEditorHtml_()}</div>`;
@@ -2624,6 +2626,42 @@ function readOnlySettingsHtml_(s) {
   return `<h3>Hotel settings</h3><p class="muted">View only. The system administrator decides who can change hotel details.</p>` +
     table(['Setting', 'Value'], rows.map(r => tr([esc(r[0]), esc(r[1])])));
 }
+/* ---------- Property admin screens (system administrator) ----------
+   Each row is one screen in the Property admin area. The permissions behind it are set for the Property Admin role. */
+const PAD_ROLE = 'Property Admin';
+const PAD_SCREENS = [
+  ['Staff users', 'users.manage', null, null],
+  ['Hotel settings', 'cfg.settings.view', 'cfg.settings.edit', null],
+  ['Room types', 'cfg.roomtypes.view', 'cfg.roomtypes.edit', 'cfg.roomtypes.delete'],
+  ['Rooms', 'cfg.rooms.view', 'cfg.rooms.edit', 'cfg.rooms.delete'],
+  ['Packages', 'cfg.packages.view', 'cfg.packages.edit', 'cfg.packages.delete'],
+  ['Payment methods', 'cfg.payments.view', 'cfg.payments.edit', 'cfg.payments.delete'],
+  ['Fixed charges (in Rooms)', 'fixed.manage', null, null]
+];
+async function padScreensHtml_() {
+  const d = await api('getRolePerms', PAD_ROLE);
+  const on = {};
+  d.perms.forEach(p => { on[p.permission] = p.allowed; });
+  const box = (perm, what) => perm
+    ? `<input type="checkbox" name="pscreen" value="${esc(perm)}" aria-label="${esc(what)}"${on[perm] ? ' checked' : ''}>`
+    : '<span class="muted">–</span>';
+  return `<h3>Property admin screens</h3>
+    <p class="muted">Choose which screens a Property Admin sees in the Property admin area, and what they may change or delete there. A screen that is off is hidden from them.</p>
+    ${table(['Screen', 'See', 'Change', 'Delete'], PAD_SCREENS.map(([name, see, edit, del]) => tr([esc(name), box(see, name + ' – see'), box(edit, name + ' – change'), box(del, name + ' – delete')])))}
+    <div class="acts pm-foot"><button class="btn" id="psSave" type="button" onclick="savePadScreens()">Save screens</button></div>`;
+}
+async function savePadScreens() {
+  const mine = [...document.querySelectorAll('input[name=pscreen]:checked')].map(i => i.value);
+  const screenPerms = PAD_SCREENS.reduce((a, r) => a.concat(r.slice(1).filter(Boolean)), []);
+  try {
+    const d = await api('getRolePerms', PAD_ROLE);
+    // Keep every other permission of the Property Admin role as it is; only the screens above change
+    const keep = d.perms.filter(p => p.allowed && screenPerms.indexOf(p.permission) < 0).map(p => p.permission);
+    await api('saveRolePerms', PAD_ROLE, keep.concat(mine));
+    toast('Property admin screens saved');
+  } catch (e) { toast(e.message, true); }
+}
+
 /* ---------- Menu layout editor (system administrator) ---------- */
 let MENU_DRAFT = null;
 let MENU_LABELS = {};
