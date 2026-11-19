@@ -56,7 +56,7 @@
     // The app asks for a reload of its frame (for example after an update). The address stays on this site.
     window.addEventListener('message', function (e) {
       var f = document.querySelector('iframe');
-      if (!f || e.source !== f.contentWindow || !e.data || e.data.type !== 'stayline-reload') return;
+      if (!f || !e.data || e.data.type !== 'stayline-reload') return;
       var base = f.getAttribute('src').replace(/[?&]v=\d+/, '');
       f.src = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'v=' + Date.now();
     });
