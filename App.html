@@ -51,7 +51,15 @@ const isNetErr_ = m => NET_ERR_RE.test(String(m || ''));
 /* Money-moving calls: kept and retried for up to 60 seconds if the connection drops. Each has a request id, so a retry
    cannot post twice (the server returns the saved result). */
 const RETRY_WRITE_FN = { checkoutPay: true, checkOut: true, postCharge: true, postPayment: true, createReservation: true, checkIn: true, saveSettings: true };
+/* A button that opens a form opens it in its own tab (see openModal). Remember the last click, and whether it saved anything. */
+let CLICK_EXPR = null, CLICK_AT = 0, CLICK_WROTE = false;
+document.addEventListener('click', e => {
+  const el = e.target && e.target.closest ? e.target.closest('button,a,[role="button"]') : null;
+  const ex = el ? el.getAttribute('onclick') : null;
+  CLICK_EXPR = ex || null; CLICK_AT = Date.now(); CLICK_WROTE = false;
+}, true);
 const api = (fn, ...a) => {
+  if (!READ_FN_RE.test(fn)) CLICK_WROTE = true;   // a save already happened for this click: keep the form where it is
   progressStart_();
   const limit = READ_FN_RE.test(fn) ? 30000 : 60000;   // a stalled request must not leave the screen waiting forever
   const spinBtn = spinStart_();
@@ -351,6 +359,10 @@ function refresh() { go(S.page, S.param); }
 /* ---------- Modal & forms ---------- */
 /* In a tab opened for an admin function (window.STAY_TAB) the form is a full page, not a small dialog */
 function openModal(title, html) {
+  if (!window.STAY_TAB && CLICK_EXPR && !CLICK_WROTE && Date.now() - CLICK_AT < 20000 && TAB_EXPR_OK_RE.test(CLICK_EXPR)) {
+    tabRun_({ expr: CLICK_EXPR });   // the same button, run in a new tab where the form is a full page
+    return;
+  }
   if (window.STAY_TAB) {
     setView(`<div class="tabform"><div class="tabform-head"><h1>${esc(title)}</h1><button class="btn ghost" type="button" onclick="closeModal()">Close</button></div>
       <div class="card tabform-body">${html}</div></div>`);
@@ -412,14 +424,16 @@ const chk = v => v === 'true';
 /* Dialogs that open in their own browser tab (see tabOpen_). Only these names are allowed from a link. */
 const TAB_OPEN_OK = ['admSection', 'userModal', 'typeModal', 'roomModal', 'roleModal', 'permModal', 'paymentMethodModal', 'packageModal', 'planModal', 'rateModal', 'codeModal'];
 /** Opens a form in a new browser tab, signed in through a one-time link. The tab opens at once so the browser allows it. */
-async function tabOpen_(fn, args) {
+const TAB_EXPR_OK_RE = /^[A-Za-z_$][\w$]*\((?!\s*\))/;   // a call to a page function, not closeModal() or act()
+async function tabOpen_(fn, args) { return tabRun_({ open: fn, args: args || [] }); }
+async function tabRun_(payload) {
   const w = window.open('about:blank', '_blank');
   if (!w) { toast('Allow pop-ups for this app to open the form in a new tab.', true); return; }
   try {
     const id = await api('createHandover');
     const base = ((document.querySelector('meta[name="exec-url"]') || {}).content) || '';
     if (!base) throw new Error('The app address is not known. Reload the page and try again.');
-    const hash = '#/' + (S.page || 'dashboard') + '?' + encodeURIComponent(JSON.stringify({ open: fn, args: args || [] }));
+    const hash = '#/' + (S.page || 'dashboard') + '?' + encodeURIComponent(JSON.stringify(payload));
     w.opener = null;
     w.location.href = base + '?h=' + encodeURIComponent(id) + hash;
   } catch (e) { try { w.close(); } catch (x) { /* ignore */ } toast(e.message, true); }
@@ -427,6 +441,11 @@ async function tabOpen_(fn, args) {
 /** In a tab opened by tabOpen_: runs the dialog named in the address, once. */
 function runTabOpen_() {
   const p = S.param;
+  if (p && p.expr) {
+    S.param = Object.assign({}, p, { expr: null });
+    if (TAB_EXPR_OK_RE.test(p.expr)) { try { (0, eval)(p.expr); } catch (e) { toast(e.message, true); } }
+    return;
+  }
   if (!p || !p.open || TAB_OPEN_OK.indexOf(p.open) < 0) return;
   const fn = window[p.open];
   S.param = Object.assign({}, p, { open: null });
@@ -2481,7 +2500,7 @@ async function testEmail() {
   catch (e) { toast(e.message, true); }
 }
 /* Settings sections with forms open in their own tab (in that tab they are full pages) */
-const ADM_FORM_TABS = ['settings', 'system', 'emails', 'menu'];
+const ADM_FORM_TABS = ADM_TABS.map(t => t[0]);
 function admTabOpen(k) {
   if (window.STAY_TAB || ADM_FORM_TABS.indexOf(k) < 0) return admTab(k);
   tabOpen_('admSection', [k]);
