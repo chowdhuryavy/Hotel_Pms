@@ -1919,26 +1919,40 @@ function naNextDay_(iso) {
   const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + 1);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
+const NA_TOTAL = NA_CHECKS.length + NA_STEPS.length;
+let NA_DONE = 0;
+/** Live progress of the night audit: checks and steps completed out of the total. */
+function naProgress_(label) {
+  const pct = Math.min(100, Math.round(NA_DONE / NA_TOTAL * 100));
+  if ($('naFill')) $('naFill').style.width = pct + '%';
+  if ($('naPct')) $('naPct').textContent = pct + '% · ' + label;
+}
 function naConfirm() {
+  NA_DONE = 0; naProgress_('starting');
   openModal('Night audit · ' + S.bizDate, '<p class="muted" style="margin:0 0 6px">Each check runs in turn. The audit runs once every check passes.</p>' +
+    '<div style="height:10px;background:var(--line);border-radius:6px;overflow:hidden;margin:6px 0 4px"><i id="naFill" style="display:block;height:100%;width:0;background:var(--brand);transition:width .3s"></i></div>' +
+    '<div class="muted" id="naPct" style="font-size:12.5px;margin-bottom:6px">0% · starting</div>' +
     '<div id="naChecks">' + naRows_('nac-', NA_CHECKS) + '</div><div id="naDue"></div>' +
     '<div class="acts"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn danger" id="naGo" disabled onclick="naRun()">Run night audit</button></div>');
   naChecks_();
 }
 async function naChecks_() {
   const go = $('naGo'); if (go) go.disabled = true;
+  NA_DONE = 0; naProgress_('checking');
   if ($('naDue')) $('naDue').innerHTML = '';
   let blocked = false;
   for (const c of NA_CHECKS) {
     naSet_('nac-' + c[0], 'run', 'Checking…');
     let r;
     try { r = await api('nightAuditCheck', c[0]); }
-    catch (e) { naSet_('nac-' + c[0], 'fail', e.message); blocked = true; continue; }
+    catch (e) { naSet_('nac-' + c[0], 'fail', e.message); blocked = true; NA_DONE++; naProgress_('checking · ' + c[1]); continue; }
     naSet_('nac-' + c[0], r.status, r.detail);
+    NA_DONE++; naProgress_('checking · ' + c[1]);
     if (r.status === 'fail') blocked = true;
     if (c[0] === 'dueout' && r.guests && r.guests.length) naDueList_(r.guests);
   }
   const btn = $('naGo'); if (btn) btn.disabled = blocked;
+  naProgress_(blocked ? 'resolve the items above first' : 'ready to run');
 }
 function naDueList_(guests) {
   if (!$('naDue')) return;
@@ -1963,6 +1977,7 @@ async function naRun() {
   if ($('naDue')) $('naDue').innerHTML = '';
   if ($('naChecks')) $('naChecks').innerHTML = naRows_('nas-', NA_STEPS);
   NA_STEPS.forEach(c => naSet_('nas-' + c[0], 'run', 'Waiting'));
+  NA_DONE = NA_CHECKS.length; naProgress_('running the audit');
   let r;
   try { r = await api('runNightAudit'); }
   catch (e) {
@@ -1973,6 +1988,7 @@ async function naRun() {
   }
   // The audit is saved now. Move the date on at once, then tick each step in turn.
   S.bizDate = r.next || S.bizDate;
+  saveSession();
   buildNav();
   const fx = r.fixed || { count: 0, total: 0 }, ag = r.aging || { companies: 0, total: 0 };
   const ticks = [
@@ -1987,8 +2003,11 @@ async function naRun() {
   ];
   for (const t of ticks) {
     naSet_('nas-' + t[0], t[1], t[2]);
+    NA_DONE++; naProgress_('posted · ' + ((NA_STEPS.find(x => x[0] === t[0]) || [])[1] || t[0]));
     await new Promise(res => setTimeout(res, 300));
   }
+  naProgress_('complete');
+  refresh();   // the page behind the checklist now shows the new business date
   // Stays open until the manager presses Done, so the ticks can be read
   const box = $('naChecks');
   const act = $('naGo') ? $('naGo').parentElement : null;

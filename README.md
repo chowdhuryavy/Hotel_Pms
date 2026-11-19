@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.56**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.57**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.57: The night-audit checklist has a live progress bar with a percentage and the step just completed. After a successful audit the app moves to the new business date at once: the session is saved, the page behind the checklist refreshes and the dashboard shows the new date.
 
 Release notes for 1.2.56: The night-audit checklist ticks each step as it completes and stays open until you press Done. The tick list no longer stops if the server sends no fixed-charge or AR-aging figures, and the business date moves on at once after a successful run.
 
