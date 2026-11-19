@@ -123,26 +123,16 @@ function updateShow_(v) {
    frame itself, so the top window is sent to the web app's own address with a new version number. That address
    comes from the server (meta exec-url). The route cannot be carried across, so the main page opens. */
 function updateRefresh_() {
-  const base = ((document.querySelector('meta[name="exec-url"]') || {}).content || '').trim();
   try { sessionStorage.setItem('st_resume', location.hash); } catch (e) { /* private mode */ }
-  // First ask the page this app is inside (your own domain) to reload it. That page answers; Google's own page does not.
+  // Ask the page this app is inside (your own domain) to reload the app there. That page answers with an acknowledgement.
   let answered = false;
   const onAnswer = e => { if (e.data && e.data.type === 'stayline-ack') answered = true; };
   window.addEventListener('message', onAnswer);
   try { window.top.postMessage({ type: 'stayline-reload' }, '*'); } catch (e) { /* not framed */ }
   setTimeout(() => {
     window.removeEventListener('message', onAnswer);
-    if (answered) return;
-    // No answer: the app is on Google's own page, so the top window goes to the web app's address with a new version number
-    const dest = base ? base + (base.indexOf('?') >= 0 ? '&' : '?') + 'v=' + Date.now() : '';
-    if (dest) {
-      try { window.top.location.href = dest; return; } catch (e) { /* the frame cannot navigate the top window */ }
-      try { window.open(dest, '_top'); return; } catch (e) { /* fall through */ }
-    }
-    const u = new URL(location.href);
-    u.searchParams.set('v', String(Date.now()));
-    try { location.replace(u.href); } catch (e) { /* fall back to the reload below */ }
-    setTimeout(() => { try { location.reload(); } catch (e) { location.href = u.href; } }, 700);
+    // No answer: reload the app where it is. The button never opens another address.
+    if (!answered) { try { location.reload(); } catch (e) { /* ignore */ } }
   }, 700);
 }
 /** Reads and clears the route saved by the refresh button. */
