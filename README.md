@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.157**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.158**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.158: The Vercel page's tab uses the same logo image as the sidebar. The drawn square is only the phone home-screen icon.
 
 Release notes for 1.2.157: The Vercel page (your domain) uses the logo as its tab icon even when the browser will not let the page draw it.
 

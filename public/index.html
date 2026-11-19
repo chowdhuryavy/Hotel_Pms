@@ -22,12 +22,15 @@
     }
     // The tab and home-screen icon: the logo from Settings, drawn to a PNG (phones need PNG). Keeps the default if it fails.
     function setIcon(src) {
-      var setLink = function (rel, href) {
+      var setLink = function (rel, href, type) {
         var l = document.querySelector('link[rel="' + rel + '"]');
         if (!l) { l = document.createElement('link'); l.rel = rel; document.head.appendChild(l); }
         l.href = href;
-        if (rel === 'icon') l.type = 'image/png';
+        if (type) l.type = type; else l.removeAttribute('type');
       };
+      // The tab uses the logo itself, the same image as the sidebar
+      var typeOf = /^data:image\/svg/i.test(src) ? 'image/svg+xml' : /^data:image\/png/i.test(src) ? 'image/png' : /^data:image\/jpe?g/i.test(src) ? 'image/jpeg' : /^data:image\/webp/i.test(src) ? 'image/webp' : '';
+      setLink('icon', src, typeOf);
       var img = new Image();
       img.onload = function () {
         try {
@@ -36,9 +39,9 @@
           x.fillStyle = '#0f3d3e';
           x.beginPath(); if (x.roundRect) x.roundRect(0, 0, 192, 192, 36); else x.rect(0, 0, 192, 192); x.fill();
           x.drawImage(img, 28, 28, 136, 136);
-          var url = c.toDataURL('image/png');
-          setLink('icon', url); setLink('apple-touch-icon', url);
-        } catch (e) { setLink('icon', src); /* the browser will not let the page draw it: use the logo's own link */ }
+          // Phones use this square PNG for the home-screen icon
+          setLink('apple-touch-icon', c.toDataURL('image/png'), 'image/png');
+        } catch (e) { /* the browser will not let the page draw it: the tab still uses the logo */ }
       };
       img.onerror = function () { /* the logo could not be loaded: keep the default icon */ };
       img.src = src;
