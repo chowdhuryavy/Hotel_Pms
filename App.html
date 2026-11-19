@@ -566,7 +566,7 @@ function bindForm(id, fn) {
     const btn = f.querySelector('button[type=submit]');
     const label = btn ? btn.innerHTML : '';
     // One spinner only: the button's own, on the left, with its label kept visible
-    if (btn) { btn.disabled = true; btn.classList.add('spin-on'); btn.innerHTML = '<span>Saving…</span>'; }
+    if (btn) { btn.disabled = true; }
     try { await fn(Object.fromEntries(new FormData(f))); }
     catch (err) { toast(err.message, true); }
     finally {
@@ -1078,7 +1078,7 @@ function postFindHtml_() {
 async function postFind(e) {
   e.preventDefault();
   const f = new FormData(e.target), box = $('postFound');
-  box.innerHTML = '<div class="loading">Searching…</div>';
+  box.innerHTML = '';
   try {
     const list = await api('billingSearch', f.get('by'), f.get('text'));
     box.innerHTML = list.length
@@ -2480,7 +2480,7 @@ async function pgNightReport() {
     <div class="card"><h3>Choose a report</h3><div class="na-reports">${types.map(([k, l]) => `<button type="button" class="btn ghost sm${k === NR_TYPE ? ' on' : ''}" data-type="${k}" onclick="nrPickType('${k}')">${esc(l)}</button>`).join('')}</div></div>
     <div class="card toolbar"><label><span>Search by name or any text (guest, room, reservation, company)</span><input id="nrSearch" placeholder="Type a name to filter the rows" oninput="nrFilter(this.value)"></label>
       <span class="muted" id="nrCount"></span></div>
-    <div class="card" id="repOut"><div class="loading">Running…</div></div>`);
+    <div class="card" id="repOut"></div>`);
   await nrLoad(NR_TYPE, d);
 }
 /* Admin: tick the reports that show on the night audit report page */
@@ -2797,7 +2797,7 @@ async function pgReports() {
     <button class="btn" type="submit">Run</button>
     ${can('reports.export') ? repButtons_() : ''}
   </form>
-  <div class="card" id="repOut"><div class="loading">Running…</div></div>`);
+  <div class="card" id="repOut"></div>`);
   await repLoad(cur);
 }
 /* End-of-day report: its own page, one business date */
@@ -2809,7 +2809,7 @@ async function pgEod() {
     <button class="btn" type="submit">Run</button>
     ${can('reports.export') ? repButtons_() : ''}
   </form>
-  <div class="card" id="repOut"><div class="loading">Running…</div></div>`);
+  <div class="card" id="repOut"></div>`);
   await repLoad({ type: 'eod', from: d, to: d });
 }
 function eodRun(e) {
