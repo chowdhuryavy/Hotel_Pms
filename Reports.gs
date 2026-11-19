@@ -17,7 +17,18 @@ const REPORT_TYPES = [
   ['ar', 'City ledger (company accounts)'],
   ['arhistory', 'AR aging history (saved each night audit)'],
   ['shifts', 'Cashier shifts & cash variance'],
-  ['housekeeping', 'Housekeeping status & assignments']
+  ['housekeeping', 'Housekeeping status & assignments'],
+  ['nationality', 'In-house guests by nationality'],
+  ['group', 'Group in-house (rooms by group)'],
+  ['company', 'In-house by company'],
+  ['vip', 'VIP guests in house'],
+  ['payments', 'Payments by method'],
+  ['checkedin', 'Check-ins (checked in within the dates)'],
+  ['checkedout', 'Check-outs (checked out within the dates)'],
+  ['ratevar', 'Rate variance (actual rate vs published rate)'],
+  ['complimentary', 'Complimentary & discounts'],
+  ['folioledger', 'Folio ledger (every folio and its balance)'],
+  ['roomledger', 'Room ledger (charges, payments and balance by room)']
 ];
 
 /** A report is one table, or several sections (the end-of-day report). */
@@ -91,6 +102,108 @@ function buildReport_(type, from, to) {
       .sort((a, b) => String(a[key]).localeCompare(String(b[key])))
       .map(r => [r[key], r.resNo, r.guestName, String(r.roomNo), r.roomType, r.arrival, r.departure, r.status, r.channel, r.company]);
     return { title: type === 'arrivals' ? 'Arrivals' : 'Departures', headers: ['Date', 'Res #', 'Guest', 'Room', 'Type', 'Arrival', 'Departure', 'Status', 'Channel', 'Company'], rows: rows };
+  }
+  if (type === 'nationality' || type === 'company') {
+    const guests = {};
+    rows_(TBL.GUESTS).forEach(g => { guests[g.id] = g; });
+    const agg = {};
+    res.filter(r => r.status === 'In-House').forEach(r => {
+      const key = type === 'nationality'
+        ? (String((guests[r.guestId] || {}).nationality || '').trim() || 'Not recorded')
+        : (String(r.company || '').trim() || 'Individual');
+      agg[key] = agg[key] || { rooms: 0, guests: 0 };
+      agg[key].rooms++; agg[key].guests += Number(r.adults || 1) + Number(r.children || 0);
+    });
+    const rows = Object.keys(agg).map(k => [k, agg[k].rooms, agg[k].guests]).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
+    rows.push(['TOTAL', rows.reduce((a, x) => a + x[1], 0), rows.reduce((a, x) => a + x[2], 0)]);
+    return { title: (type === 'nationality' ? 'In-house by nationality' : 'In-house by company') + ' · ' + bd,
+      headers: [type === 'nationality' ? 'Nationality' : 'Company', 'Rooms', 'Guests'], rows: rows };
+  }
+  if (type === 'group') {
+    const groups = {};
+    rows_(TBL.GROUPS).forEach(g => { groups[g.id] = g; });
+    const agg = {};
+    res.filter(r => (r.status === 'In-House' || r.status === 'Reserved') && r.groupId).forEach(r => {
+      const k = String(r.groupId);
+      agg[k] = agg[k] || { name: (groups[k] || {}).name || k, rooms: 0, inHouse: 0, reserved: 0, arrival: r.arrival, departure: r.departure };
+      const a = agg[k];
+      a.rooms++; if (r.status === 'In-House') a.inHouse++; else a.reserved++;
+      if (r.arrival < a.arrival) a.arrival = r.arrival;
+      if (r.departure > a.departure) a.departure = r.departure;
+    });
+    const rows = Object.keys(agg).map(k => [agg[k].name, agg[k].rooms, agg[k].inHouse, agg[k].reserved, agg[k].arrival, agg[k].departure])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+    return { title: 'Group in-house · ' + bd, headers: ['Group', 'Rooms', 'In-house', 'Reserved', 'Arrival', 'Departure'], rows: rows };
+  }
+  if (type === 'vip') {
+    const rows = res.filter(r => r.status === 'In-House' && r.vip === true)
+      .map(r => [String(r.roomNo), r.guestName, r.resNo, r.arrival, r.departure, r.roomType, r.company]);
+    rows.sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+    return { title: 'VIP guests in house · ' + bd, headers: ['Room', 'Guest', 'Res #', 'Arrival', 'Departure', 'Type', 'Company'], rows: rows };
+  }
+  if (type === 'payments') {
+    const names = {};
+    rows_(TBL.PAYMETHODS).forEach(m => { names[m.code] = m.name || m.code; });
+    const agg = {};
+    posts.filter(p => inRange(p.bizDate) && Number(p.amount) < 0).forEach(p => { agg[p.code] = (agg[p.code] || 0) - Number(p.amount); });
+    const rows = Object.keys(agg).map(k => [k, names[k] || k, agg[k]]).sort((a, b) => b[2] - a[2]);
+    rows.push(['TOTAL', '', rows.reduce((a, x) => a + x[2], 0)]);
+    return { title: 'Payments by method · ' + f + (t !== f ? ' to ' + t : ''), headers: ['Code', 'Method', 'Amount'], rows: rows };
+  }
+  if (type === 'checkedin' || type === 'checkedout') {
+    const isIn = type === 'checkedin';
+    const rows = res.filter(r => inRange(String(isIn ? r.checkedInAt : r.checkedOutAt || '').slice(0, 10)) && (isIn ? r.checkedInAt : r.checkedOutAt))
+      .map(r => [String(r.roomNo), r.guestName, r.resNo, r.arrival, String(r.checkedInAt || '').slice(0, 16), String(r.checkedOutAt || '').slice(0, 16), r.departure])
+      .sort((a, b) => String(a[4]).localeCompare(String(b[4])));
+    return { title: (isIn ? 'Check-ins' : 'Check-outs') + ' · ' + f + (t !== f ? ' to ' + t : ''),
+      headers: ['Room', 'Guest', 'Res #', 'Arrival', 'Checked in', 'Checked out', 'Departure'], rows: rows };
+  }
+  if (type === 'ratevar') {
+    // Stays arriving in the dates: the rate actually charged against the published rate for the same nights
+    const rows = [];
+    res.filter(x => ['In-House', 'Departed', 'Reserved'].indexOf(x.status) >= 0 && inRange(String(x.arrival || '')) && Number(x.rate) >= 0)
+      .forEach(x => {
+        let quoted = 0;
+        try { const n = quoteNights_(x.roomType, x.plan || 'BAR', x.arrival, x.departure); quoted = n.length ? n.reduce((a, q) => a + q.rate, 0) / n.length : 0; } catch (e) { quoted = 0; }
+        const actual = Number(x.rate) || 0;
+        const v = Math.round((actual - quoted) * 100) / 100;
+        if (Math.abs(v) >= 0.01) rows.push([String(x.roomNo), x.guestName, x.resNo, x.plan || '', x.arrival, quoted, actual, v]);
+      });
+    rows.sort((a, b) => Math.abs(b[7]) - Math.abs(a[7]));
+    rows.push(['TOTAL', '', '', '', '', '', '', rows.reduce((a, x) => a + x[7], 0)]);
+    return { title: 'Rate variance · ' + f + (t !== f ? ' to ' + t : ''), headers: ['Room', 'Guest', 'Res #', 'Rate code', 'Arrival', 'Published avg', 'Actual rate', 'Variance'], rows: rows };
+  }
+  if (type === 'complimentary') {
+    const hit = p => /comp|discount|waiv|courtesy/i.test(String(p.code) + ' ' + String(p.description || ''));
+    const rows = posts.filter(p => inRange(p.bizDate) && hit(p))
+      .map(p => [p.bizDate, String(p.roomNo || ''), p.resNo, p.code, p.description || '', Number(p.amount)]);
+    rows.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+    rows.push(['TOTAL', '', '', '', '', rows.reduce((a, x) => a + x[5], 0)]);
+    return { title: 'Complimentary & discounts · ' + f + (t !== f ? ' to ' + t : ''), headers: ['Date', 'Room', 'Res #', 'Code', 'Description', 'Amount'], rows: rows };
+  }
+  if (type === 'folioledger') {
+    const bal = {};
+    posts.forEach(p => { bal[p.folioId] = (bal[p.folioId] || 0) + Number(p.amount); });
+    const resBy = {};
+    res.forEach(x => { resBy[x.resNo] = x; });
+    const rows = rows_(TBL.FOLIOS)
+      .filter(fo => fo.status === 'Open' || Math.abs(bal[fo.id] || 0) >= 0.005)
+      .map(fo => { const x = resBy[fo.resNo] || {}; return [String(fo.folioNo), fo.name || '', fo.resNo, x.guestName || '', String(x.roomNo || ''), fo.status, Math.round((bal[fo.id] || 0) * 100) / 100]; })
+      .sort((a, b) => String(a[4]).localeCompare(String(b[4]), undefined, { numeric: true }));
+    rows.push(['TOTAL', '', '', '', '', '', rows.reduce((a, x) => a + x[6], 0)]);
+    return { title: 'Folio ledger · ' + bd, headers: ['Folio', 'Folio name', 'Res #', 'Guest', 'Room', 'Status', 'Balance'], rows: rows };
+  }
+  if (type === 'roomledger') {
+    const agg = {};
+    posts.filter(p => inRange(p.bizDate)).forEach(p => {
+      const k = String(p.roomNo || '');
+      agg[k] = agg[k] || { charges: 0, payments: 0 };
+      if (Number(p.amount) >= 0) agg[k].charges += Number(p.amount); else agg[k].payments += -Number(p.amount);
+    });
+    const rows = Object.keys(agg).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      .map(k => [k, agg[k].charges, agg[k].payments, agg[k].charges - agg[k].payments]);
+    rows.push(['TOTAL', rows.reduce((a, x) => a + x[1], 0), rows.reduce((a, x) => a + x[2], 0), rows.reduce((a, x) => a + x[3], 0)]);
+    return { title: 'Room ledger · ' + f + (t !== f ? ' to ' + t : ''), headers: ['Room', 'Charges', 'Payments', 'Net'], rows: rows };
   }
   if (type === 'inhouse') {
     const rows = res.filter(r => r.status === 'In-House')

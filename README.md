@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.93**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.94**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.94: Night audit report now shows every report as a button. New reports: in-house by nationality, group in-house, in-house by company, VIP guests in house, payments by method, check-ins, check-outs, rate variance (actual rate against the published rate for the same nights), complimentary and discounts (postings whose code or description says comp, discount, waiver or courtesy), folio ledger and room ledger.
 
 Release notes for 1.2.93: The System admin area lists every Property admin function (Staff users, Hotel settings, Room types, Rooms, Packages, Payment methods) as well as its own, and Property admin screens assigns each function to the Property Admin with See / Change / Delete. A Property Admin sees only the functions given to the role, plus their own permissions. Security check of the server functions: permissions are checked on every write, and Property Admins cannot give, change, reset or unlock System Admin accounts.
 

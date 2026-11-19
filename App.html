@@ -2271,20 +2271,27 @@ async function pgNightReport() {
   const d = addDaysIso(S.bizDate, -1);
   setView(`<h1>Night audit report</h1>
     <p><button class="btn ghost sm" type="button" onclick="go('nightaudit')">&larr; Night audit</button></p>
-    <form class="card toolbar" onsubmit="nrRun(event)">
+    <form class="card toolbar" id="nrForm" onsubmit="nrRun(event)">
       <label><span>Business date</span><input type="date" name="date" value="${d}" required></label>
-      <label><span>Report</span><select name="type">${types.map(([k, l]) => `<option value="${k}"${k === 'nightaudit' ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
-      <button class="btn" type="submit">Show report</button>
+      <button class="btn ghost" type="submit">Refresh this report</button>
     </form>
+    <div class="card"><h3>Choose a report</h3><div class="na-reports">${types.map(([k, l]) => `<button type="button" class="btn ghost sm${k === 'nightaudit' ? ' on' : ''}" data-type="${k}" onclick="nrPickType('${k}')">${esc(l)}</button>`).join('')}</div></div>
     <div class="card toolbar"><label><span>Search (name, room, reservation, any text)</span><input id="nrSearch" placeholder="Type to filter the rows" oninput="nrFilter(this.value)"></label>
       ${can('reports.export') ? '<div class="acts"><button class="btn ghost" type="button" onclick="repPdf()">PDF</button><button class="btn ghost" type="button" onclick="repCsv()">CSV / Excel</button></div>' : ''}</div>
     <div class="card" id="repOut"><div class="loading">Running…</div></div>`);
-  await nrLoad('nightaudit', d);
+  NR_TYPE = 'nightaudit';
+  await nrLoad(NR_TYPE, d);
 }
+let NR_TYPE = 'nightaudit';   // the report on the night audit report page
 function nrRun(e) {
   e.preventDefault();
-  const f = new FormData(e.target);
-  nrLoad(f.get('type'), f.get('date')).catch(err => toast(err.message, true));
+  nrLoad(NR_TYPE, new FormData(e.target).get('date')).catch(err => toast(err.message, true));
+}
+function nrPickType(k) {
+  NR_TYPE = k;
+  document.querySelectorAll('.na-reports .btn').forEach(b => b.classList.toggle('on', b.dataset.type === k));
+  const d = document.querySelector('#nrForm input[name=date]');
+  nrLoad(k, d ? d.value : '').catch(err => toast(err.message, true));
 }
 async function nrLoad(type, date) {
   if (!date) return;
