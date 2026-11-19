@@ -23,7 +23,10 @@ const kv = pairs => `<dl class="kv">${pairs.map(([k, v]) => `<dt>${esc(k)}</dt><
 function table(headers, rows) {
   return `<div class="tbl"><table><thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.join('') : `<tr><td colspan="${headers.length}" class="muted">No records</td></tr>`}</tbody></table></div>`;
 }
-function setView(html) { $('view').innerHTML = html; }
+/* Page content. A page that finishes loading after a form tab was opened must not draw over that tab. */
+function setView(html) { if (ACTIVE_TAB !== 'page') return; $('view').innerHTML = html; }
+/* Content of the open form tab */
+function tabSetView_(html) { $('view').innerHTML = html; }
 
 /* ---------- RPC ---------- */
 function rpc(fn, ...args) {
@@ -373,7 +376,7 @@ function openModal(title, html) {
     return;
   }
   if (ACTIVE_TAB !== 'page') {
-    setView(`<div class="tabform"><div class="tabform-head"><h1>${esc(title)}</h1><button class="btn ghost" type="button" onclick="closeModal()">Close</button></div><div class="card tabform-body">${html}</div></div>`);
+    tabSetView_(`<div class="tabform"><div class="tabform-head"><h1>${esc(title)}</h1><button class="btn ghost" type="button" onclick="closeModal()">Close</button></div><div class="card tabform-body">${html}</div></div>`);
     return;
   }
   $('mTitle').textContent = title; $('mBody').innerHTML = html; $('modal').classList.remove('hidden');
@@ -397,16 +400,16 @@ function showAppTab_(id) {
   renderAppTabs_();
   if (id === 'page') { renderPage_(S.page, S.param); return; }
   const t = APP_TABS.find(x => x.id === id);
-  setView(skeleton_());
+  tabSetView_(skeleton_());
   Promise.resolve().then(() => (0, eval)(t.expr)).catch(e => {
-    if (ACTIVE_TAB === id) setView(`<div class="card err">${esc(e.message)}</div>`);
+    if (ACTIVE_TAB === id) tabSetView_(`<div class="card err">${esc(e.message)}</div>`);
   });
 }
 /* A form that fails while loading shows its error in its tab, not a blank tab */
 window.addEventListener('unhandledrejection', e => {
   if (ACTIVE_TAB === 'page') return;
   const msg = String((e && e.reason && e.reason.message) || e.reason || 'The form could not be loaded.');
-  setView('<div class="card err"><h3>This form could not be loaded</h3><p>' + esc(msg) + '</p><p class="muted">Close the tab and open it again. If it keeps happening, tell the system administrator.</p></div>');
+  tabSetView_('<div class="card err"><h3>This form could not be loaded</h3><p>' + esc(msg) + '</p><p class="muted">Close the tab and open it again. If it keeps happening, tell the system administrator.</p></div>');
 });
 function closeAppTab_(id) {
   APP_TABS = APP_TABS.filter(x => x.id !== id);
@@ -1255,7 +1258,7 @@ function renderPage_(page, param) {
     page = firstPage();
   }
   if (location.hash !== routeHash_(page, param)) history.replaceState(null, '', routeHash_(page, param));
-  if (S.page !== page) { ACTIVE_TAB = 'page'; renderAppTabs_(); }
+  ACTIVE_TAB = 'page'; renderAppTabs_();   // drawing a page brings the page back in front of any form tab
   S.page = page; S.param = param || null;
   hideModal_();   // not closeModal(): in a tab that would close the window
   document.body.classList.remove('menu-open');
@@ -2438,7 +2441,7 @@ async function pgAdmin(scope) {
       table(['Role', 'Users', 'Permissions', ''], rl.map(r => tr([esc(r.name) + (r.builtIn ? ' <span class="pill">built-in</span>' : ''), r.users, r.permissions + ' of ' + r.total,
         `<div class="acts"><button class="btn sm ghost" onclick="tabOpen_(&#39;permModal&#39;,[&#39;${esc(r.name)}&#39;])">${r.builtIn ? 'View' : 'Permissions'}</button>${r.builtIn || r.users ? '' : `<button class="btn sm danger" onclick="removeRole('${esc(r.name)}')">Delete</button>`}</div>`])));
   }
-  if (ADM_BARE) { setView(`<h1>${esc((ADM_TABS.find(t => t[0] === ADM) || [])[1] || '')}</h1><div class="card">${body}</div>`); }
+  if (ADM_BARE) { tabSetView_(`<h1>${esc((ADM_TABS.find(t => t[0] === ADM) || [])[1] || '')}</h1><div class="card">${body}</div>`); }
   else setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1>${scope === 'sys' ? connPanelHtml_() : ''}<p class="muted">${scope === 'sys' ? 'System administrator only: property admin accounts, roles and permissions, system settings and email templates.' : 'Hotel operations: staff users, hotel settings, rooms, packages and payment methods.'}</p>${bar}<div class="card">${body}</div>`);
   if (ADM === 'settings' && can('cfg.settings.edit')) bindForm('fSt', async d => {
     const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, ownerName: d.ownerName, hotelAddress: d.hotelAddress, hotelPhone: d.hotelPhone, hotelEmail: d.hotelEmail, hotelAppUrl: d.hotelAppUrl, logoUrl: d.logoUrl, currency: d.currency,

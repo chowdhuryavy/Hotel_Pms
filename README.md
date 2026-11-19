@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.70**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.71**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.71: Fixed a form tab showing the dashboard underneath: a page that finished loading after the tab opened no longer draws over it. A form tab fills the whole content area. Closing it returns to the page you were on.
 
 Release notes for 1.2.70: Admin sections opened from the tab bar (Hotel settings, System settings and so on) show only their own form in their tab, without the Property admin heading and tab bar. A form that fails to load shows the error in its tab instead of a blank tab.
 
