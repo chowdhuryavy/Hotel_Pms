@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.76**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.77**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.77: Fixed the sidebar showing System admin while the dashboard stayed on screen. A page that was still loading when you chose another page no longer draws over the newer one.
 
 Release notes for 1.2.76: The Update reservation form has Accompanying guests (list, add with title, age and ID, and remove), and for in-house guests an Add package button that posts to the open folio. Accompanying guests are stored in a new Accompany tab, which is created automatically.
 

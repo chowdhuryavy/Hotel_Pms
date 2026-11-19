@@ -62,8 +62,11 @@ document.addEventListener('click', e => {
   CLICK_LABEL = el ? el.textContent.trim().replace(/\s+/g, ' ').slice(0, 40) : '';
   CLICK_EXPR = ex || null; CLICK_AT = Date.now(); CLICK_WROTE = false;
 }, true);
+/* Each page draw has a number. A read that comes back after the user has moved on to another page is stale: it stops there, so it cannot draw over the newer page. */
+let PAGE_SEQ = 0, RENDER_RID = 0;
 const api = (fn, ...a) => {
-  if (!READ_FN_RE.test(fn)) CLICK_WROTE = true;   // a save already happened for this click: keep the form where it is
+  if (!READ_FN_RE.test(fn)) CLICK_WROTE = true;
+  const callRid = RENDER_RID;   // a save already happened for this click: keep the form where it is
   progressStart_();
   const limit = READ_FN_RE.test(fn) ? 30000 : 60000;   // a stalled request must not leave the screen waiting forever
   const spinBtn = spinStart_();
@@ -89,6 +92,7 @@ const api = (fn, ...a) => {
     throw e;
   });
   return attempt(0).then(v => {
+    if (callRid && READ_FN_RE.test(fn) && callRid !== PAGE_SEQ) { const stale = new Error('stale'); stale.stale = true; throw stale; }
     if (!READ_FN_RE.test(fn)) STAMP_LAST = null;   // our own save moved the stamp: do not treat it as another user's change
     return v;
   }).finally(() => { progressEnd_(); spinEnd_(spinBtn); });
@@ -449,6 +453,7 @@ function showAppTab_(id) {
   const t = APP_TABS.find(x => x.id === id);
   const pane = paneFor_(id);
   RUN_PANE = pane;
+  RENDER_RID = 0;   // a form tab's reads are never stale
   if (t.loaded) return;               // already loaded: show it as it was
   t.loaded = true;
   pane.innerHTML = skeleton_();
@@ -1314,7 +1319,9 @@ function renderPage_(page, param) {
   document.title = label + ' · ' + ((S.settings && S.settings.appName) || '');
   setView(`<h1>${esc(page === 'f' ? 'Loading…' : label)}</h1>` + skeleton_());   // title and layout show at once; data fills in
   VIEW_PENDING = true;
+  RENDER_RID = ++PAGE_SEQ;
   PAGES[page]().catch(e => {
+    if (e && e.stale) return;   // a newer page is drawing: this one stops quietly
     if (isNetErr_(e.message)) { netFailed_(); setView(netCard_()); }
     else setView(`<div class="card err">${esc(e.message)}</div>`);
   }).finally(() => { VIEW_PENDING = false; });
