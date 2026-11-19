@@ -416,14 +416,12 @@ function syncPerms_() {
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) syncPerms_(); });
 function refresh() {
-  syncPerms_().then(() => {
-    if (ACTIVE_TAB !== 'page') {   // a page tab reloads its own data
-      const t = APP_TABS.find(x => x.id === ACTIVE_TAB);
-      if (t && t.page) { t.loaded = false; showAppTab_(t.id); }
-      return;
-    }
-    go(S.page, S.param);
-  });
+  // Redraw at once; the permission check runs alongside it (a change to permissions updates the menu when it arrives)
+  if (ACTIVE_TAB !== 'page') {   // a page tab reloads its own data
+    const t = APP_TABS.find(x => x.id === ACTIVE_TAB);
+    if (t && t.page) { t.loaded = false; showAppTab_(t.id); }
+  } else go(S.page, S.param);
+  syncPerms_();
 }
 
 /* ---------- Modal & forms ---------- */
