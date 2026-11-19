@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.60**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.61**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.61: On the Configuration and Admin pages, every add or edit button (users, property admins, room types, rooms, roles, permissions, payment methods, packages, rate plans, rates, charge codes) opens its form in a new browser tab instead of a popup. The new tab signs in through a one-time link that expires after 90 seconds and is removed from the address once used. Allow pop-ups for the app if the tab does not open.
 
 Release notes for 1.2.60: The version number at the bottom of the sidebar is larger and sits a little higher, off the bottom edge.
 

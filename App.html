@@ -381,6 +381,30 @@ function bindForm(id, fn) {
 }
 const chk = v => v === 'true';
 
+/* Dialogs that open in their own browser tab (see tabOpen_). Only these names are allowed from a link. */
+const TAB_OPEN_OK = ['userModal', 'typeModal', 'roomModal', 'roleModal', 'permModal', 'paymentMethodModal', 'packageModal', 'planModal', 'rateModal', 'codeModal'];
+/** Opens a form in a new browser tab, signed in through a one-time link. The tab opens at once so the browser allows it. */
+async function tabOpen_(fn, args) {
+  const w = window.open('about:blank', '_blank');
+  if (!w) { toast('Allow pop-ups for this app to open the form in a new tab.', true); return; }
+  try {
+    const id = await api('createHandover');
+    const base = ((document.querySelector('meta[name="exec-url"]') || {}).content) || '';
+    if (!base) throw new Error('The app address is not known. Reload the page and try again.');
+    const hash = '#/' + (S.page || 'dashboard') + '?' + encodeURIComponent(JSON.stringify({ open: fn, args: args || [] }));
+    w.opener = null;
+    w.location.href = base + '?h=' + encodeURIComponent(id) + hash;
+  } catch (e) { try { w.close(); } catch (x) { /* ignore */ } toast(e.message, true); }
+}
+/** In a tab opened by tabOpen_: runs the dialog named in the address, once. */
+function runTabOpen_() {
+  const p = S.param;
+  if (!p || !p.open || TAB_OPEN_OK.indexOf(p.open) < 0) return;
+  const fn = window[p.open];
+  S.param = Object.assign({}, p, { open: null });
+  if (typeof fn === 'function') { try { fn.apply(null, p.args || []); } catch (e) { toast(e.message, true); } }
+}
+
 /* ---------- Session ---------- */
 function saveSession() {
   try { sessionStorage.setItem('st_session', JSON.stringify({ token: S.token, user: S.user, perms: S.perms, settings: S.settings, bizDate: S.bizDate })); } catch (e) {}
@@ -467,6 +491,7 @@ function startApp() {
   renderPage_(page, param);
   watchChanges_();
   loadBell_();
+  setTimeout(runTabOpen_, 400);
 }
 
 /* Real-time: every save moves the server's change stamp. This checks it every 15 seconds while the app is
@@ -2064,8 +2089,8 @@ async function pgRates() {
   CODES = codes;
   setView(`<h1>Rates & charges</h1>
     <div class="grid2">
-      <div class="card"><h3>Rate plans</h3>${table(['Code', 'Name', 'Active', ''], plans.map(p => tr([esc(p.code), esc(p.name), pill(p.active ? 'Active' : 'Closed'), (can('cfg.rateplans.edit') ? `<button class="btn sm ghost" onclick="planModal('${esc(p.code)}')">Edit</button> ` : '') + delBtn_('ratePlan', p.code, 'cfg.rateplans.delete')])))}
-        ${can('cfg.rateplans.edit') ? '<div class="acts" style="margin-top:10px"><button class="btn ghost" onclick="planModal()">+ Rate plan</button></div>' : ''}</div>
+      <div class="card"><h3>Rate plans</h3>${table(['Code', 'Name', 'Active', ''], plans.map(p => tr([esc(p.code), esc(p.name), pill(p.active ? 'Active' : 'Closed'), (can('cfg.rateplans.edit') ? `<button class="btn sm ghost" onclick="tabOpen_(&#39;planModal&#39;,[&#39;${esc(p.code)}&#39;])">Edit</button> ` : '') + delBtn_('ratePlan', p.code, 'cfg.rateplans.delete')])))}
+        ${can('cfg.rateplans.edit') ? '<div class="acts" style="margin-top:10px"><button class="btn ghost" onclick="tabOpen_(&#39;planModal&#39;,[])">+ Rate plan</button></div>' : ''}</div>
       <div class="card"><h3>Quote a stay</h3>
         <form class="toolbar" onsubmit="quoteSubmit(event)">
           <label><span>Room type</span><select name="roomType">${types.map(t => `<option value="${esc(t.code)}">${esc(t.name)}</option>`).join('')}</select></label>
@@ -2075,12 +2100,12 @@ async function pgRates() {
           <button class="btn" type="submit">Quote</button>
         </form><div id="quoteOut" class="muted">Pick a room type, plan and dates.</div></div>
     </div>
-    <div class="card"><div class="head-row"><h3>Seasonal rates</h3>${can('cfg.rates.edit') ? '<div class="acts"><button class="btn" onclick="rateModal()">+ Rate</button></div>' : ''}</div>
+    <div class="card"><div class="head-row"><h3>Seasonal rates</h3>${can('cfg.rates.edit') ? '<div class="acts"><button class="btn" onclick="tabOpen_(&#39;rateModal&#39;,[])">+ Rate</button></div>' : ''}</div>
       ${table(['Plan', 'Room type', 'From', 'To', 'Rate / night', 'Active', ''], rates.map(r => tr([esc(r.plan), esc(r.roomType), esc(r.startDate), esc(r.endDate), num(r.rate), r.active ? 'Yes' : 'No',
-        (can('cfg.rates.edit') ? `<button class="btn sm ghost" onclick="rateModal('${esc(r.id)}')">Edit</button> ` : '') + delBtn_('rate', r.id, 'cfg.rates.delete')])))}
+        (can('cfg.rates.edit') ? `<button class="btn sm ghost" onclick="tabOpen_(&#39;rateModal&#39;,[&#39;${esc(r.id)}&#39;])">Edit</button> ` : '') + delBtn_('rate', r.id, 'cfg.rates.delete')])))}
       <p class="muted">A night uses a seasonal rate for its plan and room type if one covers that date; otherwise the BAR rate for the room type; otherwise the room type's base rate.</p></div>
-    <div class="card"><div class="head-row"><h3>Charge codes</h3>${can('cfg.chargecodes.edit') ? '<div class="acts"><button class="btn ghost" onclick="codeModal()">+ Charge code</button></div>' : ''}</div>
-      ${table(['Code', 'Description', 'Department', 'Type', 'Taxable', 'Active', ''], codes.map(c => tr([esc(c.code), esc(c.description), esc(c.department), esc(c.type), c.taxable ? 'Yes' : 'No', c.active ? 'Yes' : 'No', (can('cfg.chargecodes.edit') ? `<button class="btn sm ghost" onclick="codeModal('${esc(c.code)}')">Edit</button> ` : '') + delBtn_('chargeCode', c.code, 'cfg.chargecodes.delete')])))}</div>`);
+    <div class="card"><div class="head-row"><h3>Charge codes</h3>${can('cfg.chargecodes.edit') ? '<div class="acts"><button class="btn ghost" onclick="tabOpen_(&#39;codeModal&#39;,[])">+ Charge code</button></div>' : ''}</div>
+      ${table(['Code', 'Description', 'Department', 'Type', 'Taxable', 'Active', ''], codes.map(c => tr([esc(c.code), esc(c.description), esc(c.department), esc(c.type), c.taxable ? 'Yes' : 'No', c.active ? 'Yes' : 'No', (can('cfg.chargecodes.edit') ? `<button class="btn sm ghost" onclick="tabOpen_(&#39;codeModal&#39;,[&#39;${esc(c.code)}&#39;])">Edit</button> ` : '') + delBtn_('chargeCode', c.code, 'cfg.chargecodes.delete')])))}</div>`);
 }
 async function quoteSubmit(e) {
   e.preventDefault();
@@ -2205,15 +2230,15 @@ async function pgAdmin(scope) {
   let body = '';
   if (ADM === 'users') {
     const us = await api('listUsers');
-    body = `<div class="head-row"><h3>Users</h3><div class="acts">${can('system.manage') ? '<button class="btn" onclick="userModal()">+ User</button>' : ''}</div></div>` +
-      table(['Name', 'Username', 'Role', 'Active', 'Last login', ''], us.map(u => tr([esc(u.name), esc(u.username), pill(u.role), u.locked ? pill('Locked') : (u.active ? 'Yes' : 'No'), esc(u.lastLogin), `${u.locked ? `<button class="btn sm ok" onclick="unlockUserAct('${esc(u.id)}')">Unlock</button> ` : ''}<button class="btn sm ghost" onclick="userModal('${esc(u.id)}')">Edit</button> <button class="btn sm ghost" onclick="resetPwAct('${esc(u.id)}')">Reset password</button>`])));
+    body = `<div class="head-row"><h3>Users</h3><div class="acts">${can('system.manage') ? '<button class="btn" onclick="tabOpen_(&#39;userModal&#39;,[])">+ User</button>' : ''}</div></div>` +
+      table(['Name', 'Username', 'Role', 'Active', 'Last login', ''], us.map(u => tr([esc(u.name), esc(u.username), pill(u.role), u.locked ? pill('Locked') : (u.active ? 'Yes' : 'No'), esc(u.lastLogin), `${u.locked ? `<button class="btn sm ok" onclick="unlockUserAct('${esc(u.id)}')">Unlock</button> ` : ''}<button class="btn sm ghost" onclick="tabOpen_(&#39;userModal&#39;,[&#39;${esc(u.id)}&#39;])">Edit</button> <button class="btn sm ghost" onclick="resetPwAct('${esc(u.id)}')">Reset password</button>`])));
   } else if (ADM === 'menu') {
     MENU_DRAFT = null;
     body = `<h3>Menu layout</h3><p class="muted">Arrange the sidebar: order the groups, move pages between groups and rename groups. Only items the user has permission for are shown. A page you do not place keeps its default group.</p><div id="menuEd">${menuEditorHtml_()}</div>`;
   } else if (ADM === 'padmins') {
     const us = (await api('listUsers')).filter(u => u.role === 'Property Admin');
-    body = `<div class="head-row"><h3>Property admins</h3><div class="acts"><button class="btn" onclick="userModal(null,'Property Admin')">+ Property admin</button></div></div>` +
-      table(['Name', 'Username', 'Email', 'Active', 'Last login', ''], us.map(u => tr([esc(u.name), esc(u.username), esc(u.email), u.active ? 'Yes' : 'No', esc(u.lastLogin), `<button class="btn sm ghost" onclick="userModal('${esc(u.id)}')">Edit</button>`])));
+    body = `<div class="head-row"><h3>Property admins</h3><div class="acts"><button class="btn" onclick="tabOpen_(&#39;userModal&#39;,[null,&#39;Property Admin&#39;])">+ Property admin</button></div></div>` +
+      table(['Name', 'Username', 'Email', 'Active', 'Last login', ''], us.map(u => tr([esc(u.name), esc(u.username), esc(u.email), u.active ? 'Yes' : 'No', esc(u.lastLogin), `<button class="btn sm ghost" onclick="tabOpen_(&#39;userModal&#39;,[&#39;${esc(u.id)}&#39;])">Edit</button>`])));
   } else if (ADM === 'settings') {
     const s = await api('getSettings');
     if (!can('cfg.settings.edit')) body = readOnlySettingsHtml_(s); else
@@ -2237,14 +2262,14 @@ async function pgAdmin(scope) {
     ], 'Save settings', false) + `<p class="muted">Business date: <b>${esc(s.businessDate)}</b> (changes only through night audit).</p>`;
   } else if (ADM === 'payments') {
     const ms = await api('listPaymentMethods');
-    body = `<div class="head-row"><h3>Payment methods</h3><div class="acts">${can('cfg.payments.edit') ? '<button class="btn" onclick="paymentMethodModal()">+ Method</button>' : ''}</div></div>
+    body = `<div class="head-row"><h3>Payment methods</h3><div class="acts">${can('cfg.payments.edit') ? '<button class="btn" onclick="tabOpen_(&#39;paymentMethodModal&#39;,[])">+ Method</button>' : ''}</div></div>
       <p class="muted">A payment method is how a guest pays: cash, card, bank, cheque, or city ledger (AR). Each one posts with a payment charge code. A city ledger method bills the folio to a company account.</p>` +
-      table(['Code', 'Name', 'Kind', 'Posts with', 'Company account', 'Active', ''], ms.map(m => tr([esc(m.code), esc(m.name), esc(m.kind), esc(m.chargeCode), esc(m.accountId), m.active ? 'Yes' : 'No', (can('cfg.payments.edit') ? `<button class="btn sm ghost" onclick="paymentMethodModal('${esc(m.code)}')">Edit</button> ` : '') + delBtn_('paymentMethod', m.code, 'cfg.payments.delete')])));
+      table(['Code', 'Name', 'Kind', 'Posts with', 'Company account', 'Active', ''], ms.map(m => tr([esc(m.code), esc(m.name), esc(m.kind), esc(m.chargeCode), esc(m.accountId), m.active ? 'Yes' : 'No', (can('cfg.payments.edit') ? `<button class="btn sm ghost" onclick="tabOpen_(&#39;paymentMethodModal&#39;,[&#39;${esc(m.code)}&#39;])">Edit</button> ` : '') + delBtn_('paymentMethod', m.code, 'cfg.payments.delete')])));
   } else if (ADM === 'packages') {
     const pk = await api('listPackages');
-    body = `<div class="head-row"><h3>Packages</h3><div class="acts">${can('cfg.packages.edit') ? '<button class="btn" onclick="packageModal()">+ Package</button>' : ''}</div></div>
+    body = `<div class="head-row"><h3>Packages</h3><div class="acts">${can('cfg.packages.edit') ? '<button class="btn" onclick="tabOpen_(&#39;packageModal&#39;,[])">+ Package</button>' : ''}</div></div>
       <p class="muted">A package is a fixed price posted to a charge code, once per stay or once per night. Staff post packages from the room's billing screen.</p>` +
-      table(['Code', 'Name', 'Charge code', 'Amount', 'Per night', 'Active', ''], pk.map(p => tr([esc(p.code), esc(p.name), esc(p.chargeCode), num(p.amount), p.perNight ? 'Yes' : 'No', p.active ? 'Yes' : 'No', (can('cfg.packages.edit') ? `<button class="btn sm ghost" onclick="packageModal('${esc(p.code)}')">Edit</button> ` : '') + delBtn_('package', p.code, 'cfg.packages.delete')])));
+      table(['Code', 'Name', 'Charge code', 'Amount', 'Per night', 'Active', ''], pk.map(p => tr([esc(p.code), esc(p.name), esc(p.chargeCode), num(p.amount), p.perNight ? 'Yes' : 'No', p.active ? 'Yes' : 'No', (can('cfg.packages.edit') ? `<button class="btn sm ghost" onclick="tabOpen_(&#39;packageModal&#39;,[&#39;${esc(p.code)}&#39;])">Edit</button> ` : '') + delBtn_('package', p.code, 'cfg.packages.delete')])));
   } else if (ADM === 'system') {
     const s = await api('getSettings');
     const opt = (v, l) => [v, l];
@@ -2279,18 +2304,18 @@ async function pgAdmin(scope) {
       + `<div class="acts"><button class="btn ghost" type="button" onclick="testEmail()">Send the reset and password emails to me as a test</button></div>`;
   } else if (ADM === 'types') {
     const ts = await api('listRoomTypes');
-    body = `<div class="head-row"><h3>Room types</h3><div class="acts">${can('cfg.roomtypes.edit') ? '<button class="btn" onclick="typeModal()">+ Room type</button>' : ''}</div></div>` +
-      table(['Code', 'Name', 'Base rate', 'Max adults', 'Description', ''], ts.map(t => tr([esc(t.code), esc(t.name), num(t.baseRate), t.maxAdults, esc(t.description), (can('cfg.roomtypes.edit') ? `<button class="btn sm ghost" onclick="typeModal('${esc(t.code)}')">Edit</button> ` : '') + delBtn_('roomType', t.code, 'cfg.roomtypes.delete')])));
+    body = `<div class="head-row"><h3>Room types</h3><div class="acts">${can('cfg.roomtypes.edit') ? '<button class="btn" onclick="tabOpen_(&#39;typeModal&#39;,[])">+ Room type</button>' : ''}</div></div>` +
+      table(['Code', 'Name', 'Base rate', 'Max adults', 'Description', ''], ts.map(t => tr([esc(t.code), esc(t.name), num(t.baseRate), t.maxAdults, esc(t.description), (can('cfg.roomtypes.edit') ? `<button class="btn sm ghost" onclick="tabOpen_(&#39;typeModal&#39;,[&#39;${esc(t.code)}&#39;])">Edit</button> ` : '') + delBtn_('roomType', t.code, 'cfg.roomtypes.delete')])));
   } else if (ADM === 'rooms') {
     const rs = await api('listRooms');
-    body = `<div class="head-row"><h3>Rooms</h3><div class="acts">${can('cfg.rooms.edit') ? '<button class="btn" onclick="roomModal()">+ Room</button>' : ''}</div></div>` +
-      table(['Room', 'Type', 'Floor', 'Status', 'Housekeeping', 'Reason', ''], rs.map(r => tr([esc(r.roomNo), esc(r.type), esc(r.floor), pill(r.status === 'Active' ? 'Active' : 'Out'), pill(r.housekeeping), esc(r.statusReason), can('cfg.rooms.edit') ? `<button class="btn sm ghost" onclick="roomModal('${esc(r.roomNo)}')">Edit</button> ${delBtn_('room', r.roomNo, 'cfg.rooms.delete')}` : ''])));
+    body = `<div class="head-row"><h3>Rooms</h3><div class="acts">${can('cfg.rooms.edit') ? '<button class="btn" onclick="tabOpen_(&#39;roomModal&#39;,[])">+ Room</button>' : ''}</div></div>` +
+      table(['Room', 'Type', 'Floor', 'Status', 'Housekeeping', 'Reason', ''], rs.map(r => tr([esc(r.roomNo), esc(r.type), esc(r.floor), pill(r.status === 'Active' ? 'Active' : 'Out'), pill(r.housekeeping), esc(r.statusReason), can('cfg.rooms.edit') ? `<button class="btn sm ghost" onclick="tabOpen_(&#39;roomModal&#39;,[&#39;${esc(r.roomNo)}&#39;])">Edit</button> ${delBtn_('room', r.roomNo, 'cfg.rooms.delete')}` : ''])));
   } else {
     const rl = await api('listRoles');
-    body = `<div class="head-row"><h3>Roles &amp; permissions</h3><div class="acts"><button class="btn" onclick="roleModal()">+ Role</button></div></div>
+    body = `<div class="head-row"><h3>Roles &amp; permissions</h3><div class="acts"><button class="btn" onclick="tabOpen_(&#39;roleModal&#39;,[])">+ Role</button></div></div>
       <p class="muted">Every user has one role. A role decides which menus and actions the user gets. Admin always has every permission.</p>` +
       table(['Role', 'Users', 'Permissions', ''], rl.map(r => tr([esc(r.name) + (r.builtIn ? ' <span class="pill">built-in</span>' : ''), r.users, r.permissions + ' of ' + r.total,
-        `<div class="acts"><button class="btn sm ghost" onclick="permModal('${esc(r.name)}')">${r.builtIn ? 'View' : 'Permissions'}</button>${r.builtIn || r.users ? '' : `<button class="btn sm danger" onclick="removeRole('${esc(r.name)}')">Delete</button>`}</div>`])));
+        `<div class="acts"><button class="btn sm ghost" onclick="tabOpen_(&#39;permModal&#39;,[&#39;${esc(r.name)}&#39;])">${r.builtIn ? 'View' : 'Permissions'}</button>${r.builtIn || r.users ? '' : `<button class="btn sm danger" onclick="removeRole('${esc(r.name)}')">Delete</button>`}</div>`])));
   }
   setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1>${scope === 'sys' ? connPanelHtml_() : ''}<p class="muted">${scope === 'sys' ? 'System administrator only: property admin accounts, roles and permissions, system settings and email templates.' : 'Hotel operations: staff users, hotel settings, rooms, packages and payment methods.'}</p>${bar}<div class="card">${body}</div>`);
   if (ADM === 'settings' && can('cfg.settings.edit')) bindForm('fSt', async d => {
@@ -3061,6 +3086,16 @@ function barChart_(labels, values, fmt) {
   splashTheme_();
   if (S.settings && S.settings.loadingMessage) splashMsg(S.settings.loadingMessage);
   applyLanguage_((S.settings && S.settings.defaultLanguage) || 'en');
+  // A dialog opened in its own tab arrives with a one-time link: sign in with it, then remove it from the address
+  const hid = (() => { try { return new URLSearchParams(location.search).get('h') || ''; } catch (e) { return ''; } })();
+  if (hid) {
+    try {
+      const r = await rpc('redeemHandover', hid);
+      S.token = r.token; S.user = r.user; S.perms = r.perms; S.settings = Object.assign({}, S.settings, r.settings || {}); S.bizDate = r.bizDate || '';
+      saveSession();
+    } catch (e) { toast(e.message, true); }
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { /* ignore */ }
+  }
   const saved = loadSession();
   if (saved && saved.token) {
     splashMsg('Welcome back…');

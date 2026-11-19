@@ -430,3 +430,23 @@ function resetUserPassword(token, id) {
     return { tempPassword: mailed ? '' : pw };
   });
 }
+
+/* A one-time link lets a new browser tab open the app already signed in (valid for 90 seconds). */
+function createHandover(token) {
+  auth_(token);
+  const id = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+  CacheService.getScriptCache().put('ho:' + id, String(token), 90);
+  return id;
+}
+function redeemHandover(id) {
+  const cache = CacheService.getScriptCache();
+  const key = 'ho:' + String(id || '').replace(/[^0-9a-f]/gi, '');
+  const token = cache.get(key);
+  if (!token) throw new Error('This link has expired. Sign in again in the new tab.');
+  cache.remove(key);
+  const raw = cache.get('s:' + token);
+  if (!raw) throw new Error('SESSION_EXPIRED');
+  const s = JSON.parse(raw);
+  return { token: token, user: { id: s.id, username: s.username, name: s.name, role: s.role, mustChange: s.mustChange === true },
+    perms: permMap_(s.role), settings: publicSettings_(), bizDate: bizDate_() };
+}
