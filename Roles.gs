@@ -32,6 +32,11 @@ function roleOptions(token) {
   const s = auth_(token, 'users.manage');
   return roleNames_().filter(n => roleVisible_(n, s) && (s.role === ADMIN_ROLE || roleWithin_(n, s)));
 }
+/** Everything the Staff user form needs, in one request: users, role choices and extra access options. */
+function getUserFormData(token) {
+  auth_(token, 'users.manage');
+  return { users: listUsers(token), roles: roleOptions(token), extra: extraPermOptions(token) };
+}
 function listRoles(token) {
   const s = auth_(token, 'users.manage');
   const users = rows_(TBL.USERS), perms = rows_(TBL.PERMS);

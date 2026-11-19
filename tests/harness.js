@@ -321,6 +321,7 @@ if (require.main === module) {
   const PAD_GRANT = ['cfg.settings.view', 'cfg.settings.edit', 'users.manage', 'fixed.manage'].concat(['roomtypes', 'rooms', 'rates', 'accounts', 'packages', 'payments', 'rateplans', 'chargecodes'].reduce((a, k) => a.concat(['view', 'edit', 'delete'].map(x => 'cfg.' + k + '.' + x)), []));
   run("(() => { saveRolePerms(TOK, 'Property Admin', rows_(TBL.PERMS).filter(p => p['Property Admin'] === true).map(p => p.permission).concat(" + JSON.stringify(PAD_GRANT) + ")); return true; })()");
   ok(run("listRoles('" + PTOK + "').every(r => r.name !== 'Admin' && r.name !== 'Property Admin')"), 'property admin does not see the Admin or Property Admin roles');
+  ok(run("getUserFormData('" + PTOK + "').roles.every(r => r !== 'Admin' && r !== 'Property Admin') && Array.isArray(getUserFormData('" + PTOK + "').users)"), 'staff user form data leaves out the Admin roles and accounts');
   ok(run("roleOptions('" + PTOK + "').every(r => r !== 'Admin' && r !== 'Property Admin')"), 'property admin role choices leave out Admin and Property Admin');
   ok(!!tryRun("saveRolePerms('" + PTOK + "', 'Admin', [])").e, 'property admin cannot change the Admin role');
   ok(!!tryRun("getRolePerms('" + PTOK + "', 'Property Admin')").e, 'property admin cannot open the Property Admin role');
@@ -328,6 +329,7 @@ if (require.main === module) {
   ok(!!tryRun("saveUser('" + PTOK + "', { username: 'sneaky', name: 'Sneaky', role: 'Secret', password: 'Sneaky1234', active: true })").e, 'property admin cannot give a role with permissions they lack');
   ok(run("roleOptions('" + PTOK + "').indexOf('Secret') < 0"), 'a role with permissions they lack is not offered to a property admin');
   ok(!tryRun("createRole('" + PTOK + "', 'Front Only', 'Secret')").e, 'property admin creates a role copied from a role they partly hold');
+  ok(run("listRoles('" + PTOK + "').some(r => r.name === 'Front Only')"), 'a role a property admin creates shows in their own list');
   ok(run("getRolePerms(TOK, 'Front Only').perms.find(p => p.permission === 'system.manage').allowed === false"), 'a role made by a property admin never gets system permissions');
   ok(!tryRun("saveRolePerms('" + PTOK + "', 'Front Only', ['system.manage', 'dashboard.view'])").e && run("getRolePerms(TOK, 'Front Only').perms.find(p => p.permission === 'system.manage').allowed === false"), 'property admin cannot give system permissions');
   ok(!!tryRun("deleteRole('" + PTOK + "', 'Front Only')").e, 'property admin cannot delete a role');
