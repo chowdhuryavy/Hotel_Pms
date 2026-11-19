@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.97**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.98**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.98: When a cashier closes the shift at the end of duty, a summary shows the expected cash, the counted cash and the variance, with a Print cashier report button for that shift.
 
 Release notes for 1.2.97: When a delete is refused because the item has already been used, a pop-up explains it and says to make the item inactive instead.
 

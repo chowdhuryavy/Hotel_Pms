@@ -125,7 +125,7 @@ function closeShift(token, countedCash) {
     patch_(TBL.SHIFTS, sh._row, { closedAt: fmtTs_(new Date()), expectedCash: expected, countedCash: counted, variance: variance, status: 'Closed' });
     audit_(s.username, 'SHIFT_CLOSED', 'Shift', sh.id, 'expected ' + expected + ' counted ' + counted + ' variance ' + variance);
     try { mailCashUp_(shiftCashUpPdf(token, sh.id), sh.user); } catch (e) { Logger.log('Cash-up mail: ' + e.message); }
-    return { expected: expected, counted: counted, variance: variance };
+    return { expected: expected, counted: counted, variance: variance, shiftId: sh.id };
   });
 }
 function listShifts(token) {

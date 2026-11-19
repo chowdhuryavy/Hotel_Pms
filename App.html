@@ -3461,9 +3461,15 @@ function closeShiftModal() {
   bindForm('fCs', async d => {
     const r = await api('closeShift', Number(d.counted));
     closeModal();
-    toast('Shift closed · expected ' + money(r.expected) + ' · variance ' + money(r.variance), Math.abs(r.variance) > 0.005);
-    refresh();
+    shiftClosedModal(r);   // the cashier prints the report before leaving
   });
+}
+/* Shown when a shift is closed: the figures and the cashier report to print */
+function shiftClosedModal(r) {
+  const off = Math.abs(r.variance) > 0.005;
+  openModal('Shift closed', `<div class="kpi-line"><span>Expected cash <b>${money(r.expected)}</b></span><span>Counted <b>${money(r.counted)}</b></span><span>Variance <b class="${off ? 'neg' : 'pos'}">${money(r.variance)}</b></span></div>
+    <p class="muted">Print the cashier report for this shift and hand it over with the cash.</p>
+    <div class="acts"><button class="btn" type="button" onclick="downloadPdf_('shiftCashUpPdf','${esc(r.shiftId)}')">Print cashier report</button><button class="btn ghost" type="button" onclick="closeModal();refresh()">Done</button></div>`);
 }
 
 /* Loading screen: stays for at least 1.1 s so the animation is seen, then fades out. */
