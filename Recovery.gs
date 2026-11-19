@@ -95,6 +95,38 @@ function sendEmailTest(token) {
   return { sentTo: maskEmail_(u.email) };
 }
 
+/** Sign-in with a code: after the right password, a 6-digit code is emailed. Held in the script cache only. */
+function sendLoginCode_(user) {
+  if (!user.email) throw new Error('This account needs a sign-in code, but it has no email address. Ask the system administrator to add one.');
+  const pid = Utilities.getUuid().replace(/-/g, '');
+  const code = String(100000 + Math.floor(Math.random() * 900000));
+  const salt = Utilities.getUuid();
+  CacheService.getScriptCache().put('lc:' + pid, JSON.stringify({ u: user.id, h: hash_(salt, code), s: salt, t: 0 }), OTP_SECONDS);
+  const m = renderMail_('loginotp', { name: user.name || user.username, code: code, minutes: Math.round(OTP_SECONDS / 60) });
+  sendMail_(user.email, m.subject, m.text, m.html);
+  withLock_(() => audit_(user.username, 'LOGIN_CODE_SENT', 'User', user.id, maskEmail_(user.email)));
+  return { otpRequired: true, pending: pid, sentTo: maskEmail_(user.email) };
+}
+/** Second sign-in step: checks the code and opens the session */
+function loginVerify(pending, code) {
+  const bad = 'That code is not valid or has expired. Sign in again to get a new code.';
+  const cache = CacheService.getScriptCache(), key = 'lc:' + String(pending || '');
+  const raw = cache.get(key);
+  if (!raw) throw new Error(bad);
+  const o = JSON.parse(raw);
+  if (o.t >= OTP_MAX_TRIES) { cache.remove(key); throw new Error(bad); }
+  if (hash_(o.s, String(code || '').trim()) !== o.h) {
+    o.t += 1;
+    if (o.t >= OTP_MAX_TRIES) { cache.remove(key); throw new Error('Too many wrong codes. Sign in again to get a new code.'); }
+    cache.put(key, JSON.stringify(o), OTP_SECONDS);
+    throw new Error('The code is wrong. Check the email and try again.');
+  }
+  cache.remove(key);
+  const user = rows_(TBL.USERS).find(x => x.id === o.u);
+  if (!user || user.active !== true) throw new Error(bad);
+  return finishLogin_(user, 'fail:' + String(user.username).toLowerCase());
+}
+
 /** Step 1. Sends a code if the username or email matches an active account. Always answers the same way. */
 function forgotRequest(identifier) {
   const cache = CacheService.getScriptCache();

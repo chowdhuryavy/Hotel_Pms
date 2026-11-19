@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.105**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.106**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.106: System admin has a Sign-in security tab. Tick the roles that must enter a 6-digit code, emailed to them, after the password. Accounts in those roles need an email address. Signing in with a code is a second step; codes last 10 minutes and five wrong tries cancel them.
 
 Release notes for 1.2.105: Faster start. A returning user on a known device goes straight into the app from the saved settings, and the server's settings refresh in the background. The sign-in screen shows at once on a known device. The loading screen holds for less time.
 

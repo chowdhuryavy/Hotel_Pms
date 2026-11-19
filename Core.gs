@@ -239,9 +239,16 @@ function login(username, password) {
     if (user && left === 0) throw new Error('Wrong password. This account is now locked after ' + max + ' attempts. Ask the system administrator to unlock it.');
     throw new Error('Invalid username or password.' + (user && left <= 2 ? ' ' + left + ' attempt(s) left before the account is locked.' : ''));
   }
+  // Roles the system administrator set to need a code: the password is only the first step
+  if (otpRolesList_().indexOf(user.role) >= 0) return sendLoginCode_(user);
+  return finishLogin_(user, failKey);
+}
+/** Opens the session for a user who has passed every sign-in step */
+function finishLogin_(user, failKey) {
   licenseGuard_(user.role);
   const sess = { id: user.id, username: user.username, name: user.name, role: user.role, mustChange: user.mustChange === true };
   const token = Utilities.getUuid();
+  const cache = CacheService.getScriptCache();
   cache.put('s:' + token, JSON.stringify(Object.assign({}, sess, { seen: Date.now() })), SESSION_SECONDS);
   cache.remove(failKey);
   withLock_(() => {
@@ -249,6 +256,31 @@ function login(username, password) {
     audit_(sess.username, 'LOGIN', 'User', sess.id, '');
   });
   return { token: token, user: sess, perms: permMap_(sess.role), settings: publicSettings_(), bizDate: bizDate_() };
+}
+/** Roles that need an emailed code at sign-in */
+function otpRolesList_() {
+  return String(settings_().otpRoles || '').split(',').map(x => x.trim()).filter(x => x);
+}
+/** System administrator: which roles need a sign-in code */
+function getLoginSecurity(token) {
+  auth_(token, 'system.manage');
+  return { otpRoles: otpRolesList_() };
+}
+function saveLoginSecurity(token, roles) {
+  const s = auth_(token, 'system.manage');
+  const valid = roleNames_();
+  const picked = (Array.isArray(roles) ? roles : []).filter(r => valid.indexOf(r) >= 0);
+  if (picked.indexOf(s.role) >= 0) {
+    const me = rows_(TBL.USERS).find(u => u.id === s.id);
+    if (!me || !me.email) throw new Error('Add an email address to your own user first (Administration → Staff users). Your role would need a code.');
+  }
+  const value = picked.join(',');
+  return withLock_(() => {
+    const row = rows_(TBL.SETTINGS).find(r => r.key === 'otpRoles');
+    if (row) patch_(TBL.SETTINGS, row._row, { value: value }); else append_(TBL.SETTINGS, { key: 'otpRoles', value: value });
+    audit_(s.username, 'SETTINGS_SAVED', 'Settings', 'otpRoles', value || 'none');
+    return { otpRoles: otpRolesList_() };
+  });
 }
 function logout(token) {
   CacheService.getScriptCache().remove('s:' + token);

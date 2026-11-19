@@ -84,7 +84,7 @@ const PERMISSIONS = [
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.105';
+const APP_VERSION = '1.2.106';
 const SETTINGS_DEFAULT = {
   maxLoginAttempts: 5,      // wrong passwords before the account is locked (system admin, minimum 5)
   inactivityMinutes: 30,    // idle minutes before sign-out (system admin)
@@ -103,6 +103,9 @@ const SETTINGS_DEFAULT = {
   loadingScreen: 'random',             // system admin: random, classic, orbit, flip or pulse
   logoUrl: '',
   currency: 'QAR',
+  otpRoles: '',                        // roles that enter an emailed code at sign-in (system admin), comma-separated
+  loginotpSubject: 'Your sign-in code for {{appName}}',
+  loginotpBody: 'Hello {{name}},\n\nYour sign-in code is {{code}}\n\nUse it to finish signing in. It expires in {{minutes}} minutes.\n\nIf you did not try to sign in, change your password and tell the administrator.',
   nightReportTypes: '',                // night audit report page: report keys to show, comma-separated (blank = all)
   taxRate: 0.10,                       // applied to every taxable charge (0.10 = 10%)
   checkInTime: '14:00',
@@ -125,7 +128,7 @@ const SETTINGS_DEFAULT = {
   welcomeBody: 'Hello {{name}},\n\nAn account has been created for you at {{hotelName}}.\n\nApp link: {{appUrl}}\nUsername: {{username}}\nTemporary password: {{tempPassword}}\nRole: {{role}}\n\nYou will be asked to choose a new password the first time you sign in.'
 };
 /** Settings only the system administrator can change (email templates and the app link). */
-const SYSTEM_SETTINGS = ['menuLayout', 'licenseStart', 'licenseExpiry', 'licenseNumber', 'loadingScreen', 'maxLoginAttempts', 'inactivityMinutes', 'defaultLanguage', 'defaultCurrency', 'auditorEmail', 'auditorAutoSend', 'intPosUrl', 'intTvUrl', 'intPhoneUrl', 'intCardUrl', 'appUrl', 'welcomeSubject', 'welcomeBody', 'otpSubject', 'otpBody', 'doneSubject', 'doneBody'];
+const SYSTEM_SETTINGS = ['otpRoles', 'loginotpSubject', 'loginotpBody', 'menuLayout', 'licenseStart', 'licenseExpiry', 'licenseNumber', 'loadingScreen', 'maxLoginAttempts', 'inactivityMinutes', 'defaultLanguage', 'defaultCurrency', 'auditorEmail', 'auditorAutoSend', 'intPosUrl', 'intTvUrl', 'intPhoneUrl', 'intCardUrl', 'appUrl', 'welcomeSubject', 'welcomeBody', 'otpSubject', 'otpBody', 'doneSubject', 'doneBody'];
 
 const CHARGE_CODES_DEFAULT = [
   // [code, description, department, type, taxable]

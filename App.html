@@ -621,19 +621,36 @@ async function doLogin(e) {
   btn.classList.add('busy'); btn.disabled = true;
   try {
     const r = await rpc('login', f.u.value, f.p.value);
-    try { localStorage.setItem('stayline_user', f.u.value); } catch (x) { /* private mode: nothing to remember */ }
-    S.token = r.token; S.user = r.user; S.perms = r.perms; S.settings = r.settings; S.bizDate = r.bizDate;
-    saveSession(); brand();
-    const sp = $('splash'); if (sp) sp.classList.remove('gone');
-    splashTheme_();                                   // the saved loading style and message, as set by the system admin
-    if (!(S.settings && S.settings.loadingMessage)) splashMsg('Loading your hotel…');
-    startApp();
-    waitSplash_();
+    if (r.otpRequired) { loginCodeAsk_(r, f.u.value); return; }
+    enterApp_(r, f.u.value);
   } catch (err) {
     $('loginErr').textContent = err.message;
     f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake');
     f.p.select();
   } finally { btn.classList.remove('busy'); btn.disabled = false; }
+}
+/** Opens the app once the server has signed the user in */
+function enterApp_(r, username) {
+  try { localStorage.setItem('stayline_user', username); } catch (x) { /* private mode: nothing to remember */ }
+  S.token = r.token; S.user = r.user; S.perms = r.perms; S.settings = r.settings; S.bizDate = r.bizDate;
+  saveSession(); brand();
+  const sp = $('splash'); if (sp) sp.classList.remove('gone');
+  splashTheme_();                                   // the saved loading style and message, as set by the system admin
+  if (!(S.settings && S.settings.loadingMessage)) splashMsg('Loading your hotel…');
+  startApp();
+  waitSplash_();
+}
+/** Sign-in step 2 for roles that need a code: asks for the 6-digit code from the email */
+function loginCodeAsk_(r, username) {
+  openModal('Enter your sign-in code', `<form id="fLoginCode" class="fgrid">
+    <p class="muted" style="margin:0 0 4px">For your security, a 6-digit code was sent to <b>${esc(r.sentTo)}</b>. It expires in 10 minutes.</p>
+    <label class="wide field"><span>Code</span><input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required autofocus></label>
+    <div class="actions"><button class="btn ghost" type="button" onclick="closeModal()">Cancel</button><button class="btn" type="submit">Sign in</button></div></form>`);
+  bindForm('fLoginCode', async d => {
+    const r2 = await rpc('loginVerify', r.pending, d.code);
+    closeModal();
+    enterApp_(r2, username);
+  });
 }
 /** Show or hide the password while typing. */
 function togglePw() {
@@ -2728,7 +2745,8 @@ async function pgLog() {
  * ============================================================ */
 // [key, label, permission, scope]. 'prop' = property admin (hotel operations); 'sys' = system administrator only.
 const ADM_TABS = [['users', 'Staff users', 'users.manage', 'prop'], ['settings', 'Hotel settings', 'cfg.settings.view', 'prop'], ['types', 'Room types', 'cfg.roomtypes.view', 'prop'], ['rooms', 'Rooms', 'cfg.rooms.view', 'prop'], ['packages', 'Packages', 'cfg.packages.view', 'prop'], ['payments', 'Payment methods', 'cfg.payments.view', 'prop'],
-  ['padmins', 'Property admins', 'system.manage', 'sys'], ['padscreens', 'Property admin screens', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['menu', 'Menu layout', 'system.manage', 'sys'], ['emails', 'Email messages', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys'], ['updates', 'App version', 'system.manage', 'sys']];
+  ['padmins', 'Property admins', 'system.manage', 'sys'], ['padscreens', 'Property admin screens', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['menu', 'Menu layout', 'system.manage', 'sys'], ['emails', 'Email messages', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys'], ['security', 'Sign-in security', 'system.manage', 'sys'], ['updates', 'App version', 'system.manage', 'sys']];
+let SEC_ROLES = [];
 async function pgAdmin(scope) {
   const tabs = ADM_TABS.filter(t => (t[3] === scope || (scope === 'sys' && t[3] === 'prop')) && can(t[2]));
   if (!tabs.length) { setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1><div class="card">You do not have access to this area.</div>`); return; }
@@ -2801,6 +2819,11 @@ async function pgAdmin(scope) {
     ], 'Save system settings', false) +
     `<h3>Integrations</h3><p class="muted">Each system receives JSON posts with the header X-Stayline-Key, whose value is the INTEGRATION_KEY script property. Save an address, then test it. A system must answer with status 200.</p>
     <div class="acts"><button class="btn ghost" type="button" onclick="integTest('pos')">Test POS</button><button class="btn ghost" type="button" onclick="integTest('tv')">Test television</button><button class="btn ghost" type="button" onclick="integTest('phone')">Test telephone</button><button class="btn ghost" type="button" onclick="integTest('card')">Test card terminal</button></div>`;
+  } else if (ADM === 'security') {
+    const [roles, cur] = await Promise.all([api('listRoles'), api('getLoginSecurity')]);
+    SEC_ROLES = roles.map(r => r.name);
+    body = `<h3>Sign-in security</h3><p class="muted">Tick a role whose members must also enter a 6-digit code, sent to their email, after the password. Each of those accounts needs an email address.</p>` +
+      formHtml('fSec', roles.map((r, i) => ({ name: 'r' + i, label: r.name, type: 'check', value: cur.otpRoles.indexOf(r.name) >= 0 })), 'Save sign-in security', false);
   } else if (ADM === 'updates') {
     body = await updatesHtml_();
   } else if (ADM === 'emails') {
@@ -2853,6 +2876,11 @@ async function pgAdmin(scope) {
     await api('saveSettings', { appUrl: d.appUrl, welcomeSubject: d.welcomeSubject, welcomeBody: d.welcomeBody, otpSubject: d.otpSubject,
       otpBody: d.otpBody, doneSubject: d.doneSubject, doneBody: d.doneBody });
     toast('Email messages saved');
+  });
+  if (ADM === 'security') bindForm('fSec', async d => {
+    const picked = SEC_ROLES.filter((n, i) => d['r' + i] === 'true');
+    const out = await api('saveLoginSecurity', picked);
+    toast(out.otpRoles.length ? 'Sign-in security saved: code required for ' + out.otpRoles.join(', ') : 'Sign-in security saved: no role needs a code');
   });
   if (ADM === 'system') bindForm('fSys', async d => {
     await api('saveSettings', { intPosUrl: d.intPosUrl, intTvUrl: d.intTvUrl,
