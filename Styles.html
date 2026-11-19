@@ -425,6 +425,8 @@
   .avatar-wrap.side .user-menu{top:auto;bottom:56px;left:0;right:auto}
   .avatar-wrap.top{display:none}
   .avatar-wrap.top .user-menu{right:0;top:50px;left:auto;bottom:auto}
+  /* Phones: the header search is removed to keep the header clean */
+  @media (max-width:700px){ .topbar .qs{display:none} }
   /* Hotel name block in the header: name with an accent bar, and a small tracked sub line */
   .top-hotel{display:flex;align-items:center;gap:11px;min-width:0;margin-right:auto;flex:0 1 auto}
   .top-hotel::before{content:"";width:4px;height:34px;border-radius:4px;background:linear-gradient(180deg,var(--accent),var(--brand-2));flex:none}
@@ -533,4 +535,19 @@
   .card:hover{box-shadow:var(--shadow)}
   .toolbar input,.toolbar select,.fgrid input,.fgrid select,.fgrid textarea{background:var(--field);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:9px 11px;font-size:13.5px}
   .toolbar input:focus,.toolbar select:focus,.fgrid input:focus,.fgrid select:focus,.fgrid textarea:focus{outline:none;border-color:var(--p1);box-shadow:0 0 0 3px rgba(42,157,150,.22)}
+
+  /* ===== Sidebar follows the theme: dark sidebar in dark theme, light sidebar in white theme ===== */
+  :root, :root[data-theme="dark"]{--side-bg:#082628;--side-ink:#ffffff;--side-mute:#b9d3d0;--side-line:rgba(255,255,255,.12);--side-hover:rgba(255,255,255,.08);--side-on:rgba(255,255,255,.14);--side-logo:#0f3d3e}
+  :root[data-theme="white"]{--side-bg:#ffffff;--side-ink:#17252d;--side-mute:#4f5f68;--side-line:#dbe3e8;--side-hover:rgba(15,61,62,.06);--side-on:rgba(42,157,150,.14);--side-logo:#ffffff}
+  .sidebar{background:var(--side-bg);color:var(--side-ink);border-right:1px solid var(--side-line)}
+  .brand{border-bottom-color:var(--side-line)}
+  .nav a{color:var(--side-mute)}
+  .nav a:hover{background:var(--side-hover)}
+  .nav a.on{background:var(--side-on);color:var(--side-ink)}
+  .nav .grp{color:var(--side-ink)}
+  .account{border-top-color:var(--side-line);color:var(--side-mute)}
+  .account .btn.ghost{color:var(--side-ink);border-color:var(--side-line)}
+  .account .btn.ghost:hover{background:var(--side-hover)}
+  .logo-btn{background:var(--side-logo);border:1px solid var(--side-line)}
+  .licbox{color:var(--side-ink)}
 </style>

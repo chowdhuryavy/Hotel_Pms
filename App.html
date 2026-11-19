@@ -276,8 +276,12 @@ function startApp() {
   $('account').innerHTML = acctHtml_();
   idleReset_();
   if (S.user.mustChange) toast('Please choose a new password to continue.');
+  // Draw the first page directly. Relying on the hashchange event left the loading screen up until its 20-second limit.
   const want = parseHash_();
-  go(want.page && pageAllowed_(want.page) ? want.page : firstPage(), want.page && pageAllowed_(want.page) ? want.param : null);
+  const ok = want.page && pageAllowed_(want.page);
+  const page = ok ? want.page : firstPage(), param = ok ? want.param : null;
+  history.replaceState(null, '', routeHash_(page, param));
+  renderPage_(page, param);
 }
 
 /* ---------- Search ---------- */
@@ -781,7 +785,17 @@ function parseHash_() {
   if (i >= 0) { try { param = JSON.parse(decodeURIComponent(h.slice(i + 1))); } catch (e) { param = null; } }
   return { page: i < 0 ? h : h.slice(0, i), param: param };
 }
-function pageAllowed_(page) { return page === 'password' || NAV.some(n => n.k === page && canAny(n.p)); }
+/* Pages opened from other screens (a reservation from the in-house list, a room from billing) are not sidebar items,
+   so each one names the permissions that allow it. */
+const DETAIL_PAGES_ = {
+  res: ['reservations.view'], reservations: ['reservations.view'], guest: ['guests.view'], group: ['reservations.view', 'groups.manage'],
+  account: ['accounts.view', 'ar.view'], billing: ['folio.view'], post: ['folio.post'], newres: ['reservations.create']
+};
+function pageAllowed_(page) {
+  if (page === 'password') return true;
+  if (NAV.some(n => n.k === page && canAny(n.p))) return true;
+  return DETAIL_PAGES_[page] !== undefined && canAny(DETAIL_PAGES_[page]);
+}
 function go(page, param) {
   const h = routeHash_(page, param);
   if (location.hash !== h) { location.hash = h; return; }   // the hashchange listener draws the page
@@ -789,7 +803,11 @@ function go(page, param) {
 }
 function renderPage_(page, param) {
   if (S.user && S.user.mustChange) page = 'password';        // a temporary password must be changed first
-  if (!PAGES[page] || !pageAllowed_(page)) page = firstPage();
+  if (!PAGES[page]) page = firstPage();
+  else if (!pageAllowed_(page)) {
+    toast('You do not have permission to open that page.', true);
+    page = firstPage();
+  }
   if (location.hash !== routeHash_(page, param)) history.replaceState(null, '', routeHash_(page, param));
   S.page = page; S.param = param || null;
   closeModal();
@@ -817,32 +835,51 @@ function bizPill() { return `<span class="pill Reserved">Business date ${esc(S.b
  * DASHBOARD
  * ============================================================ */
 async function pgDashboard() {
+  // Each widget loads only when the role allows it, and a failing widget shows its own message.
+  const canBoard = can('frontdesk.checkin') || can('frontdesk.checkout');
+  const canReports = can('reports.view');
   const from7 = addDaysIso(S.bizDate, -6);
-  const [b, f, fc, na] = await Promise.all([api('frontDeskBoard'), api('runReport', 'flash', '', ''), api('occupancyForecast', 14), api('runReport', 'nightaudit', from7, S.bizDate)]);
-  const occ = (f.rows.find(r => r[0] === 'Occupancy %') || [])[1] || '0%';
-  const days = (na.rows || []).slice(-7);
-  const revLabels = days.map(r => String(r[0]).slice(8, 10) + '/' + String(r[0]).slice(5, 7));
-  const revValues = days.map(r => Number(String(r[4]).replace(/,/g, '')) || 0);
-  const revTotal = revValues.reduce((a, v) => a + v, 0);
+  const part = p => p.catch(e => ({ error: e.message }));
+  const [b, f, fc, na] = await Promise.all([
+    canBoard ? part(api('frontDeskBoard')) : null,
+    canReports ? part(api('runReport', 'flash', '', '')) : null,
+    can('dashboard.view') ? part(api('occupancyForecast', 14)) : null,
+    canReports ? part(api('runReport', 'nightaudit', from7, S.bizDate)) : null
+  ]);
+  const note = x => `<div class="card err">${esc(x.error)}</div>`;
+  const occ = f && !f.error ? ((f.rows.find(r => r[0] === 'Occupancy %') || [])[1] || '0%') : '—';
+  const kpis = !b ? '' : b.error ? note(b) : `<div class="kpis">${kpi('In-house', b.inHouse.length)}${kpi('Arrivals', b.arrivals.length)}${kpi('Departures', b.departures.length)}
+      ${kpi('Occupancy', occ)}${kpi('Past-due arrivals', b.pastDue.length)}${kpi('Dirty rooms', b.dirtyRooms)}</div>`;
+  let revenue = '';
+  if (na) {
+    if (na.error) revenue = note(na);
+    else {
+      const days = (na.rows || []).slice(-7);
+      const labels = days.map(r => String(r[0]).slice(8, 10) + '/' + String(r[0]).slice(5, 7));
+      const values = days.map(r => Number(String(r[4]).replace(/,/g, '')) || 0);
+      const total = values.reduce((x, v) => x + v, 0);
+      revenue = `<div class="card"><h3>Room revenue · last 7 nights</h3>${values.length ? barChart_(labels, values) : '<p class="muted">No closed nights yet.</p>'}
+        <p class="muted">Total ${num(total)}</p></div>`;
+    }
+  }
   const qa = (ok, label, sub, page, cls) => ok ? `<button class="btn quick-btn ${cls || ''}" onclick="go('${page}')"><span class="qi">${label}</span><small>${sub}</small></button>` : '';
-  setView(`<h1>Dashboard<small>${esc(dmy(b.bizDate))}</small></h1>
-    <div class="kpis">${kpi('In-house', b.inHouse.length)}${kpi('Arrivals', b.arrivals.length)}${kpi('Departures', b.departures.length)}
-      ${kpi('Occupancy', occ)}${kpi('Past-due arrivals', b.pastDue.length)}${kpi('Dirty rooms', b.dirtyRooms)}</div>
-    <div class="grid2">
-      <div class="card"><h3>Room revenue · last 7 nights</h3>${revValues.length ? barChart_(revLabels, revValues) : '<p class="muted">No closed nights yet.</p>'}
-        <p class="muted">Total ${num(revTotal)}</p></div>
-      <div class="card"><h3>Quick actions</h3><div class="quick">
-        ${qa(can('frontdesk.checkin'), 'Front desk', 'Board, check-in, check-out', 'frontdesk')}
-        ${qa(can('reservations.create'), 'New reservation', 'Book a room', 'newres')}
-        ${qa(can('folio.post'), 'Posting window', 'Charges and payments', 'post')}
-        ${qa(can('rack.view'), 'Room rack', 'Rooms by date', 'rack')}
-        ${qa(can('reservations.view'), 'Arrivals', 'Expected today', 'arrivals')}
-        ${qa(can('reservations.view'), 'In-house', 'Guests in house', 'inhouse')}
-        ${qa(can('nightaudit.run'), 'Night audit', 'Close the business date', 'nightaudit', 'ghost')}
-        ${qa(can('reports.view'), 'Reports', 'End-of-day and more', 'reports', 'ghost')}
-      </div></div>
+  const actions = [
+    qa(can('frontdesk.checkin'), 'Front desk', 'Board, check-in, check-out', 'frontdesk'),
+    qa(can('reservations.create'), 'New reservation', 'Book a room', 'newres'),
+    qa(can('folio.post'), 'Posting window', 'Charges and payments', 'post'),
+    qa(can('rack.view'), 'Room rack', 'Rooms by date', 'rack'),
+    qa(can('reservations.view'), 'Arrivals', 'Expected today', 'arrivals'),
+    qa(can('reservations.view'), 'In-house', 'Guests in house', 'inhouse'),
+    qa(can('nightaudit.run'), 'Night audit', 'Close the business date', 'nightaudit', 'ghost'),
+    qa(can('reports.view'), 'Reports', 'End-of-day and more', 'reports', 'ghost')
+  ].join('');
+  const forecast = !fc ? '' : fc.error ? note(fc) : `<div class="card"><h3>Next 14 nights · occupancy</h3>${forecastHtml(fc)}</div>`;
+  setView(`<h1>Dashboard<small>${esc(dmy(S.bizDate))}</small></h1>
+    ${kpis}
+    <div class="grid2">${revenue}
+      <div class="card"><h3>Quick actions</h3><div class="quick">${actions || '<p class="muted">No quick actions for your role.</p>'}</div></div>
     </div>
-    <div class="card"><h3>Next 14 nights · occupancy</h3>${forecastHtml(fc)}</div>`);
+    ${forecast}`);
 }
 
 /* ============================================================
@@ -950,6 +987,11 @@ function resFilter(e) {
   go('reservations');
 }
 
+/* Reads an audit action such as RES_MODIFIED as "Reservation modified". */
+function resActionLabel_(a) {
+  const t = String(a || '').toLowerCase().replace(/_/g, ' ');
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
 async function pgRes() {
   const [d, resLog] = await Promise.all([api('getReservation', S.param), api('getResLog', S.param).catch(() => [])]);
   RES = d;
@@ -1003,8 +1045,8 @@ async function pgRes() {
       </div>
       <div>${folios}</div>
     </div>
-    <div class="card"><h3>Change log</h3><p class="muted" style="margin:0 0 8px">Every change to this reservation, its folios and postings, with date, time and user.</p>${table(['Date', 'Time', 'User', 'Action', 'Details'],
-      resLog.map(l => tr([esc(String(l.at).slice(0, 10)), esc(String(l.at).slice(11)), esc(l.user), esc(l.action), esc(l.details)])))}</div>`);
+    <div class="card"><h3>Change log <span class="muted">${resLog.length}</span></h3><p class="muted" style="margin:0 0 8px">Every change to this reservation, its folios and postings, with date, time and user.</p>${table(['Date', 'Time', 'User', 'Action', 'Details'],
+      resLog.map(l => tr([esc(String(l.at).slice(0, 10)), esc(String(l.at).slice(11)), esc(l.user), esc(resActionLabel_(l.action)), esc(l.details)])))}</div>`);
 }
 async function modifyModal(resNo) {
   const d = RES.res.resNo === resNo ? RES : await api('getReservation', resNo);

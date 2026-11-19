@@ -222,7 +222,8 @@ function setRoomAssignment(token, roomNo, name) {
 }
 /** Active staff with the Housekeeping role, for the assignment dropdown. */
 function housekeeperNames(token) {
-  auth_(token);
+  const s0 = auth_(token);
+  if (!anyPerm_(s0, ['housekeeping.update', 'rooms.manage'])) throw new Error('Permission denied: housekeeping.update');
   return rows_(TBL.USERS).filter(u => u.role === 'Housekeeping' && u.active === true).map(u => u.name || u.username);
 }
 

@@ -7,7 +7,8 @@
  * It runs once per business date. A second run for the same date is refused.
  */
 function businessDateInfo(token) {
-  auth_(token);
+  const s0 = auth_(token);
+  if (!anyPerm_(s0, ['nightaudit.run'])) throw new Error('Permission denied: nightaudit.run');
   const bd = bizDate_();
   const res = rows_(TBL.RES);
   const pastDue = res.filter(r => r.status === 'Reserved' && r.arrival < bd);
