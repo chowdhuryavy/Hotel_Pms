@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.187**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.188**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.188: A loading message shows at once on the custom domain page while the app opens, and the connection to Google starts earlier.
 
 Release notes for 1.2.187: Faster page load. The automatic update and backup timers are checked once per version, not on every page load.
 
