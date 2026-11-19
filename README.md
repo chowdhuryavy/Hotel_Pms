@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.66**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.67**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.67: Every form action opens in its own new tab at its own address (#/f with the action in the address), showing the same form as a full page. Blank new tabs came from action calls with no arguments being rejected. The action is now checked as a plain page function call, and errors show on the page instead of a blank tab.
 
 Release notes for 1.2.66: Fixed the admin tabs opened in a new tab showing a blank page or jumping to Staff users: drawing a page no longer closes the tab, and the tab action waits for the page to finish drawing. The connection check is cached for two minutes, retried once, and no longer blocks the System admin page. The background probe waits up to 25 seconds and shows a connection warning only after two misses in a row, so a slow cold start of the server no longer shows an error.
 

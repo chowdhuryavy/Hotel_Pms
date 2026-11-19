@@ -364,7 +364,7 @@ function refresh() { go(S.page, S.param); }
 /* In a tab opened for an admin function (window.STAY_TAB) the form is a full page, not a small dialog */
 function openModal(title, html) {
   if (!window.STAY_TAB && CLICK_EXPR && !CLICK_WROTE && Date.now() - CLICK_AT < 20000 && TAB_EXPR_OK_RE.test(CLICK_EXPR)) {
-    tabRun_({ expr: CLICK_EXPR });   // the same button, run in a new tab where the form is a full page
+    tabRun_(CLICK_EXPR);   // the same button, run in a new tab where the form is a full page
     return;
   }
   if (window.STAY_TAB) {
@@ -430,21 +430,33 @@ const chk = v => v === 'true';
 /* Dialogs that open in their own browser tab (see tabOpen_). Only these names are allowed from a link. */
 const TAB_OPEN_OK = ['admSection', 'userModal', 'typeModal', 'roomModal', 'roleModal', 'permModal', 'paymentMethodModal', 'packageModal', 'planModal', 'rateModal', 'codeModal'];
 /** Opens a form in a new browser tab, signed in through a one-time link. The tab opens at once so the browser allows it. */
-const TAB_EXPR_OK_RE = /^[A-Za-z_$][\w$]*\((?!\s*\))/;   // a call to a page function, not closeModal() or act()
-async function tabOpen_(fn, args) { return tabRun_({ open: fn, args: args || [] }); }
-async function tabRun_(payload) {
+/* A form action is a call to one page function, e.g. userModal("U1"). Navigation and saving functions are excluded. */
+const TAB_EXPR_OK_RE = /^(?!(?:closeModal|act|appConfirm|appAlert|logout|refresh|go|tabRun_|tabOpen_)\b)[A-Za-z_$][\w$]*\([^]*\)\s*;?$/;
+async function tabOpen_(fn, args) { return tabRun_(fn + '(' + (args || []).map(a => JSON.stringify(a == null ? null : a)).join(',') + ')'); }
+/* Opens the form action in its own tab: the address is #/f?{expr}, a route of its own */
+async function tabRun_(expr) {
   const w = window.open('about:blank', '_blank');
   if (!w) { toast('Allow pop-ups for this app to open the form in a new tab.', true); return; }
   try {
     const id = await api('createHandover');
     const base = ((document.querySelector('meta[name="exec-url"]') || {}).content) || '';
     if (!base) throw new Error('The app address is not known. Reload the page and try again.');
-    const hash = '#/' + (S.page || 'dashboard') + '?' + encodeURIComponent(JSON.stringify(payload));
+    const hash = '#/f?' + encodeURIComponent(JSON.stringify({ expr: expr }));
     w.opener = null;
     w.location.href = base + '?h=' + encodeURIComponent(id) + hash;
   } catch (e) { try { w.close(); } catch (x) { /* ignore */ } toast(e.message, true); }
 }
 /** In a tab opened by tabOpen_: runs the dialog named in the address, once. */
+/* Route #/f: runs the form action named in the address and shows its form as the page */
+async function pgFormRoute() {
+  const p = S.param || {};
+  const expr = String(p.expr || '');
+  if (!TAB_EXPR_OK_RE.test(expr)) { setView('<div class="card"><h3>This link is not valid</h3><p class="muted">Close this tab and open the form again from the app.</p></div>'); return; }
+  S.param = Object.assign({}, p, { expr: null });
+  setView(skeleton_());
+  try { await (0, eval)(expr); }
+  catch (e) { setView('<div class="card err">' + esc(e.message) + '</div>'); }
+}
 function runTabOpen_() {
   const p = S.param;
   if (VIEW_PENDING) { setTimeout(runTabOpen_, 60); return; }   // wait for the page's own first draw, so it cannot overwrite the form
@@ -1158,6 +1170,7 @@ function renderLicence_() {
   el.innerHTML = `<span>Licence</span><b>${esc(dmy(a || '-'))} to ${esc(dmy(e || '-'))}</b><small>${esc(note)}${st.licenseNumber ? ' · No. ' + esc(st.licenseNumber) : ''}</small>`;
 }
 const PAGES = {
+  f: pgFormRoute,
   dashboard: pgDashboard, frontdesk: pgFrontDesk, post: pgPost, arrivals: () => pgFrontList('arrivals'), departures: () => pgFrontList('departures'), inhouse: () => pgFrontList('inhouse'), rack: pgRack, reservations: pgReservations, res: pgRes,
   newres: pgNewRes, guests: pgGuests, guest: pgGuest, groups: pgGroups, group: pgGroup,
   housekeeping: pgHousekeeping, hkmobile: pgHkTablet, cashier: pgCashier, nightaudit: pgNightAudit, fixed: pgFixed, rates: pgRates,
@@ -1179,7 +1192,7 @@ const DETAIL_PAGES_ = {
   account: ['accounts.view', 'ar.view'], billing: ['folio.view'], post: ['folio.post'], newres: ['reservations.create']
 };
 function pageAllowed_(page) {
-  if (page === 'password') return true;
+  if (page === 'password' || page === 'f') return true;   // 'f' is a form route opened in its own tab
   if (NAV.some(n => n.k === page && canAny(n.p))) return true;
   return DETAIL_PAGES_[page] !== undefined && canAny(DETAIL_PAGES_[page]);
 }
