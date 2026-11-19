@@ -257,6 +257,7 @@
     body.menu-open::after{content:'';position:fixed;inset:0;background:rgba(5,15,18,.45);z-index:35;animation:fade .2s ease}
     body.menu-open .topbar{z-index:auto;position:relative}   /* a sticky bar is its own layer; this lets the menu button sit above the menu */
     body.menu-open .logo-btn{position:relative;z-index:60}
+    body.menu-open .logo-btn{display:none}   /* the open menu has its own close button: no logo in the top bar */
     body.menu-open .brand #brandLogo{visibility:hidden}   /* the menu button sits in this spot: show one logo, not two */   /* the menu button stays on top of the menu and the dark overlay */
     body.sb-collapsed .sidebar{margin-left:0}
     .grid2{grid-template-columns:1fr}
