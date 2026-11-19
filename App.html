@@ -609,7 +609,7 @@ function brand() {
   $('brandLogo').innerHTML = logo; $('loginLogo').innerHTML = logo; $('sbLogo').innerHTML = logo;
   // Sidebar header: the full hotel name on top, the app name under it
   $('brandName').textContent = s.hotelName || s.appName || '';
-  $('brandHotel').textContent = s.appName || '';
+  $('brandHotel').textContent = s.appName ? 'Designed by ' + s.appName : '';
   $('loginTitle').textContent = s.appName || '';
   $('loginHotel').textContent = s.hotelName || '';
   document.title = s.appName || '';
@@ -698,7 +698,7 @@ function startApp() {
   brand();
   buildNav();
   const hotelTop = (S.settings && (S.settings.hotelName || S.settings.appName)) || '';
-  const subLine = (S.settings && S.settings.ownerName) ? 'Design by ' + S.settings.ownerName : ((S.settings && S.settings.appName) || '');
+  const subLine = (S.settings && S.settings.appName) ? 'Designed by ' + S.settings.appName : '';
   $('who').innerHTML = `<div class="top-hotel"><div class="top-hotel-txt"><span class="top-hotel-name">${esc(hotelTop)}</span><span class="top-hotel-sub">${esc(subLine)}</span></div></div>` +
     `<form class="qs" role="search" onsubmit="searchGo(event)"><input name="q" type="search" placeholder="Search room, guest, res #, group…" aria-label="Search"></form>`;
   $('account').innerHTML = acctHtml_();
