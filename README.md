@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.193**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.194**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.194: Anyone with staff-user access sees the + User button and can create users. Only the system administrator can delete a user.
 
 Release notes for 1.2.193: Faster after each save. The page redraws at once, and the permission check runs alongside it instead of before it.
 

@@ -2935,7 +2935,7 @@ async function pgAdmin(scope) {
   let body = '';
   if (ADM === 'users') {
     const us = await api('listUsers');
-    body = `<div class="head-row"><h3>Users</h3><div class="acts">${can('system.manage') ? '<button class="btn" onclick="tabOpen_(&#39;userModal&#39;,[])">+ User</button>' : ''}</div></div>` +
+    body = `<div class="head-row"><h3>Users</h3><div class="acts">${can('users.manage') ? '<button class="btn" onclick="tabOpen_(&#39;userModal&#39;,[])">+ User</button>' : ''}</div></div>` +
       table(['Name', 'Username', 'Role', 'Active', 'Last login', ''], us.map(u => tr([esc(u.name), esc(u.username), pill(u.role), u.locked ? pill('Locked') : (u.active ? 'Yes' : 'No'), esc(u.lastLogin), `${u.locked ? `<button class="btn sm ok" onclick="unlockUserAct('${esc(u.id)}')">Unlock</button> ` : ''}<button class="btn sm ghost" onclick="tabOpen_(&#39;userModal&#39;,[&#39;${esc(u.id)}&#39;])">Edit</button> <button class="btn sm ghost" onclick="resetPwAct('${esc(u.id)}')">Reset password</button>`])));
   } else if (ADM === 'maillog') {
     const log = await api('listEmailLog');
