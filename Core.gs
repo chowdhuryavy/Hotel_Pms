@@ -101,9 +101,27 @@ function permMap_(role) {
   rows_(TBL.PERMS).forEach(r => { m[r.permission] = r[role] === true; });
   return m;
 }
+/* Licence window set by the system administrator. Outside it only the system administrator can sign in. */
+function licenseStatus_() {
+  const s = settings_();
+  const start = String(s.licenseStart || ''), expiry = String(s.licenseExpiry || '');
+  if (!start && !expiry) return { status: 'none', start: start, expiry: expiry, days: null };
+  const today = calToday_();
+  const days = expiry ? Math.round((Date.parse(expiry) - Date.parse(today)) / 86400000) : null;
+  if (start && today < start) return { status: 'not-started', start: start, expiry: expiry, days: days };
+  if (expiry && today > expiry) return { status: 'expired', start: start, expiry: expiry, days: days };
+  return { status: days !== null && days <= 30 ? 'warning' : 'active', start: start, expiry: expiry, days: days };
+}
+/* Blocks everyone except the system administrator when the licence is not in its window. */
+function licenseGuard_(role) {
+  if (permMap_(role)['system.manage'] === true) return;
+  const L = licenseStatus_();
+  if (L.status === 'expired') throw new Error('LICENSE_BLOCKED: Your Stayline licence ended on ' + dmy_(L.expiry) + '. Ask the system administrator to renew it.');
+  if (L.status === 'not-started') throw new Error('LICENSE_BLOCKED: Your Stayline licence starts on ' + dmy_(L.start) + '.');
+}
 function publicSettings_() {
   const s = settings_();
-  return { appName: s.appName, hotelName: s.hotelName, logoUrl: s.logoUrl, loadingMessage: s.loadingMessage || '', loadingScreen: s.loadingScreen || 'random', currency: s.currency || s.defaultCurrency, defaultLanguage: s.defaultLanguage, inactivityMinutes: inactivityMinutes_() };
+  return { appName: s.appName, hotelName: s.hotelName, logoUrl: s.logoUrl, loadingMessage: s.loadingMessage || '', loadingScreen: s.loadingScreen || 'random', licenseStart: String(s.licenseStart || ''), licenseExpiry: String(s.licenseExpiry || ''), licenseStatus: licenseStatus_().status, currency: s.currency || s.defaultCurrency, defaultLanguage: s.defaultLanguage, inactivityMinutes: inactivityMinutes_() };
 }
 function getPublicSettings() { return publicSettings_(); }
 
@@ -132,6 +150,7 @@ function login(username, password) {
     if (user && left === 0) throw new Error('Wrong password. This account is now locked after ' + max + ' attempts. Ask the system administrator to unlock it.');
     throw new Error('Invalid username or password.' + (user && left <= 2 ? ' ' + left + ' attempt(s) left before the account is locked.' : ''));
   }
+  licenseGuard_(user.role);
   const sess = { id: user.id, username: user.username, name: user.name, role: user.role, mustChange: user.mustChange === true };
   const token = Utilities.getUuid();
   cache.put('s:' + token, JSON.stringify(Object.assign({}, sess, { seen: Date.now() })), SESSION_SECONDS);
@@ -160,6 +179,7 @@ function auth_(token, perm) {
   cache.put('s:' + token, JSON.stringify(Object.assign({}, cached, { seen: Date.now() })), SESSION_SECONDS);
   const u = rows_(TBL.USERS).find(x => x.id === cached.id);
   if (!u || u.active !== true) throw new Error('SESSION_EXPIRED');
+  licenseGuard_(u.role);
   const s = { id: u.id, username: u.username, name: u.name, role: u.role };
   if (perm && permMap_(s.role)[perm] !== true) throw new Error('Permission denied: ' + perm);
   return s;
@@ -240,26 +260,38 @@ function listPermissions(token) {
   return rows_(TBL.PERMS).map(p => ({ permission: p.permission, description: p.description }));
 }
 function getSettings(token) {
-  auth_(token, 'settings.manage');
+  auth_(token, 'cfg.settings.view');
   return settings_();
 }
 function saveSettings(token, d) {
-  const s = auth_(token, 'settings.manage');
+  const s = auth_(token, 'cfg.settings.edit');
   const isSys = permMap_(s.role)['system.manage'] === true;
+  // 1) Check every value first, so a rejected save changes nothing
+  const plan = [];
+  Object.keys(SETTINGS_DEFAULT).forEach(k => {
+    if (k === 'businessDate' || d[k] === undefined) return;
+    if (SYSTEM_SETTINGS.indexOf(k) >= 0 && !isSys) return;   // only the system administrator
+    if (k === 'maxLoginAttempts' && Number(d[k]) < 5) throw new Error('Wrong-password limit must be at least 5.');
+    if ((k === 'licenseStart' || k === 'licenseExpiry') && d[k] !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(d[k]))) throw new Error('Licence dates must be a date.');
+    if (k === 'loadingScreen' && ['random', 'classic', 'orbit', 'flip', 'pulse'].indexOf(d[k]) < 0) throw new Error('Choose a loading screen style.');
+    if (k === 'logoUrl') {
+      const v = String(d[k] || '').trim();
+      if (v && !/^(https:\/\/|data:image\/(png|jpeg|webp|svg\+xml);base64,)/i.test(v)) throw new Error('Logo must be an https link or an uploaded image.');
+      if (v.length > 45000) throw new Error('Logo is too large. Use a smaller image.');
+      d[k] = v;
+    }
+    plan.push([k, d[k]]);
+  });
+  // The licence window: the values being saved, or the current ones
+  const cur = settings_();
+  const lsStart = isSys && d.licenseStart !== undefined ? String(d.licenseStart) : String(cur.licenseStart || '');
+  const lsExp = isSys && d.licenseExpiry !== undefined ? String(d.licenseExpiry) : String(cur.licenseExpiry || '');
+  if (lsStart && lsExp && lsExp < lsStart) throw new Error('The licence expiry must be on or after its start date.');
+  // 2) Write
   return withLock_(() => {
-    Object.keys(SETTINGS_DEFAULT).forEach(k => {
-      if (k === 'businessDate' || d[k] === undefined) return;
-      if (SYSTEM_SETTINGS.indexOf(k) >= 0 && !isSys) return;   // only the system administrator   // business date only changes via night audit
-      if (k === 'maxLoginAttempts' && Number(d[k]) < 5) throw new Error('Wrong-password limit must be at least 5.');
-      if (k === 'loadingScreen' && ['random', 'classic', 'orbit', 'flip', 'pulse'].indexOf(d[k]) < 0) throw new Error('Choose a loading screen style.');
-      if (k === 'logoUrl') {
-        const v = String(d[k] || '').trim();
-        if (v && !/^(https:\/\/|data:image\/(png|jpeg|webp|svg\+xml);base64,)/i.test(v)) throw new Error('Logo must be an https link or an uploaded image.');
-        if (v.length > 45000) throw new Error('Logo is too large. Use a smaller image.');
-        d[k] = v;
-      }
+    plan.forEach(([k, v]) => {
       const row = rows_(TBL.SETTINGS).find(r => r.key === k);
-      if (row) patch_(TBL.SETTINGS, row._row, { value: d[k] }); else append_(TBL.SETTINGS, { key: k, value: d[k] });
+      if (row) patch_(TBL.SETTINGS, row._row, { value: v }); else append_(TBL.SETTINGS, { key: k, value: v });
     });
     audit_(s.username, 'SETTINGS_SAVED', 'Settings', '', Object.keys(d).join(','));
     return settings_();

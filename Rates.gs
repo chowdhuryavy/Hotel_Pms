@@ -10,7 +10,7 @@ function listRatePlans(token) {
   return rows_(TBL.RATEPLANS).map(p => ({ code: p.code, name: p.name, description: p.description || '', active: p.active === true }));
 }
 function saveRatePlan(token, d) {
-  const s = auth_(token, 'rates.manage');
+  const s = auth_(token, 'cfg.rateplans.edit');
   const code = String(d.code || '').trim().toUpperCase();
   if (!code || !d.name) throw new Error('Code and name are required.');
   return withLock_(() => {
@@ -26,7 +26,7 @@ function listRates(token) {
   return rows_(TBL.RATES).map(r => ({ id: r.id, plan: r.plan, roomType: r.roomType, startDate: r.startDate, endDate: r.endDate, rate: Number(r.rate) || 0, active: r.active === true }));
 }
 function saveRate(token, d) {
-  const s = auth_(token, 'rates.manage');
+  const s = auth_(token, 'cfg.rates.edit');
   if (!isDate_(d.startDate) || !isDate_(d.endDate) || d.endDate < d.startDate) throw new Error('End date must be on or after the start date.');
   if (!(Number(d.rate) >= 0)) throw new Error('Rate must be a number.');
   roomType_(d.roomType);
@@ -44,7 +44,7 @@ function listChargeCodes(token) {
   return rows_(TBL.CHARGES).map(c => ({ code: c.code, description: c.description, department: c.department, type: c.type, taxable: c.taxable === true, active: c.active === true }));
 }
 function saveChargeCode(token, d) {
-  const s = auth_(token, 'rates.manage');
+  const s = auth_(token, 'cfg.chargecodes.edit');
   const code = String(d.code || '').trim().toUpperCase();
   if (!code || !d.description) throw new Error('Code and description are required.');
   return withLock_(() => {

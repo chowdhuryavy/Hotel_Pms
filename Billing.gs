@@ -18,7 +18,7 @@ function listPackages(token) {
     amount: num_(p.amount), perNight: p.perNight === true, active: p.active === true }));
 }
 function savePackage(token, d) {
-  const s = auth_(token, 'rates.manage');
+  const s = auth_(token, 'cfg.packages.edit');
   const code = String(d.code || '').trim().toUpperCase();
   if (!/^[A-Z0-9_-]{2,12}$/.test(code)) throw new Error('Package code: 2 to 12 letters, numbers, - or _.');
   if (!String(d.name || '').trim()) throw new Error('Package name is required.');
@@ -165,7 +165,7 @@ function listPaymentMethods(token) {
   return rows_(TBL.PAYMETHODS).map(m => ({ code: m.code, name: m.name, kind: m.kind, chargeCode: m.chargeCode || '', accountId: m.accountId || '', active: m.active === true }));
 }
 function savePaymentMethod(token, d) {
-  const s = auth_(token, 'settings.manage');
+  const s = auth_(token, 'cfg.payments.edit');
   const code = String(d.code || '').trim().toUpperCase();
   if (!/^[A-Z0-9_-]{2,12}$/.test(code)) throw new Error('Method code: 2 to 12 letters, numbers, - or _.');
   if (!String(d.name || '').trim()) throw new Error('Method name is required.');

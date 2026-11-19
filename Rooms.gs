@@ -22,7 +22,7 @@ function listRoomTypes(token) {
   return rows_(TBL.ROOMTYPES).map(t => ({ code: t.code, name: t.name, baseRate: Number(t.baseRate) || 0, maxAdults: Number(t.maxAdults) || 1, active: t.active === true, description: t.description || '' }));
 }
 function saveRoomType(token, d) {
-  const s = auth_(token, 'rooms.manage');
+  const s = auth_(token, 'cfg.roomtypes.edit');
   const code = String(d.code || '').trim().toUpperCase();
   if (!code || !d.name) throw new Error('Code and name are required.');
   return withLock_(() => {
@@ -38,7 +38,7 @@ function listRooms(token) {
   return roomsAll_().map(r => ({ roomNo: String(r.roomNo), type: r.type, floor: r.floor, status: r.status, housekeeping: r.housekeeping, statusReason: r.statusReason || '', notes: r.notes || '', assignedTo: r.assignedTo || '' }));
 }
 function saveRoom(token, d) {
-  const s = auth_(token, 'rooms.manage');
+  const s = auth_(token, 'cfg.rooms.edit');
   const no = String(d.roomNo || '').trim();
   if (!no) throw new Error('Room number is required.');
   roomType_(d.type);

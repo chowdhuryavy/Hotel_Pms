@@ -1,25 +1,25 @@
 /* ============================================================
  * Admin.gs: deleting configuration and users.
- * Editing is allowed by the permission allocation (rooms.manage, rates.manage, settings.manage,
- * accounts.manage). Adding and deleting users is for the system administrator only.
+ * Editing and deleting configuration follows the configuration permissions (cfg.<area>.edit / delete),
+ * which the system administrator sets per role. Adding and deleting users is for the system administrator only.
  * An item that has already been used keeps its history, so it is deactivated instead of deleted.
  * ============================================================ */
 
 /** What each kind of configuration item is, and the rule for deleting it. */
 function configKind_(kind) {
   const kinds = {
-    roomType:      { tbl: TBL.ROOMTYPES, key: 'code', perm: 'rooms.manage', label: 'Room type',
+    roomType:      { tbl: TBL.ROOMTYPES, key: 'code', perm: 'cfg.roomtypes.delete', label: 'Room type',
                      inUse: k => rows_(TBL.ROOMS).some(r => r.type === k) || rows_(TBL.RES).some(r => r.roomType === k) },
-    room:          { tbl: TBL.ROOMS, key: 'roomNo', perm: 'rooms.manage', label: 'Room',
+    room:          { tbl: TBL.ROOMS, key: 'roomNo', perm: 'cfg.rooms.delete', label: 'Room',
                      inUse: k => rows_(TBL.RES).some(r => String(r.roomNo) === String(k)) },
-    ratePlan:      { tbl: TBL.RATEPLANS, key: 'code', perm: 'rates.manage', label: 'Rate plan',
+    ratePlan:      { tbl: TBL.RATEPLANS, key: 'code', perm: 'cfg.rateplans.delete', label: 'Rate plan',
                      inUse: k => rows_(TBL.RES).some(r => r.plan === k) },
-    rate:          { tbl: TBL.RATES, key: 'id', perm: 'rates.manage', label: 'Rate', inUse: () => false },
-    chargeCode:    { tbl: TBL.CHARGES, key: 'code', perm: 'rates.manage', label: 'Charge code',
+    rate:          { tbl: TBL.RATES, key: 'id', perm: 'cfg.rates.delete', label: 'Rate', inUse: () => false },
+    chargeCode:    { tbl: TBL.CHARGES, key: 'code', perm: 'cfg.chargecodes.delete', label: 'Charge code',
                      inUse: k => rows_(TBL.POSTINGS).some(p => p.code === k) || rows_(TBL.PAYMETHODS).some(m => m.chargeCode === k) },
-    package:       { tbl: TBL.PACKAGES, key: 'code', perm: 'rates.manage', label: 'Package', inUse: () => false },
-    paymentMethod: { tbl: TBL.PAYMETHODS, key: 'code', perm: 'settings.manage', label: 'Payment method', inUse: () => false },
-    account:       { tbl: TBL.ACCOUNTS, key: 'id', perm: 'accounts.manage', label: 'Company account',
+    package:       { tbl: TBL.PACKAGES, key: 'code', perm: 'cfg.packages.delete', label: 'Package', inUse: () => false },
+    paymentMethod: { tbl: TBL.PAYMETHODS, key: 'code', perm: 'cfg.payments.delete', label: 'Payment method', inUse: () => false },
+    account:       { tbl: TBL.ACCOUNTS, key: 'id', perm: 'cfg.accounts.delete', label: 'Company account',
                      inUse: k => rows_(TBL.FOLIOS).some(f => f.accountId === k) }
   };
   return kinds[kind] || null;

@@ -30,14 +30,19 @@
   .nav a:hover{background:rgba(255,255,255,.08)}
   .nav a.on{background:rgba(255,255,255,.14);border-left-color:var(--accent);color:#fff;font-weight:600}
   .nav .grp{padding:12px 18px 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.55}
-  .bizbox{padding:12px 16px;background:rgba(0,0,0,.18);font-size:12px}
-  .bizbox b{display:block;font-size:15px;color:var(--accent)}
+  .licbox{margin:0 12px 10px;padding:10px 12px;border-radius:12px;background:rgba(0,0,0,.18);font-size:12px;display:flex;flex-direction:column;gap:2px;border:1px solid rgba(255,255,255,.1)}
+  .licbox span{text-transform:uppercase;letter-spacing:.8px;font-size:10px;opacity:.7;font-weight:700}
+  .licbox b{font-size:13px;font-variant-numeric:tabular-nums}
+  .licbox small{font-size:11px;opacity:.85}
+  .licbox.lic-warn{background:rgba(242,177,52,.22);border-color:rgba(242,177,52,.6)}
+  .licbox.lic-bad{background:rgba(229,72,77,.25);border-color:rgba(229,72,77,.7)}
+  .licbox.lic-future{background:rgba(120,170,255,.2)}
   .main{flex:1;min-width:0;display:flex;flex-direction:column}
   .topbar{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:10px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
-  .logo-btn{background:var(--brand);border:0;border-radius:12px;width:50px;height:50px;padding:5px;cursor:pointer;display:grid;place-items:center;box-shadow:0 4px 12px rgba(15,61,62,.25);transition:transform .2s ease,box-shadow .2s ease}
+  .logo-btn{background:var(--brand);border:0;border-radius:14px;width:62px;height:62px;padding:6px;cursor:pointer;display:grid;place-items:center;box-shadow:0 4px 12px rgba(15,61,62,.25);transition:transform .2s ease,box-shadow .2s ease}
   .logo-btn:hover{transform:scale(1.06);box-shadow:0 8px 18px rgba(15,61,62,.32)}
   .logo-btn:active{transform:scale(.96)}
-  .logo-btn span{display:block;width:40px;height:40px;transform-origin:50% 50%}
+  .logo-btn span{display:block;width:50px;height:50px;transform-origin:50% 50%}
   .logo-btn img,.logo-btn svg{width:40px;height:40px;max-height:40px;margin:0;display:block;object-fit:contain}
   .logo-btn span{animation:logo-spin 14s linear infinite}
   .logo-btn:hover span{animation-duration:2s}
@@ -64,7 +69,18 @@
   .bizchip{display:inline-flex;flex-direction:column;align-items:flex-start;padding:6px 14px;border-radius:12px;background:linear-gradient(135deg,rgba(242,177,52,.20),rgba(242,177,52,.08));border:1px solid rgba(242,177,52,.55);white-space:nowrap;flex:none;box-shadow:0 2px 8px rgba(242,177,52,.12)}
   .bizchip span{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700}
   .bizchip b{font-size:15px;font-variant-numeric:tabular-nums;color:var(--text)}
-  @media (max-width:700px){ .who{gap:10px} .qs{max-width:none} .top-hotel-name{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap} }
+  /* phones: hotel name, search and date stay on one row */
+  @media (max-width:700px){
+    .topbar{padding:8px 10px;gap:8px}
+    .who{gap:8px;flex-wrap:nowrap;align-items:center}
+    .top-hotel{flex:0 1 auto;min-width:0}
+    .top-hotel-name{max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+    .qs{flex:1 1 0;max-width:none;min-width:0}
+    .qs input{padding:8px 10px 8px 34px;background-position:12px center;font-size:13px}
+    body.rtl .qs input{padding:8px 34px 8px 10px;background-position:right 12px center}
+    .bizchip{flex:none;padding:4px 8px}
+    .bizchip b{font-size:12px}
+  }
   .view{padding:20px;max-width:1320px;width:100%}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
@@ -80,6 +96,22 @@
   .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
   .btn.ghost.on{background:var(--brand-2);color:#fff;border-color:var(--brand-2)}
   .btn.danger{background:var(--bad)}
+  .btn:active{transform:scale(.97)}
+  .fd-tabs{margin:4px 0 14px}
+  .fd-tabs .btn.on{background:var(--brand-2);color:#fff;border-color:transparent}
+  .fl-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:12px}
+  .fl-bar label{display:flex;flex-direction:column;gap:4px;min-width:140px}
+  .fl-bar label span{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700}
+  .fl-bar .fl-q{flex:1 1 260px}
+  .fl-bar .fl-check{flex-direction:row;align-items:center;gap:6px;min-width:0;padding-bottom:8px}
+  .fl-bar .fl-check span{text-transform:none;letter-spacing:0;color:var(--text);font-size:13px;font-weight:600}
+  .fl-acts{display:flex;gap:8px}
+  .fl-sum{display:flex;flex-wrap:wrap;gap:18px;font-size:13px;margin:4px 0 10px}
+  .nav a.sub{padding-left:38px;font-size:13px;opacity:.9}
+  .btn.spin-on{color:transparent!important;position:relative;pointer-events:none}
+  .btn.spin-on::after{content:'';position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:btn-spin .7s linear infinite}
+  .btn.ghost.spin-on::after{border-color:rgba(15,61,62,.2);border-top-color:var(--brand-2)}
+  @keyframes btn-spin{to{transform:rotate(360deg)}}
   .btn.ok{background:var(--ok)}
   .btn.sm{padding:4px 9px;font-size:12px}
   .btn.block{width:100%;padding:11px}

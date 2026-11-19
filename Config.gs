@@ -74,10 +74,11 @@ const PERMISSIONS = [
   ['shifts.manage',         'Open / close own cashier shift',            true,  true,  true,  true,  false, false, false],
   ['system.manage',         'System administration: roles, email templates, app link', true,  false, false, false, false, false, false],
   ['folio.refund',          'Refund a payment',                          true,  true,  false, false, false, false, false],
+  ...cfgPermRows_(),
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.12';
+const APP_VERSION = '1.2.13';
 const SETTINGS_DEFAULT = {
   maxLoginAttempts: 5,      // wrong passwords before the account is locked (system admin, minimum 5)
   inactivityMinutes: 30,    // idle minutes before sign-out (system admin)
@@ -85,6 +86,8 @@ const SETTINGS_DEFAULT = {
   hotelName: 'Stayline Hotel',
   hotelAddress: '',
   loadingMessage: 'Preparing your hotel…',   // shown on the loading screen
+  licenseStart: '',                    // system admin: first day the client can use the app (yyyy-mm-dd)
+  licenseExpiry: '',                   // system admin: last day the client can use the app (yyyy-mm-dd)
   loadingScreen: 'random',             // system admin: random, classic, orbit, flip or pulse
   logoUrl: '',
   currency: 'QAR',
@@ -109,7 +112,7 @@ const SETTINGS_DEFAULT = {
   welcomeBody: 'Hello {{name}},\n\nAn account has been created for you at {{hotelName}}.\n\nApp link: {{appUrl}}\nUsername: {{username}}\nTemporary password: {{tempPassword}}\nRole: {{role}}\n\nYou will be asked to choose a new password the first time you sign in.'
 };
 /** Settings only the system administrator can change (email templates and the app link). */
-const SYSTEM_SETTINGS = ['loadingScreen', 'maxLoginAttempts', 'inactivityMinutes', 'defaultLanguage', 'defaultCurrency', 'auditorEmail', 'auditorAutoSend', 'intPosUrl', 'intTvUrl', 'intPhoneUrl', 'intCardUrl', 'appUrl', 'welcomeSubject', 'welcomeBody', 'otpSubject', 'otpBody', 'doneSubject', 'doneBody'];
+const SYSTEM_SETTINGS = ['licenseStart', 'licenseExpiry', 'loadingScreen', 'maxLoginAttempts', 'inactivityMinutes', 'defaultLanguage', 'defaultCurrency', 'auditorEmail', 'auditorAutoSend', 'intPosUrl', 'intTvUrl', 'intPhoneUrl', 'intCardUrl', 'appUrl', 'welcomeSubject', 'welcomeBody', 'otpSubject', 'otpBody', 'doneSubject', 'doneBody'];
 
 const CHARGE_CODES_DEFAULT = [
   // [code, description, department, type, taxable]
@@ -143,3 +146,30 @@ const ROOM_TYPES_DEFAULT = [
 ];
 
 const CHARGE_CATS = ['Food & beverage', 'Laundry', 'Minibar', 'Spa', 'Telephone', 'Transport', 'Event', 'Damage', 'Other'];
+
+/* Configuration permissions: for each setup area, view / edit / delete. The system administrator sets them per role
+ * in Roles & permissions. Defaults: Admin all; Manager as before (room types, rooms, company accounts editable);
+ * Accountant can see company accounts. Property Admin gets them by default except hotel details editing.
+ * Row layout: [permission, description, Admin, Manager, FrontDesk, Cashier, Housekeeping, Sales, Accountant]. */
+function cfgPermRows_() {
+  const areas = [
+    ['roomtypes', 'room types', [true, true, true], false],
+    ['rooms', 'rooms', [true, true, true], false],
+    ['rateplans', 'rate plans', [true, false, false], false],
+    ['rates', 'seasonal rates', [true, false, false], false],
+    ['chargecodes', 'charge codes', [true, false, false], false],
+    ['packages', 'packages', [true, false, false], false],
+    ['payments', 'payment methods', [false, false, false], false],
+    ['accounts', 'company accounts', [true, true, true], true],
+    ['settings', 'hotel details and branding', [false, false], false]
+  ];
+  const rows = [];
+  areas.forEach(a => {
+    const area = a[0], label = a[1], m = a[2], acc = a[3];
+    const actions = area === 'settings' ? ['view', 'edit'] : ['view', 'edit', 'delete'];
+    actions.forEach((act, i) => {
+      rows.push(['cfg.' + area + '.' + act, 'Configuration: ' + act + ' ' + label, true, m[i], false, false, false, false, act === 'view' ? acc : false]);
+    });
+  });
+  return rows;
+}

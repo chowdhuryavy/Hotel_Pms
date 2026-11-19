@@ -1,6 +1,6 @@
 const fs = require('fs'), vm = require('vm'), crypto = require('crypto');
 const SRC = '../';
-const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','Recovery','Roles','Billing','Ledger','Admin','EodReports','Menu','Updater'];
+const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','Recovery','Roles','Billing','Ledger','Admin','EodReports','FrontSearch','Menu','Updater'];
 const code = files.map(f => fs.readFileSync(SRC + f + '.gs', 'utf8')).join('\n;\n');
 
 // ---- in-memory Spreadsheet ----
@@ -199,10 +199,10 @@ if (require.main === module) {
   const rack = run("rackData(TOK, bizDate_(), 7)");
   ok(rack.rooms.length === 16 + 0 || rack.rooms.length > 10, 'rack returns ' + rack.rooms.length + ' rooms');
   // ---- advanced: migration, company accounts, guest alerts, shifts, late checkout, forecast, reports, housekeeping ----
-  ok(run('rows_(TBL.PERMS).length') === 36, 'permission matrix has 36 rows');
+  ok(run('rows_(TBL.PERMS).length') === run('PERMISSIONS.length'), 'permission matrix has one row per permission');
   ok(run("rows_(TBL.CHARGES).some(c => c.code === 'LCO')"), 'late checkout charge code LCO present');
   run('migrateSchema_()'); run('migrateSchema_()');
-  ok(run('rows_(TBL.PERMS).length') === 36 && run("rows_(TBL.CHARGES).filter(c => c.code === 'LCO').length") === 1, 'migration is idempotent');
+  ok(run('rows_(TBL.PERMS).length') === run('PERMISSIONS.length') && run("rows_(TBL.CHARGES).filter(c => c.code === 'LCO').length") === 1, 'migration is idempotent');
   run("rows_(TBL.ROOMS).forEach(r => patch_(TBL.ROOMS, r._row, { housekeeping: 'Clean' }))");
 
   const acc = tryRun("saveAccount(TOK, { name: 'Acme Corp', code: 'ACME', creditLimit: 500 })");
@@ -290,9 +290,11 @@ if (require.main === module) {
   const PTOK = tryRun("login('propadmin','Prop12345')").v.token;
   ok(!!PTOK, 'property admin signs in');
   ok(!!tryRun("listRoles('" + PTOK + "')").e, 'property admin cannot manage roles');
-  ok(!!tryRun("saveSettings('" + PTOK + "', { appUrl: 'https://evil.example' })").e === false && run("settings_().appUrl") !== 'https://evil.example', 'property admin cannot change the app link');
+  ok(run("settings_().appUrl") !== 'https://evil.example' && !!tryRun("saveSettings('" + PTOK + "', { appUrl: 'https://evil.example' })").e, 'property admin cannot change the app link');
   ok(!!tryRun("saveUser('" + PTOK + "', { username: 'boss', name: 'Boss', role: 'Admin', password: 'Boss12345', active: true })").e, 'property admin cannot give the Admin role');
-  ok(!tryRun("saveSettings('" + PTOK + "', { hotelName: 'Perfection Hotel' })").e, 'property admin can change hotel settings');
+  ok(!!tryRun("saveSettings('" + PTOK + "', { hotelName: 'Perfection Hotel' })").e && run("permMap_('Property Admin')['cfg.settings.edit']") === false, 'property admin cannot change hotel details by default');
+  ok(run("permMap_('Property Admin')['cfg.roomtypes.edit']") === true && run("permMap_('Property Admin')['cfg.accounts.delete']") === true, 'property admin has configuration rights for rooms, rates and accounts by default');
+  ok(run("permMap_('Manager')['cfg.payments.edit']") === false && run("permMap_('Manager')['cfg.roomtypes.edit']") === true, 'manager edits room types only, not payment methods');
   const w = tryRun("saveUser(TOK, { username: 'newbie', name: 'New Bie', email: 'newbie@example.com', role: 'FrontDesk', active: true })");
   ok(!w.e && w.v.tempPassword === '', 'new user with email gets no temporary password on screen');
   const welcome = mailbox[mailbox.length - 1] || {};
@@ -456,5 +458,20 @@ if (require.main === module) {
   ok(run("runReport(TOK,'eod','','').sections.map(s => s.key).join()") === 'mgrflash,trial,guest,package,aging', 'end-of-day report has the five sections');
   ok(run("runReport(TOK,'eod','','').sections.every(s => s.rows.every(r => r.length === s.headers.length))"), 'every end-of-day row matches its headers');
   ok(run("runReport(TOK,'eod','','').sections.find(s => s.key === 'trial').headers.join()") === 'Code,Lines,Debit (charges),Credit (payments),Net', 'trial balance columns');
+  // Licence window: only the system administrator gets in once it has ended
+  ok(!tryRun("saveSettings(TOK, {licenseExpiry: '2000-01-01'})").e, 'system admin sets an expiry date');
+  ok(!!tryRun("auth_(CTOK)").e, 'a cashier is blocked once the licence has ended');
+  ok(!tryRun("auth_(TOK)").e, 'the system administrator still gets in after the licence ends');
+  ok(!!tryRun("saveSettings(TOK, {licenseStart: '2030-01-01', licenseExpiry: '2029-01-01'})").e, 'licence expiry cannot be before its start');
+  ok(!!tryRun("saveSettings(TOK, {licenseExpiry: '31/12/2026'})").e, 'licence date must be yyyy-mm-dd');
+  ok(!tryRun("saveSettings(TOK, {licenseExpiry: '2099-12-31'})").e && !tryRun("auth_(CTOK)").e, 'renewing the licence restores access');
+  ok(!tryRun("saveSettings(TOK, {licenseStart: '', licenseExpiry: ''})").e, 'licence dates can be cleared');
+  // Front desk lists: each search uses its own filters
+  ok(run("frontSearch(TOK,'inhouse',{}).rows.every(r => r.status === 'In-House')"), 'in-house list only holds in-house guests');
+  ok(run("frontSearch(TOK,'arrivals',{from:'2000-01-01',to:'2100-01-01'}).rows.every(r => r.status !== 'No-Show' && r.status !== 'Cancelled')"), 'arrivals exclude no-shows and cancellations');
+  ok(run("frontSearch(TOK,'departures',{from:'2000-01-01',to:'2100-01-01',balance:'due'}).rows.every(r => r.balance > 0)"), 'departures can show balance due only');
+  ok(run("frontSearch(TOK,'inhouse',{q:'no-such-guest-zzz'}).count") === 0, 'a search with no match returns nothing');
+  ok(!!tryRun("frontSearch(TOK,'arrivals',{from:'2026-02-02',to:'2026-01-01'})").e, 'arrivals reject a "to" date before "from"');
+  ok(!!tryRun("frontSearch(TOK,'rooms',{})").e, 'unknown front desk list is refused');
   console.log('done');
 }

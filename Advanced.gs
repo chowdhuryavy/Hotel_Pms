@@ -30,7 +30,7 @@ function getAccount(token, id) {
   };
 }
 function saveAccount(token, d) {
-  const s = auth_(token, 'accounts.manage');
+  const s = auth_(token, 'cfg.accounts.edit');
   const name = String(d.name || '').trim();
   if (!name) throw new Error('Account name is required.');
   return withLock_(() => {

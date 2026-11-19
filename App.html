@@ -33,12 +33,43 @@ function rpc(fn, ...args) {
       .withFailureHandler(err => {
         const m = String((err && err.message) || err);
         if (m.indexOf('SESSION_EXPIRED') >= 0) sessionEnd('Your session has expired. Please sign in again.');
+        if (m.indexOf('LICENSE_BLOCKED') >= 0) {
+          const msg = m.slice(m.indexOf('LICENSE_BLOCKED') + 15).replace(/^:\s*/, '');
+          if (S.token) sessionEnd(msg);
+          reject(new Error(msg));
+          return;
+        }
         reject(new Error(m.replace(/^(Error|Exception):\s*/, '')));
       })[fn](...args);
   });
 }
 const api = (fn, ...a) => { progressStart_(); return rpc(fn, S.token, ...a).finally(progressEnd_); };
 let PROGRESS_N = 0;
+let VIEW_PENDING = false;          // true while a page is loading its data from the sheet
+/* Keeps the loading screen up until the first page has its data (or 20 seconds have passed). */
+function waitSplash_() {
+  VIEW_PENDING = true;               // the first page has not drawn yet
+  const t0 = Date.now();
+  const tick = () => {
+    if ((!VIEW_PENDING && PROGRESS_N === 0) || Date.now() - t0 > 20000) hideSplash();
+    else setTimeout(tick, 120);
+  };
+  tick();
+}
+/* Button feedback: every .btn spins while its action runs, and stops when the data has arrived. */
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.btn');
+  if (!b || b.disabled || b.hasAttribute('data-nospin')) return;
+  b.classList.add('spin-on');
+  const t0 = Date.now();
+  const tick = () => {
+    if (!b.isConnected) return;
+    const busy = (PROGRESS_N > 0 || VIEW_PENDING) && Date.now() - t0 < 20000;
+    if (busy || Date.now() - t0 < 450) return setTimeout(tick, 100);
+    b.classList.remove('spin-on');
+  };
+  setTimeout(tick, 60);
+}, true);
 function progressStart_() { PROGRESS_N++; const p = document.getElementById('progress'); if (p) p.classList.add('on'); }
 function progressEnd_() { PROGRESS_N = Math.max(0, PROGRESS_N - 1); if (!PROGRESS_N) { const p = document.getElementById('progress'); if (p) p.classList.remove('on'); } }
 function skeleton_() {
@@ -175,7 +206,11 @@ async function doLogin(e) {
     const r = await rpc('login', f.u.value, f.p.value);
     try { localStorage.setItem('stayline_user', f.u.value); } catch (x) { /* private mode: nothing to remember */ }
     S.token = r.token; S.user = r.user; S.perms = r.perms; S.settings = r.settings; S.bizDate = r.bizDate;
-    saveSession(); brand(); startApp();
+    saveSession(); brand();
+    const sp = $('splash'); if (sp) sp.classList.remove('gone');
+    splashMsg('Loading your hotel…');
+    startApp();
+    waitSplash_();
   } catch (err) {
     $('loginErr').textContent = err.message;
     f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake');
@@ -332,6 +367,78 @@ async function integTest(channel) {
 
 /* ---------- Guest lists: in-house, arrivals, departures ---------- */
 let LISTS = [];
+/* Sub-header buttons shown inside each front desk page */
+function frontTabs_(active) {
+  const T = [['frontdesk', 'Front desk board'], ['arrivals', 'Arrivals'], ['departures', 'Departures'], ['inhouse', 'In-house guests']];
+  return `<div class="tabs fd-tabs" role="tablist">${T.map(([k, l]) => `<button class="btn ghost${k === active ? ' on' : ''}" role="tab" aria-selected="${k === active}" onclick="go('${k}')">${l}</button>`).join('')}</div>`;
+}
+/* Each front desk list has its own filters. Search matches name, reservation, room, group, company and phone. */
+const FL_CFG = {
+  arrivals: { title: 'Arrivals', dateLabel: 'Arrival date', cols: ['Arrival', 'Res #', 'Guest', 'Phone', 'Room', 'Type', 'Nights', 'Company', 'Status', ''],
+    filters: `<label><span>Arrival from</span><input type="date" name="from" value="{from}"></label>
+      <label><span>Arrival to</span><input type="date" name="to" value="{to}"></label>
+      <label><span>Status</span><select name="status"><option value="">All</option><option value="Reserved">Expected</option><option value="In-House">Checked in</option><option value="Departed">Checked out</option></select></label>
+      <label><span>Room type</span><input name="roomType" placeholder="e.g. DBL"></label>
+      <label class="fl-check"><input type="checkbox" name="vip" value="true"><span>VIP only</span></label>` },
+  departures: { title: 'Departures', dateLabel: 'Departure date', cols: ['Departure', 'Res #', 'Guest', 'Room', 'Company', 'Balance', 'Status', ''],
+    filters: `<label><span>Departure from</span><input type="date" name="from" value="{from}"></label>
+      <label><span>Departure to</span><input type="date" name="to" value="{to}"></label>
+      <label><span>Status</span><select name="status"><option value="">All</option><option value="In-House">Still in house</option><option value="Departed">Checked out</option></select></label>
+      <label><span>Balance</span><select name="balance"><option value="">All</option><option value="due">Balance due</option><option value="clear">Settled</option></select></label>
+      <label><span>Room</span><input name="roomNo" placeholder="e.g. 204"></label>` },
+  inhouse: { title: 'In-house guests', cols: ['Room', 'Guest', 'Phone', 'Arrival', 'Departure', 'Nights', 'Company', 'Balance', ''],
+    filters: `<label><span>Room</span><input name="roomNo" placeholder="e.g. 204"></label>
+      <label><span>Room type</span><input name="roomType" placeholder="e.g. DBL"></label>
+      <label><span>Company</span><input name="company" placeholder="Company name"></label>
+      <label><span>Balance</span><select name="balance"><option value="">All</option><option value="due">Balance due</option><option value="clear">Settled</option></select></label>
+      <label class="fl-check"><input type="checkbox" name="vip" value="true"><span>VIP only</span></label>` }
+};
+let FL_LAST = null;
+async function pgFrontList(kind) {
+  const C = FL_CFG[kind];
+  const bd = S.bizDate;
+  const from = FL_DEFAULTS_[kind] && FL_DEFAULTS_[kind].from ? FL_DEFAULTS_[kind].from : bd;
+  const filters = C.filters.replace('{from}', from).replace('{to}', bd);
+  setView(`<h1>${C.title}<small>${esc(dmy(bd))}</small></h1>${frontTabs_(kind)}
+    <div class="card">
+      <form class="fl-bar" onsubmit="flSearch(event,'${kind}')">
+        <label class="fl-q"><span>Search</span><input name="q" type="search" placeholder="${kind === 'inhouse' ? 'Room, guest, phone, reservation, group, company' : 'Guest, reservation, phone, group, company'}"></label>
+        ${filters}
+        <div class="fl-acts"><button class="btn" type="submit">Search</button><button class="btn ghost" type="button" onclick="go('${kind}')">Reset</button></div>
+      </form>
+      <div id="flOut"><div class="loading">Loading…</div></div>
+    </div>`);
+  await flLoad_(kind, {});
+}
+const FL_DEFAULTS_ = { arrivals: {}, departures: {}, inhouse: {} };
+async function flLoad_(kind, f) {
+  const r = await api('frontSearch', kind, f);
+  FL_LAST = { kind: kind, r: r };
+  const C = FL_CFG[kind];
+  const summary = `<div class="fl-sum"><span><b>${r.count}</b> ${kind === 'inhouse' ? 'in house' : kind === 'arrivals' ? 'arrivals' : 'departures'}</span>` +
+    `<span>Balance due <b class="${r.balanceDue > 0 ? 'neg' : ''}">${num(r.balanceDue)}</b></span>` +
+    `<span class="muted">${kind === 'inhouse' ? '' : esc(dmy(r.from)) + ' to ' + esc(dmy(r.to))}</span></div>`;
+  const rowHtml = x => {
+    const act = [];
+    if (x.status === 'Reserved' && can('frontdesk.checkin')) act.push(`<button class="btn sm ok" onclick="ciModal('${esc(x.resNo)}')">Check in</button>`);
+    if (x.status === 'In-House' && can('frontdesk.checkout')) act.push(`<button class="btn sm" onclick="coAct('${esc(x.resNo)}')">Check out</button>`);
+    if (x.roomNo) act.push(`<button class="btn sm ghost" onclick="go('billing','${esc(x.roomNo)}')">Billing</button>`);
+    const guest = (x.vip ? '★ ' : '') + esc(x.guestName);
+    if (kind === 'arrivals') return tr([esc(dmy(x.arrival)), lnk(x.resNo), guest, esc(x.phone), esc(x.roomNo), esc(x.roomType), x.nights, esc(x.company), pill(x.status), act.join(' ')]);
+    if (kind === 'departures') return tr([esc(dmy(x.departure)), lnk(x.resNo), guest, esc(x.roomNo), esc(x.company), balCell(x.balance), pill(x.status), act.join(' ')]);
+    return tr([esc(x.roomNo), guest, esc(x.phone), esc(dmy(x.arrival)), esc(dmy(x.departure)), x.nights, esc(x.company), balCell(x.balance), act.join(' ')]);
+  };
+  $('flOut').innerHTML = summary + table(C.cols, r.rows.map(rowHtml));
+}
+function flSearch(e, kind) {
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(e.target));
+  const f = {};
+  Object.keys(d).forEach(k => { if (d[k] !== '') f[k] = d[k]; });
+  if (d.vip === undefined) f.vip = false;
+  if (f.from && f.to && f.to < f.from) { toast('"To" must be on or after "From".', true); return; }
+  flLoad_(kind, f).catch(err => toast(err.message, true));
+}
 async function pgLists() {
   const tab = ['inHouse', 'arrivals', 'departures'].indexOf(S.param) >= 0 ? S.param : 'inHouse';
   const d = await api('frontLists');
@@ -462,6 +569,9 @@ const NAV = [
   { k: 'dashboard', l: 'Dashboard', p: ['dashboard.view'] },
   { k: 'search', l: 'Search', p: ['reservations.view'] },
   { k: 'frontdesk', l: 'Front desk', p: ['frontdesk.checkin', 'frontdesk.checkout'] },
+  { k: 'arrivals', l: 'Arrivals', p: ['reservations.view'], sub: true },
+  { k: 'departures', l: 'Departures', p: ['reservations.view'], sub: true },
+  { k: 'inhouse', l: 'In-house guests', p: ['reservations.view'], sub: true },
   { k: 'rack', l: 'Room rack', p: ['rack.view'] },
   { k: 'lists', l: 'Guest lists', p: ['reservations.view'] },
   { k: 'reservations', l: 'Reservations', p: ['reservations.view'] },
@@ -480,7 +590,7 @@ const NAV = [
   { k: 'rates', l: 'Rates & charges', p: ['rates.view'] },
   { k: 'reports', l: 'Reports', p: ['reports.view'] },
   { k: 'log', l: 'Audit log', p: ['audit.view'] },
-  { k: 'admin', l: 'Property admin', p: ['users.manage', 'settings.manage', 'rooms.manage', 'rates.manage'] },
+  { k: 'admin', l: 'Property admin', p: ['users.manage', 'cfg.roomtypes.view', 'cfg.rooms.view', 'cfg.rateplans.view', 'cfg.rates.view', 'cfg.chargecodes.view', 'cfg.packages.view', 'cfg.payments.view', 'cfg.accounts.view', 'cfg.settings.view'] },
   { k: 'sysadmin', l: 'System admin', p: ['system.manage'] }
 ];
 function firstPage() { const f = NAV.find(n => n.k && canAny(n.p)); return f ? f.k : 'password'; }
@@ -500,14 +610,30 @@ function buildNav() {
   NAV.forEach(n => {
     if (n.h) { flush(); head = n.h; return; }
     if (!canAny(n.p)) return;
-    items += `<a data-p="${n.k}" class="${n.k === S.page ? 'on' : ''}" onclick="go('${n.k}')">${esc(n.l)}</a>`;
+    items += `<a data-p="${n.k}" class="${n.sub ? 'sub ' : ''}${n.k === S.page ? 'on' : ''}" onclick="go('${n.k}')">${esc(n.l)}</a>`;
   });
   flush();
   $('nav').innerHTML = html;
-  $('bizbox').innerHTML = `Business date<b>${esc(S.bizDate)}</b>`;
+  renderLicence_();
+}
+/* Sidebar licence box: start and expiry dates, days left. Amber within 30 days of expiry, red when ended. */
+function renderLicence_() {
+  const el = $('licbox'); if (!el) return;
+  const st = S.settings || {}, a = st.licenseStart || '', e = st.licenseExpiry || '';
+  if (!a && !e) { el.className = 'licbox'; el.innerHTML = '<span>Licence</span><b>Not set</b>'; return; }
+  const d = new Date(), p2 = n => String(n).padStart(2, '0');
+  const t = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+  const days = e ? Math.round((Date.parse(e) - Date.parse(t)) / 86400000) : null;
+  let cls = '', note;
+  if (a && t < a) { cls = 'lic-future'; note = 'Starts ' + dmy(a); }
+  else if (e && t > e) { cls = 'lic-bad'; note = 'Ended ' + dmy(e); }
+  else if (days !== null && days <= 30) { cls = 'lic-warn'; note = days + ' day(s) left'; }
+  else note = days !== null ? days + ' days left' : 'Active';
+  el.className = 'licbox ' + cls;
+  el.innerHTML = `<span>Licence</span><b>${esc(dmy(a || '-'))} to ${esc(dmy(e || '-'))}</b><small>${esc(note)}</small>`;
 }
 const PAGES = {
-  dashboard: pgDashboard, frontdesk: pgFrontDesk, rack: pgRack, reservations: pgReservations, res: pgRes,
+  dashboard: pgDashboard, frontdesk: pgFrontDesk, arrivals: () => pgFrontList('arrivals'), departures: () => pgFrontList('departures'), inhouse: () => pgFrontList('inhouse'), rack: pgRack, reservations: pgReservations, res: pgRes,
   newres: pgNewRes, guests: pgGuests, guest: pgGuest, groups: pgGroups, group: pgGroup,
   housekeeping: pgHousekeeping, cashier: pgCashier, nightaudit: pgNightAudit, rates: pgRates,
   reports: pgReports, log: pgLog, admin: () => pgAdmin('prop'), sysadmin: () => pgAdmin('sys'), ar: pgAR, password: pgPassword, search: pgSearch, billing: pgBilling, lists: pgLists,
@@ -538,7 +664,8 @@ function renderPage_(page, param) {
   const label = (NAV.find(n => n.k === page) || {}).l || 'Change password';
   document.title = label + ' · ' + ((S.settings && S.settings.appName) || 'Stayline');
   setView(skeleton_());
-  PAGES[page]().catch(e => setView(`<div class="card err">${esc(e.message)}</div>`));
+  VIEW_PENDING = true;
+  PAGES[page]().catch(e => setView(`<div class="card err">${esc(e.message)}</div>`)).finally(() => { VIEW_PENDING = false; });
 }
 window.addEventListener('hashchange', () => {
   if (!S.token) return;
@@ -587,7 +714,7 @@ async function pgFrontDesk() {
   };
   const rowsFor = list => list.map(r => tr([lnk(r.resNo), (r.vip ? '★ ' : '') + esc(r.guestName), esc(r.roomNo), esc(r.roomType), esc(r.arrival), esc(r.departure), balCell(r.balance), actions(r)]));
   const H = ['Res #', 'Guest', 'Room', 'Type', 'Arrival', 'Departure', 'Balance', ''];
-  setView(`<h1>Front desk<small>${esc(b.bizDate)}</small></h1>
+  setView(`<h1>Front desk<small>${esc(b.bizDate)}</small></h1>${frontTabs_('frontdesk')}
     <div class="head-row"><div class="acts">${bizPill()}</div><div class="acts">
       ${can('reservations.create') && can('frontdesk.checkin') ? '<button class="btn" onclick="walkInModal()">+ Walk-in</button>' : ''}
       ${can('reservations.create') ? '<button class="btn ghost" onclick="go(\'newres\')">+ Reservation</button>' : ''}
@@ -1175,8 +1302,8 @@ async function pgRates() {
   CODES = codes;
   setView(`<h1>Rates & charges</h1>
     <div class="grid2">
-      <div class="card"><h3>Rate plans</h3>${table(['Code', 'Name', 'Active', ''], plans.map(p => tr([esc(p.code), esc(p.name), pill(p.active ? 'Active' : 'Closed'), can('rates.manage') ? `<button class="btn sm ghost" onclick="planModal('${esc(p.code)}')">Edit</button> ${delBtn_('ratePlan', p.code, 'rates.manage')}` : ''])))}
-        ${can('rates.manage') ? '<div class="acts" style="margin-top:10px"><button class="btn ghost" onclick="planModal()">+ Rate plan</button></div>' : ''}</div>
+      <div class="card"><h3>Rate plans</h3>${table(['Code', 'Name', 'Active', ''], plans.map(p => tr([esc(p.code), esc(p.name), pill(p.active ? 'Active' : 'Closed'), (can('cfg.rateplans.edit') ? `<button class="btn sm ghost" onclick="planModal('${esc(p.code)}')">Edit</button> ` : '') + delBtn_('ratePlan', p.code, 'cfg.rateplans.delete')])))}
+        ${can('cfg.rateplans.edit') ? '<div class="acts" style="margin-top:10px"><button class="btn ghost" onclick="planModal()">+ Rate plan</button></div>' : ''}</div>
       <div class="card"><h3>Quote a stay</h3>
         <form class="toolbar" onsubmit="quoteSubmit(event)">
           <label><span>Room type</span><select name="roomType">${types.map(t => `<option value="${esc(t.code)}">${esc(t.name)}</option>`).join('')}</select></label>
@@ -1186,12 +1313,12 @@ async function pgRates() {
           <button class="btn" type="submit">Quote</button>
         </form><div id="quoteOut" class="muted">Pick a room type, plan and dates.</div></div>
     </div>
-    <div class="card"><div class="head-row"><h3>Seasonal rates</h3>${can('rates.manage') ? '<div class="acts"><button class="btn" onclick="rateModal()">+ Rate</button></div>' : ''}</div>
+    <div class="card"><div class="head-row"><h3>Seasonal rates</h3>${can('cfg.rates.edit') ? '<div class="acts"><button class="btn" onclick="rateModal()">+ Rate</button></div>' : ''}</div>
       ${table(['Plan', 'Room type', 'From', 'To', 'Rate / night', 'Active', ''], rates.map(r => tr([esc(r.plan), esc(r.roomType), esc(r.startDate), esc(r.endDate), num(r.rate), r.active ? 'Yes' : 'No',
-        can('rates.manage') ? `<button class="btn sm ghost" onclick="rateModal('${esc(r.id)}')">Edit</button> ${delBtn_('rate', r.id, 'rates.manage')}` : ''])))}
+        (can('cfg.rates.edit') ? `<button class="btn sm ghost" onclick="rateModal('${esc(r.id)}')">Edit</button> ` : '') + delBtn_('rate', r.id, 'cfg.rates.delete')])))}
       <p class="muted">A night uses a seasonal rate for its plan and room type if one covers that date; otherwise the BAR rate for the room type; otherwise the room type's base rate.</p></div>
-    <div class="card"><div class="head-row"><h3>Charge codes</h3>${can('rates.manage') ? '<div class="acts"><button class="btn ghost" onclick="codeModal()">+ Charge code</button></div>' : ''}</div>
-      ${table(['Code', 'Description', 'Department', 'Type', 'Taxable', 'Active', ''], codes.map(c => tr([esc(c.code), esc(c.description), esc(c.department), esc(c.type), c.taxable ? 'Yes' : 'No', c.active ? 'Yes' : 'No', can('rates.manage') ? `<button class="btn sm ghost" onclick="codeModal('${esc(c.code)}')">Edit</button> ${delBtn_('chargeCode', c.code, 'rates.manage')}` : ''])))}</div>`);
+    <div class="card"><div class="head-row"><h3>Charge codes</h3>${can('cfg.chargecodes.edit') ? '<div class="acts"><button class="btn ghost" onclick="codeModal()">+ Charge code</button></div>' : ''}</div>
+      ${table(['Code', 'Description', 'Department', 'Type', 'Taxable', 'Active', ''], codes.map(c => tr([esc(c.code), esc(c.description), esc(c.department), esc(c.type), c.taxable ? 'Yes' : 'No', c.active ? 'Yes' : 'No', (can('cfg.chargecodes.edit') ? `<button class="btn sm ghost" onclick="codeModal('${esc(c.code)}')">Edit</button> ` : '') + delBtn_('chargeCode', c.code, 'cfg.chargecodes.delete')])))}</div>`);
 }
 async function quoteSubmit(e) {
   e.preventDefault();
@@ -1305,7 +1432,7 @@ async function pgLog() {
  * ADMINISTRATION
  * ============================================================ */
 // [key, label, permission, scope]. 'prop' = property admin (hotel operations); 'sys' = system administrator only.
-const ADM_TABS = [['users', 'Staff users', 'users.manage', 'prop'], ['settings', 'Hotel settings', 'settings.manage', 'prop'], ['types', 'Room types', 'rooms.manage', 'prop'], ['rooms', 'Rooms', 'rooms.manage', 'prop'], ['packages', 'Packages', 'rates.manage', 'prop'], ['payments', 'Payment methods', 'settings.manage', 'prop'],
+const ADM_TABS = [['users', 'Staff users', 'users.manage', 'prop'], ['settings', 'Hotel settings', 'cfg.settings.view', 'prop'], ['types', 'Room types', 'cfg.roomtypes.view', 'prop'], ['rooms', 'Rooms', 'cfg.rooms.view', 'prop'], ['packages', 'Packages', 'cfg.packages.view', 'prop'], ['payments', 'Payment methods', 'cfg.payments.view', 'prop'],
   ['padmins', 'Property admins', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['emails', 'Email messages', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys']];
 async function pgAdmin(scope) {
   const tabs = ADM_TABS.filter(t => t[3] === scope && can(t[2]));
@@ -1323,6 +1450,7 @@ async function pgAdmin(scope) {
       table(['Name', 'Username', 'Email', 'Active', 'Last login', ''], us.map(u => tr([esc(u.name), esc(u.username), esc(u.email), u.active ? 'Yes' : 'No', esc(u.lastLogin), `<button class="btn sm ghost" onclick="userModal('${esc(u.id)}')">Edit</button>`])));
   } else if (ADM === 'settings') {
     const s = await api('getSettings');
+    if (!can('cfg.settings.edit')) body = readOnlySettingsHtml_(s); else
     body = formHtml('fSt', [
       { name: 'appName', label: 'App name', value: s.appName, required: true },
       { name: 'hotelName', label: 'Hotel name', value: s.hotelName, required: true },
@@ -1339,14 +1467,14 @@ async function pgAdmin(scope) {
     ], 'Save settings', false) + `<p class="muted">Business date: <b>${esc(s.businessDate)}</b> (changes only through night audit).</p>`;
   } else if (ADM === 'payments') {
     const ms = await api('listPaymentMethods');
-    body = `<div class="head-row"><h3>Payment methods</h3><div class="acts"><button class="btn" onclick="paymentMethodModal()">+ Method</button></div></div>
+    body = `<div class="head-row"><h3>Payment methods</h3><div class="acts">${can('cfg.payments.edit') ? '<button class="btn" onclick="paymentMethodModal()">+ Method</button>' : ''}</div></div>
       <p class="muted">A payment method is how a guest pays: cash, card, bank, cheque, or city ledger (AR). Each one posts with a payment charge code. A city ledger method bills the folio to a company account.</p>` +
-      table(['Code', 'Name', 'Kind', 'Posts with', 'Company account', 'Active', ''], ms.map(m => tr([esc(m.code), esc(m.name), esc(m.kind), esc(m.chargeCode), esc(m.accountId), m.active ? 'Yes' : 'No', `<button class="btn sm ghost" onclick="paymentMethodModal('${esc(m.code)}')">Edit</button> ${delBtn_('paymentMethod', m.code, 'settings.manage')}`])));
+      table(['Code', 'Name', 'Kind', 'Posts with', 'Company account', 'Active', ''], ms.map(m => tr([esc(m.code), esc(m.name), esc(m.kind), esc(m.chargeCode), esc(m.accountId), m.active ? 'Yes' : 'No', (can('cfg.payments.edit') ? `<button class="btn sm ghost" onclick="paymentMethodModal('${esc(m.code)}')">Edit</button> ` : '') + delBtn_('paymentMethod', m.code, 'cfg.payments.delete')])));
   } else if (ADM === 'packages') {
     const pk = await api('listPackages');
-    body = `<div class="head-row"><h3>Packages</h3><div class="acts"><button class="btn" onclick="packageModal()">+ Package</button></div></div>
+    body = `<div class="head-row"><h3>Packages</h3><div class="acts">${can('cfg.packages.edit') ? '<button class="btn" onclick="packageModal()">+ Package</button>' : ''}</div></div>
       <p class="muted">A package is a fixed price posted to a charge code, once per stay or once per night. Staff post packages from the room's billing screen.</p>` +
-      table(['Code', 'Name', 'Charge code', 'Amount', 'Per night', 'Active', ''], pk.map(p => tr([esc(p.code), esc(p.name), esc(p.chargeCode), num(p.amount), p.perNight ? 'Yes' : 'No', p.active ? 'Yes' : 'No', `<button class="btn sm ghost" onclick="packageModal('${esc(p.code)}')">Edit</button> ${delBtn_('package', p.code, 'rates.manage')}`])));
+      table(['Code', 'Name', 'Charge code', 'Amount', 'Per night', 'Active', ''], pk.map(p => tr([esc(p.code), esc(p.name), esc(p.chargeCode), num(p.amount), p.perNight ? 'Yes' : 'No', p.active ? 'Yes' : 'No', (can('cfg.packages.edit') ? `<button class="btn sm ghost" onclick="packageModal('${esc(p.code)}')">Edit</button> ` : '') + delBtn_('package', p.code, 'cfg.packages.delete')])));
   } else if (ADM === 'system') {
     const s = await api('getSettings');
     const opt = (v, l) => [v, l];
@@ -1355,6 +1483,8 @@ async function pgAdmin(scope) {
       { name: 'defaultCurrency', label: 'Default currency code (used when the hotel has none)', value: s.defaultCurrency },
       { name: 'auditorEmail', label: 'Auditor email (night audit and AR reports)', value: s.auditorEmail, wide: true },
       { name: 'auditorAutoSend', label: 'Email the auditor after each night audit', type: 'select', options: ['false', 'true'], value: String(s.auditorAutoSend) },
+      { name: 'licenseStart', label: 'Licence start: first day the client can use the app', type: 'date', value: s.licenseStart || '' },
+      { name: 'licenseExpiry', label: 'Licence expiry: last day the app is open (renew before this)', type: 'date', value: s.licenseExpiry || '' },
       { name: 'loadingScreen', label: 'Loading screen style (default for all users)', type: 'select', options: [opt('random', 'Random each time'), opt('classic', 'Classic'), opt('orbit', 'Orbit'), opt('flip', 'Flip'), opt('pulse', 'Pulse')], value: s.loadingScreen || 'random' },
       { name: 'maxLoginAttempts', label: 'Wrong passwords before the account is locked (minimum 5)', type: 'number', min: 5, value: s.maxLoginAttempts || 5 },
       { name: 'inactivityMinutes', label: 'Sign out after this many idle minutes', type: 'number', min: 1, value: s.inactivityMinutes || 30 },
@@ -1379,12 +1509,12 @@ async function pgAdmin(scope) {
       + `<div class="acts"><button class="btn ghost" type="button" onclick="testEmail()">Send the reset and password emails to me as a test</button></div>`;
   } else if (ADM === 'types') {
     const ts = await api('listRoomTypes');
-    body = `<div class="head-row"><h3>Room types</h3><div class="acts"><button class="btn" onclick="typeModal()">+ Room type</button></div></div>` +
-      table(['Code', 'Name', 'Base rate', 'Max adults', 'Description', ''], ts.map(t => tr([esc(t.code), esc(t.name), num(t.baseRate), t.maxAdults, esc(t.description), `<button class="btn sm ghost" onclick="typeModal('${esc(t.code)}')">Edit</button> ${delBtn_('roomType', t.code, 'rooms.manage')}`])));
+    body = `<div class="head-row"><h3>Room types</h3><div class="acts">${can('cfg.roomtypes.edit') ? '<button class="btn" onclick="typeModal()">+ Room type</button>' : ''}</div></div>` +
+      table(['Code', 'Name', 'Base rate', 'Max adults', 'Description', ''], ts.map(t => tr([esc(t.code), esc(t.name), num(t.baseRate), t.maxAdults, esc(t.description), (can('cfg.roomtypes.edit') ? `<button class="btn sm ghost" onclick="typeModal('${esc(t.code)}')">Edit</button> ` : '') + delBtn_('roomType', t.code, 'cfg.roomtypes.delete')])));
   } else if (ADM === 'rooms') {
     const rs = await api('listRooms');
-    body = `<div class="head-row"><h3>Rooms</h3><div class="acts"><button class="btn" onclick="roomModal()">+ Room</button></div></div>` +
-      table(['Room', 'Type', 'Floor', 'Status', 'Housekeeping', 'Reason', ''], rs.map(r => tr([esc(r.roomNo), esc(r.type), esc(r.floor), pill(r.status === 'Active' ? 'Active' : 'Out'), pill(r.housekeeping), esc(r.statusReason), can('rooms.manage') ? `<button class="btn sm ghost" onclick="roomModal('${esc(r.roomNo)}')">Edit</button> ${delBtn_('room', r.roomNo, 'rooms.manage')}` : ''])));
+    body = `<div class="head-row"><h3>Rooms</h3><div class="acts">${can('cfg.rooms.edit') ? '<button class="btn" onclick="roomModal()">+ Room</button>' : ''}</div></div>` +
+      table(['Room', 'Type', 'Floor', 'Status', 'Housekeeping', 'Reason', ''], rs.map(r => tr([esc(r.roomNo), esc(r.type), esc(r.floor), pill(r.status === 'Active' ? 'Active' : 'Out'), pill(r.housekeeping), esc(r.statusReason), can('cfg.rooms.edit') ? `<button class="btn sm ghost" onclick="roomModal('${esc(r.roomNo)}')">Edit</button> ${delBtn_('room', r.roomNo, 'cfg.rooms.delete')}` : ''])));
   } else {
     const rl = await api('listRoles');
     body = `<div class="head-row"><h3>Roles &amp; permissions</h3><div class="acts"><button class="btn" onclick="roleModal()">+ Role</button></div></div>
@@ -1393,7 +1523,7 @@ async function pgAdmin(scope) {
         `<div class="acts"><button class="btn sm ghost" onclick="permModal('${esc(r.name)}')">${r.builtIn ? 'View' : 'Permissions'}</button>${r.builtIn || r.users ? '' : `<button class="btn sm danger" onclick="removeRole('${esc(r.name)}')">Delete</button>`}</div>`])));
   }
   setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1><p class="muted">${scope === 'sys' ? 'System administrator only: property admin accounts, roles and permissions, system settings and email templates.' : 'Hotel operations: staff users, hotel settings, rooms, packages and payment methods.'}</p>${bar}<div class="card">${body}</div>`);
-  if (ADM === 'settings') bindForm('fSt', async d => {
+  if (ADM === 'settings' && can('cfg.settings.edit')) bindForm('fSt', async d => {
     const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, hotelAddress: d.hotelAddress, logoUrl: d.logoUrl, currency: d.currency,
       taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit, loadingMessage: d.loadingMessage });
     S.settings = Object.assign({}, S.settings, { appName: out.appName, hotelName: out.hotelName, logoUrl: out.logoUrl, currency: out.currency });
@@ -1418,10 +1548,21 @@ async function pgAdmin(scope) {
   if (ADM === 'system') bindForm('fSys', async d => {
     await api('saveSettings', { intPosUrl: d.intPosUrl, intTvUrl: d.intTvUrl,
       intPhoneUrl: d.intPhoneUrl, intCardUrl: d.intCardUrl, defaultLanguage: d.defaultLanguage, defaultCurrency: d.defaultCurrency,
-      auditorEmail: d.auditorEmail, auditorAutoSend: d.auditorAutoSend, loadingScreen: d.loadingScreen, maxLoginAttempts: Number(d.maxLoginAttempts) || 5, inactivityMinutes: Number(d.inactivityMinutes) || 30 });
+      auditorEmail: d.auditorEmail, auditorAutoSend: d.auditorAutoSend, loadingScreen: d.loadingScreen, licenseStart: d.licenseStart || '', licenseExpiry: d.licenseExpiry || '', maxLoginAttempts: Number(d.maxLoginAttempts) || 5, inactivityMinutes: Number(d.inactivityMinutes) || 30 });
+    S.settings = Object.assign({}, S.settings, { licenseStart: d.licenseStart || '', licenseExpiry: d.licenseExpiry || '' });
+    renderLicence_();
     toast('System settings saved');
     if (d.defaultLanguage) applyLanguage_(d.defaultLanguage);
   });
+}
+/* Hotel details the user can see but not change (set by the system administrator's configuration permissions). */
+function readOnlySettingsHtml_(s) {
+  const rows = [['App name', s.appName], ['Hotel name', s.hotelName], ['Address', s.hotelAddress], ['Loading message', s.loadingMessage],
+    ['Logo', s.logoUrl ? 'Set' : 'Not set'], ['Currency', s.currency], ['Tax rate', (Number(s.taxRate) * 100).toFixed(2) + '%'],
+    ['Check-in time', s.checkInTime], ['Check-out time', s.checkOutTime], ['Allow check-out with balance', String(s.allowCheckoutWithBalance)],
+    ['Auto no-show on night audit', String(s.autoNoShowOnAudit)], ['Business date', s.businessDate]];
+  return `<h3>Hotel settings</h3><p class="muted">View only. The system administrator decides who can change hotel details.</p>` +
+    table(['Setting', 'Value'], rows.map(r => tr([esc(r[0]), esc(r[1])])));
 }
 async function testEmail() {
   try { const r = await api('sendEmailTest'); toast('Test emails sent to ' + r.sentTo); }
@@ -1431,7 +1572,7 @@ function admTab(k) { ADM = k; const t = ADM_TABS.find(x => x[0] === k); go(t && 
 /* Menu group for each permission prefix, used to group the permission checkboxes. */
 const PERM_GROUPS = { dashboard: 'Front office', rack: 'Front office', frontdesk: 'Front office', reservations: 'Front office', guests: 'Front office', groups: 'Front office',
   housekeeping: 'Housekeeping', rooms: 'Housekeeping', folio: 'Cashier & billing', shifts: 'Cashier & billing', accounts: 'Cashier & billing',
-  nightaudit: 'Night audit', rates: 'Rates & reports', reports: 'Rates & reports', audit: 'Administration', users: 'Administration', settings: 'Administration' };
+  nightaudit: 'Night audit', cfg: 'Configuration', rates: 'Rates & reports', reports: 'Rates & reports', audit: 'Administration', users: 'Administration', settings: 'Administration' };
 function roleModal() {
   api('listRoles').then(rl => {
     openModal('New role', formHtml('fRl', [
@@ -1842,10 +1983,10 @@ function setAssign(roomNo, name) { act('setRoomAssignment', 'Room ' + roomNo + '
 async function pgAccounts() {
   const list = await api('listAccounts');
   setView(`<h1>City ledger <small>company accounts</small></h1>
-    <div class="head-row"><div class="acts"></div><div class="acts">${can('accounts.manage') ? '<button class="btn" onclick="accountModal()">+ Company account</button>' : ''}</div></div>
+    <div class="head-row"><div class="acts"></div><div class="acts">${can('cfg.accounts.edit') ? '<button class="btn" onclick="accountModal()">+ Company account</button>' : ''}</div></div>
     <div class="card">${table(['Code', 'Company', 'Contact', 'Credit limit', 'Balance owed', 'Status', ''],
       list.map(a => tr([esc(a.code), esc(a.name), esc(a.contact) || '—', Number(a.creditLimit) ? num(a.creditLimit) : 'No limit', balCell(a.balance),
-        a.active ? pill('Active') : pill('Inactive'), lnkTo('account', a.id, 'Open'), delBtn_('account', a.id, 'accounts.manage')])))}</div>`);
+        a.active ? pill('Active') : pill('Inactive'), lnkTo('account', a.id, 'Open'), delBtn_('account', a.id, 'cfg.accounts.delete')])))}</div>`);
 }
 function accountModal(id) {
   const load = id ? api('getAccount', id).then(d => d.account) : Promise.resolve({});
@@ -1871,7 +2012,7 @@ async function pgAccount() {
     <div class="kpis">${kpi('Balance owed', num(d.balance))}${kpi('Credit limit', Number(a.creditLimit) ? num(a.creditLimit) : 'None')}${kpi('Billed folios', d.folios.length)}</div>
     <div class="grid2">
       <div class="card"><h3>Details</h3>${kv([['Contact', esc(a.contact) || '—'], ['Email', esc(a.email) || '—']])}
-        <div class="acts" style="margin-top:12px">${can('accounts.manage') ? `<button class="btn ghost" onclick="accountModal('${esc(a.id)}')">Edit</button> ${delBtn_('account', a.id, 'accounts.manage')}` : ''}
+        <div class="acts" style="margin-top:12px">${can('cfg.accounts.edit') ? `<button class="btn ghost" onclick="accountModal('${esc(a.id)}')">Edit</button> ` : ''}${delBtn_('account', a.id, 'cfg.accounts.delete')}
         ${can('folio.post') ? `<button class="btn ok" onclick="accPayModal('${esc(a.id)}')">Record payment</button>` : ''}</div></div>
       <div class="card"><h3>Billed stays</h3>${table(['Res #', 'Folio', 'Status'], d.folios.map(f => tr([lnk(f.resNo), esc(f.folioNo + ' · ' + f.name), pill(f.status)])))}</div>
     </div>
@@ -2001,7 +2142,7 @@ function hideSplash() {
     splashMsg('Welcome back…');
     S.token = saved.token; S.user = saved.user; S.perms = saved.perms; S.settings = saved.settings || S.settings; S.bizDate = saved.bizDate || '';
     startApp();
-    hideSplash();
+    waitSplash_();
   } else {
     $('login').classList.remove('hidden');
     try { const u = localStorage.getItem('stayline_user'); if (u) document.querySelector('#login input[name=u]').value = u; } catch (x) { /* ignore */ }

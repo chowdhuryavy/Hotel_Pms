@@ -7,7 +7,7 @@ const ADMIN_ROLE = 'Admin';                       // system administrator, every
 const PROPERTY_ROLE = 'Property Admin';           // property administrator, built in
 const BUILTIN_ROLES = [ADMIN_ROLE, PROPERTY_ROLE];
 // Permissions a Property Admin gets on top of what a Manager has
-const PROPERTY_EXTRA = ['users.manage', 'settings.manage', 'rooms.manage', 'rates.manage'];
+const PROPERTY_EXTRA = ['users.manage', 'settings.manage', 'rooms.manage', 'rates.manage'].concat(cfgPermRows_().map(r => r[0]).filter(p => p !== 'cfg.settings.edit'));
 
 /** Role names, read from the Permissions tab header. */
 function roleNames_() {
@@ -117,9 +117,11 @@ function ensureBuiltinRoles_() {
   const created = roleColumn_(PROPERTY_ROLE) < 0;
   if (created) createRoleRaw_(PROPERTY_ROLE, 'Manager');
   const c = roleColumn_(PROPERTY_ROLE);
-  const perms = rows_(TBL.PERMS);
-  if (perms.length && (created || perms.every(p => p[PROPERTY_ROLE] !== true))) {
-    perms.forEach(p => sh.getRange(p._row, c).setValue(
-      p.permission !== 'system.manage' && (PROPERTY_EXTRA.indexOf(p.permission) >= 0 || p.Manager === true)));
-  }
+  // Blank Property Admin cells (permissions added by a migration) get the defaults. Cells the system administrator
+  // has set are kept, so changes made in Roles & permissions stay.
+  rows_(TBL.PERMS).forEach(p => {
+    const cell = p[PROPERTY_ROLE];
+    if (!created && cell !== '' && cell !== undefined && cell !== null) return;
+    sh.getRange(p._row, c).setValue(p.permission !== 'system.manage' && (PROPERTY_EXTRA.indexOf(p.permission) >= 0 || p.Manager === true));
+  });
 }

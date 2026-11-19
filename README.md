@@ -4,7 +4,13 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.12**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.13**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.13: run Stayline → Set up database once after updating (adds the new permission rows and settings).
+Configuration permissions: the system administrator sets, per role, what each user can view, edit and delete for room types, rooms, rate plans, seasonal rates, charge codes, packages, payment methods, company accounts and hotel details. Property admins can change configuration but not hotel details by default.
+Licence: the system administrator sets the licence start and expiry dates (System settings). The sidebar shows them with the days left. After the expiry (or before the start) only the system administrator can sign in.
+Front desk: Front desk board, Arrivals, Departures and In-house guests are in the Front desk menu and in a sub-header on each page. Each list has its own filters and search (name, reservation, phone, room, group, company).
+Loading screen stays until the first page has its data. Buttons spin while their action runs. Dates show as dd-mm-yyyy. The mobile menu closes from the menu button and outside clicks.
 
 Release notes for 1.2.12: on small screens the menu closes when the menu button is pressed again, when the page outside the menu is clicked, or with Escape.
 
