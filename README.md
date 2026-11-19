@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.59**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.60**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.60: The version number at the bottom of the sidebar is larger and sits a little higher, off the bottom edge.
 
 Release notes for 1.2.59: A changed App name (or hotel name, logo and details) in the Settings sheet now shows at once on the next visit. The browser was restoring the name saved in the earlier session over the fresh values from the server; the fresh values now win. Nothing in the app is hard-coded to Stayline, apart from the default value written when the sheet is first set up.
 
