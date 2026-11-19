@@ -38,8 +38,9 @@
           x.drawImage(img, 28, 28, 136, 136);
           var url = c.toDataURL('image/png');
           setLink('icon', url); setLink('apple-touch-icon', url);
-        } catch (e) { /* blocked by the browser: keep the default icon */ }
+        } catch (e) { setLink('icon', src); /* the browser will not let the page draw it: use the logo's own link */ }
       };
+      img.onerror = function () { /* the logo could not be loaded: keep the default icon */ };
       img.src = src;
     }
   </script>
