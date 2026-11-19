@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.206**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.207**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.207: If a page has not answered after 15 seconds, the screen says it is taking longer than usual and offers a Try again button, instead of staying dimmed.
 
 Release notes for 1.2.206: The loading line at the top is replaced by a normal spinner in the page area. It appears only if the page takes more than a quarter of a second.
 

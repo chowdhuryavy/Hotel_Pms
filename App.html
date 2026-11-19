@@ -1628,13 +1628,18 @@ function renderPage_(page, param) {
   RENDER_RID = ++PAGE_SEQ;
   // A small line at the top shows only when the page takes longer than a moment, so quick pages show no change
   clearTimeout(NAV_BUSY_T); NAV_BUSY_T = setTimeout(() => document.body.classList.add('nav-busy'), 250);
+  // If the server has not answered after 15 seconds, say so and offer a retry (the page is no longer stuck dimmed)
+  const seqNow = RENDER_RID;
+  clearTimeout(SLOW_T); SLOW_T = setTimeout(() => {
+    if (seqNow === RENDER_RID && VIEW_PENDING) setView(`<h1>${esc(label)}</h1><div class="card"><p class="muted">This page is taking longer than usual. The server may be busy with a large amount of data.</p><button class="btn" type="button" onclick="renderPage_(S.page, S.param)">Try again</button></div>`);
+  }, 15000);
   PAGES[page]().catch(e => {
     if (e && e.stale) return;   // a newer page is drawing: this one stops quietly
     if (isNetErr_(e.message)) { netFailed_(); setView(netCard_()); }
     else setView(`<div class="card err">${esc(e.message)}</div>`);
-  }).finally(() => { VIEW_PENDING = false; clearTimeout(NAV_BUSY_T); document.body.classList.remove('nav-busy'); });
+  }).finally(() => { VIEW_PENDING = false; clearTimeout(NAV_BUSY_T); clearTimeout(SLOW_T); document.body.classList.remove('nav-busy'); });
 }
-let NAV_BUSY_T = 0;
+let NAV_BUSY_T = 0, SLOW_T = 0;
 window.addEventListener('hashchange', () => {
   if (!S.token) return;
   const r = parseHash_();
