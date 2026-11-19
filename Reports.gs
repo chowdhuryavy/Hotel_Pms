@@ -58,7 +58,7 @@ function buildReport_(type, from, to) {
     const charges = todays.filter(p => Number(p.amount) > 0).reduce((a, p) => a + Number(p.amount), 0);
     const payments = todays.filter(p => Number(p.amount) < 0).reduce((a, p) => a - Number(p.amount), 0);
     const inH = res.filter(r => r.status === 'In-House').length;
-    return { title: 'Daily flash · ' + bd, headers: ['Measure', 'Value'], rows: [
+    const flashRows = [
       ['Arrivals expected', res.filter(r => r.status === 'Reserved' && r.arrival === bd).length],
       ['Departures expected', res.filter(r => r.status === 'In-House' && r.departure === bd).length],
       ['In-house', inH],
@@ -67,6 +67,11 @@ function buildReport_(type, from, to) {
       ['Charges posted', num_(charges)],
       ['Payments received', num_(payments)],
       ['No-shows (today)', res.filter(r => r.status === 'No-Show' && r.arrival === bd).length]
+    ];
+    const per = periodRevenue_(bd);
+    return { title: 'Daily flash · ' + bd, headers: ['Measure', 'Value'], rows: flashRows, sections: [
+      { title: 'Today', headers: ['Measure', 'Value'], rows: flashRows },
+      { title: 'Revenue by period', headers: ['Period', 'Rooms', 'Fixed charges', 'Other charges', 'Tax', 'Total'], rows: per.map(p => [p.label, p.rooms, p.fixed, p.other, p.tax, p.total]) }
     ] };
   }
   if (type === 'occupancy') {

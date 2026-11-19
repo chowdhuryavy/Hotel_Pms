@@ -164,6 +164,10 @@ function runNightAudit(token) {
       roomsPosted++; total += rate;
     });
 
+    // 1b) Fixed charges due tonight (guest folios and room ledger)
+    ensureTabs_([TBL.FIXEDRULES, TBL.ROOMCHG]);
+    const fixed = postFixedCharges_(bd, s.username);
+
     // 2) No-shows
     let noShows = 0;
     if (flag_('autoNoShowOnAudit')) {
@@ -186,6 +190,6 @@ function runNightAudit(token) {
     audit_(s.username, 'NIGHT_AUDIT', 'BusinessDate', bd, roomsPosted + ' rooms, ' + num_(total) + ' room revenue, ' + noShows + ' no-shows, ' + shiftsClosed + ' shifts closed, AR ' + aging.total + '; next ' + next);
     let emailed = false;
     try { sendAuditorReport_(bd); emailed = true; } catch (e) { Logger.log('Auditor report: ' + e.message); }
-    return { closed: bd, next: next, roomsPosted: roomsPosted, roomRevenue: num_(total), noShows: noShows, shiftsClosed: shiftsClosed, aging: aging, emailed: emailed };
+    return { closed: bd, next: next, roomsPosted: roomsPosted, roomRevenue: num_(total), noShows: noShows, shiftsClosed: shiftsClosed, aging: aging, fixed: fixed, emailed: emailed };
   });
 }

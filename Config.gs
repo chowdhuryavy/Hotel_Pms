@@ -34,12 +34,15 @@ const TBL = {
   PACKAGES:  ['Packages', ['code','name','description','chargeCode','amount','perNight','active']],
   AUDIT:     ['AuditLog', ['time','user','action','entity','entityId','details']],
   RESLOG:    ['ResLog', ['id','resNo','at','user','action','details']],
-  ARAGING:   ['ARAging', ['bizDate','code','name','current','d31','d61','d90','total','snapshotAt']]
+  ARAGING:   ['ARAging', ['bizDate','code','name','current','d31','d61','d90','total','snapshotAt']],
+  FIXEDRULES: ['FixedRules', ['id','scope','target','code','description','amount','frequency','startDate','endDate','active','lastPostedOn','createdBy','createdAt']],
+  ROOMCHG:   ['RoomCharges', ['id','roomNo','bizDate','code','description','amount','ruleId','roomStatus','postedBy','createdAt']]
 };
 
 /** [permission, description, Admin, Manager, FrontDesk, Cashier, Housekeeping, Sales, Accountant] */
 const PERMISSIONS = [
   ['dashboard.view',        'Dashboard',                                 true,  true,  true,  true,  false, true,  true ],
+  ['fixed.manage',          'Fixed charges: set up and stop',            true,  true,  false, false, false, false, false],
   ['rack.view',             'Room rack',                                 true,  true,  true,  false, false, true,  false],
   ['frontdesk.checkin',     'Front desk: check-in / walk-in',            true,  true,  true,  false, false, false, false],
   ['frontdesk.checkout',    'Front desk: check-out',                     true,  true,  true,  true,  false, false, false],
@@ -79,7 +82,7 @@ const PERMISSIONS = [
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.52';
+const APP_VERSION = '1.2.53';
 const SETTINGS_DEFAULT = {
   maxLoginAttempts: 5,      // wrong passwords before the account is locked (system admin, minimum 5)
   inactivityMinutes: 30,    // idle minutes before sign-out (system admin)

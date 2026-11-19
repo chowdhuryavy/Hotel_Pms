@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.52**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.53**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.53: Fixed charges (Front office → Fixed charges, permission fixed.manage, Managers and Admin by default). Each rule has a charge code, amount, repeat (daily, weekly or monthly), a from date and an optional until date. A guest-stay rule posts to the guest folio on the night run while the guest is in the hotel, with tax if the charge is taxable. A room rule posts to the room ledger on the night run whatever the room status, including out-of-order and out-of-service rooms. Room rates are posted automatically on the night run as before. The night-audit checklist shows fixed charges as a step. The daily flash adds a Revenue by period table: today, month to date, year to date, last year in full, and last year to date. Printed and emailed reports show every section.
 
 Release notes for 1.2.52: Charges, payments, reservation creation, check-in and settings saves now use a request id, so a retry after a dropped connection cannot post or save twice. Reservation date, room type or rate changes are refused for any night the night audit has already closed; room-number changes are still allowed. Stay extensions are checked the same way. The dashboard loads in one server call instead of several. The password-reset code screen has a Paste code button that reads the 6 digits from the clipboard.
 

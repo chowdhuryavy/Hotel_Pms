@@ -236,9 +236,11 @@ function frontLists(token, date) {
 /* ---------- Auditor: night audit and AR reports by email after each night audit ---------- */
 function reportTableHtml_(rep) {
   const e = x => String(x == null ? '' : x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  return '<h3>' + e(rep.title) + '</h3><table border="1" cellpadding="4" style="border-collapse:collapse;font-size:12px"><tr>' +
-    rep.headers.map(h => '<th style="background:#e6efef;text-align:left">' + e(h) + '</th>').join('') + '</tr>' +
-    rep.rows.map(r => '<tr>' + r.map(c => '<td>' + e(typeof c === 'number' ? c.toFixed(2) : c) + '</td>').join('') + '</tr>').join('') + '</table>';
+  const tbl = (headers, rows) => '<table border="1" cellpadding="4" style="border-collapse:collapse;font-size:12px"><tr>' +
+    headers.map(h => '<th style="background:#e6efef;text-align:left">' + e(h) + '</th>').join('') + '</tr>' +
+    rows.map(r => '<tr>' + r.map(c => '<td>' + e(typeof c === 'number' ? c.toFixed(2) : c) + '</td>').join('') + '</tr>').join('') + '</table>';
+  if (!rep.sections) return '<h3>' + e(rep.title) + '</h3>' + tbl(rep.headers, rep.rows);
+  return '<h3>' + e(rep.title) + '</h3>' + rep.sections.map(s => '<h4>' + e(s.title) + '</h4>' + tbl(s.headers, s.rows)).join('');
 }
 function sendAuditorReport_(bd) {
   const st = settings_();
