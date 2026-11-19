@@ -601,7 +601,7 @@ function startApp() {
   brand();
   buildNav();
   const hotelTop = (S.settings && (S.settings.hotelName || S.settings.appName)) || '';
-  const subLine = (S.settings && (S.settings.ownerName || S.settings.appName)) || '';
+  const subLine = (S.settings && S.settings.ownerName) ? 'Design by ' + S.settings.ownerName : ((S.settings && S.settings.appName) || '');
   $('who').innerHTML = `<div class="top-hotel"><div class="top-hotel-txt"><span class="top-hotel-name">${esc(hotelTop)}</span><span class="top-hotel-sub">${esc(subLine)}</span></div></div>` +
     `<form class="qs" role="search" onsubmit="searchGo(event)"><input name="q" type="search" placeholder="Search room, guest, res #, group…" aria-label="Search"></form>`;
   $('account').innerHTML = acctHtml_();
@@ -2394,7 +2394,7 @@ async function pgAdmin(scope) {
     body = formHtml('fSt', [
       { name: 'appName', label: 'App name', value: s.appName, required: true },
       { name: 'hotelName', label: 'Hotel name', value: s.hotelName, required: true },
-      { name: 'ownerName', label: 'Owner or designer (shown under the hotel name)', value: s.ownerName || '' },
+      { name: 'ownerName', label: 'Designer or owner (shown as "Design by …" under the hotel name)', value: s.ownerName || '' },
       { name: 'hotelAddress', label: 'Address', value: s.hotelAddress, wide: true },
       { name: 'hotelPhone', label: 'Phone', value: s.hotelPhone || '' },
       { name: 'hotelEmail', label: 'Email', type: 'email', value: s.hotelEmail || '' },
