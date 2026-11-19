@@ -112,10 +112,13 @@ function pointDeployment_(deployId, versionNumber, description) {
  * Loads the newest code of the branch, makes a version and moves the web app to it.
  * Returns a message for the user. Pushes that change only non-app files (README, tools) do nothing.
  */
-function updateFromGitHub(auto) {
+function updateFromGitHub(auto, targetSha) {
   const cfg = updaterConfig_();
   const p = PropertiesService.getScriptProperties();
-  const sha = headSha_(cfg);
+  // A downgrade is pinned to its commit: automatic updates wait until someone returns to the latest version
+  if (auto && !targetSha && p.getProperty('PINNED_SHA')) return 'Paused: pinned to an older version. Use Return to latest version in System admin.';
+  if (!targetSha) p.deleteProperty('PINNED_SHA');
+  const sha = targetSha || headSha_(cfg);
   const files = fetchRepoFiles_(cfg, sha);
   if (!files.some(f => f.path === 'Updater.gs')) throw new Error('Updater.gs is missing in the repo; the update was stopped to keep the updater working.');
   if (!files.some(f => f.path === 'appsscript.json')) throw new Error('appsscript.json is missing in the repo.');
@@ -124,6 +127,7 @@ function updateFromGitHub(auto) {
     files.map(f => f.path + '\n' + f.text).join('\n\u0000\n'), Utilities.Charset.UTF_8));
   if (hash === p.getProperty('CONTENT_HASH') && !p.getProperty('PENDING_SHA')) {
     p.setProperty('LAST_SHA', sha);
+    if (targetSha) p.setProperty('PINNED_SHA', targetSha);
     return 'No app changes in GitHub ' + sha.slice(0, 7) + ' – nothing to update.';
   }
 
@@ -142,6 +146,7 @@ function updateFromGitHub(auto) {
   });
   p.setProperty('CONTENT_HASH', hash);
   p.setProperty('LAST_SHA', sha);
+  if (targetSha) p.setProperty('PINNED_SHA', targetSha);
   p.deleteProperty('PENDING_SHA');
 
   let msg = (auto ? 'Automatic update: ' : 'Update: ') + desc + ' is now version ' + version + '.';
@@ -212,6 +217,7 @@ function autoUpdateCheck() {
   let cfg;
   try { cfg = updaterConfig_(); } catch (e) { return 'Updater is not configured yet (GITHUB_TOKEN / GITHUB_REPO).'; }
   const p = PropertiesService.getScriptProperties();
+  if (p.getProperty('PINNED_SHA')) return 'Paused: pinned to an older version.';
   const sha = headSha_(cfg);
   if (sha === p.getProperty('LAST_SHA') && !p.getProperty('PENDING_SHA')) return 'No new commit.';
   return updateFromGitHub(true);
@@ -229,4 +235,45 @@ function enableAutoUpdate() {
   autoUpdateTriggers_().forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger(AUTO_UPDATE_HANDLER).timeBased().everyMinutes(5).create();
   return 'Automatic updates are on. GitHub is checked every 5 minutes, and the app is published only when there is a new commit.';
+}
+
+/* System admin: app versions on GitHub, one per commit whose message starts with the version number */
+function listVersions(token) {
+  auth_(token, 'system.manage');
+  const cfg = updaterConfig_();
+  const p = PropertiesService.getScriptProperties();
+  const list = JSON.parse(gh_(cfg, '/commits?sha=' + encodeURIComponent(cfg.branch) + '&path=Config.gs&per_page=40'));
+  const seen = {};
+  const versions = list.map(c => {
+    const first = String((c.commit && c.commit.message) || '').split('\n')[0];
+    const m = first.match(/^(\d+\.\d+\.\d+)[:\s]/);
+    if (!m || seen[m[1]]) return null;
+    seen[m[1]] = true;
+    return { version: m[1], sha: c.sha, date: String(((c.commit || {}).committer || {}).date || '').slice(0, 10),
+      message: first.replace(/^\d+\.\d+\.\d+:?\s*/, '').slice(0, 120) };
+  }).filter(v => v);
+  return { current: APP_VERSION, pinned: p.getProperty('PINNED_SHA') || '', versions: versions };
+}
+/* System admin: run the code of an older commit. The sheet data is not changed. */
+function downgradeTo(token, sha) {
+  const s = auth_(token, 'system.manage');
+  if (!/^[0-9a-f]{40}$/.test(String(sha || ''))) throw new Error('Choose a version from the list.');
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) throw new Error('An update is already running. Try again in a minute.');
+  try {
+    const msg = updateFromGitHub(false, sha);
+    audit_(s.username, 'VERSION_SET', 'App', sha.slice(0, 7), msg);
+    return msg;
+  } finally { lock.releaseLock(); }
+}
+/* System admin: go back to the newest version on GitHub and resume automatic updates */
+function returnToLatest(token) {
+  const s = auth_(token, 'system.manage');
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) throw new Error('An update is already running. Try again in a minute.');
+  try {
+    const msg = updateFromGitHub(false);
+    audit_(s.username, 'VERSION_LATEST', 'App', '', msg);
+    return msg;
+  } finally { lock.releaseLock(); }
 }

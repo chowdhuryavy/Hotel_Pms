@@ -52,10 +52,11 @@ const isNetErr_ = m => NET_ERR_RE.test(String(m || ''));
    cannot post twice (the server returns the saved result). */
 const RETRY_WRITE_FN = { checkoutPay: true, checkOut: true, postCharge: true, postPayment: true, createReservation: true, checkIn: true, saveSettings: true };
 /* A button that opens a form opens it in its own tab (see openModal). Remember the last click, and whether it saved anything. */
-let CLICK_EXPR = null, CLICK_AT = 0, CLICK_WROTE = false;
+let CLICK_EXPR = null, CLICK_AT = 0, CLICK_WROTE = false, CLICK_LABEL = '';
 document.addEventListener('click', e => {
   const el = e.target && e.target.closest ? e.target.closest('button,a,[role="button"]') : null;
   const ex = el ? el.getAttribute('onclick') : null;
+  CLICK_LABEL = el ? el.textContent.trim().replace(/\s+/g, ' ').slice(0, 40) : '';
   CLICK_EXPR = ex || null; CLICK_AT = Date.now(); CLICK_WROTE = false;
 }, true);
 const api = (fn, ...a) => {
@@ -360,33 +361,61 @@ async function act(fn, msg, ...args) {
   try { await api(fn, ...args); if (msg) toast(msg); refresh(); }
   catch (e) { toast(e.message, true); }
 }
-function refresh() { go(S.page, S.param); }
+function refresh() { if (ACTIVE_TAB !== 'page') return; go(S.page, S.param); }
 
 /* ---------- Modal & forms ---------- */
-/* In a tab opened for an admin function (window.STAY_TAB) the form is a full page, not a small dialog */
+/* ---------- In-app tabs: each form action opens as a tab inside this page (no new browser tab) ---------- */
+let APP_TABS = [], ACTIVE_TAB = 'page', APP_TAB_SEQ = 0;
 function openModal(title, html) {
-  if (!window.STAY_TAB && CLICK_EXPR && !CLICK_WROTE && Date.now() - CLICK_AT < 20000 && TAB_EXPR_OK_RE.test(CLICK_EXPR)) {
-    tabRun_(CLICK_EXPR);   // the same button, run in a new tab where the form is a full page
+  if (CLICK_EXPR && !CLICK_WROTE && Date.now() - CLICK_AT < 20000 && TAB_EXPR_OK_RE.test(CLICK_EXPR)) {
+    const e = CLICK_EXPR, l = CLICK_LABEL; CLICK_EXPR = null;
+    openAppTab_(e, l || title);
     return;
   }
-  if (window.STAY_TAB) {
-    setView(`<div class="tabform"><div class="tabform-head"><h1>${esc(title)}</h1><button class="btn ghost" type="button" onclick="closeModal()">Close</button></div>
-      <div class="card tabform-body">${html}</div></div>`);
+  if (ACTIVE_TAB !== 'page') {
+    setView(`<div class="tabform"><div class="tabform-head"><h1>${esc(title)}</h1><button class="btn ghost" type="button" onclick="closeModal()">Close</button></div><div class="card tabform-body">${html}</div></div>`);
     return;
   }
   $('mTitle').textContent = title; $('mBody').innerHTML = html; $('modal').classList.remove('hidden');
 }
-/* Hides the dialog without closing a tab (used when a page is drawn) */
+/* Hides the dialog without closing anything (used when a page is drawn) */
 function hideModal_() { const m = $('modal'); if (m) m.classList.add('hidden'); const b = $('mBody'); if (b) b.innerHTML = ''; }
 function closeModal() {
-  if (window.STAY_TAB) {
-    // Close the tab; if the browser keeps it open, return to the first page instead
-    try { window.close(); } catch (e) { /* ignore */ }
-    setTimeout(() => { if (!window.closed) { try { go(firstPage()); } catch (e) { /* ignore */ } } }, 150);
-    return;
-  }
+  if (ACTIVE_TAB !== 'page') { closeAppTab_(ACTIVE_TAB); return; }
   $('modal').classList.add('hidden'); $('mBody').innerHTML = '';
 }
+/* Opens a form action as a new tab in this page */
+function openAppTab_(expr, title) {
+  if (!TAB_EXPR_OK_RE.test(expr)) return;
+  const t = { id: 't' + (++APP_TAB_SEQ), title: String(title || 'Form').slice(0, 40), expr: expr };
+  APP_TABS.push(t);
+  showAppTab_(t.id);
+}
+function showAppTab_(id) {
+  if (id !== 'page' && !APP_TABS.find(x => x.id === id)) id = 'page';
+  ACTIVE_TAB = id;
+  renderAppTabs_();
+  if (id === 'page') { renderPage_(S.page, S.param); return; }
+  const t = APP_TABS.find(x => x.id === id);
+  setView(skeleton_());
+  Promise.resolve().then(() => (0, eval)(t.expr)).catch(e => {
+    if (ACTIVE_TAB === id) setView(`<div class="card err">${esc(e.message)}</div>`);
+  });
+}
+function closeAppTab_(id) {
+  APP_TABS = APP_TABS.filter(x => x.id !== id);
+  if (ACTIVE_TAB === id) showAppTab_('page'); else renderAppTabs_();
+}
+/* The tab strip: the page first, then one tab per open form. Hidden when no form is open. */
+function renderAppTabs_() {
+  let bar = $('apptabs');
+  if (!bar) { bar = document.createElement('div'); bar.id = 'apptabs'; bar.className = 'apptabs'; $('view').parentNode.insertBefore(bar, $('view')); }
+  const pageLabel = (NAV.find(n => n.k === S.page) || {}).l || 'Page';
+  bar.innerHTML = `<button type="button" class="apptab${ACTIVE_TAB === 'page' ? ' on' : ''}" onclick="showAppTab_('page')">${esc(pageLabel)}</button>` +
+    APP_TABS.map(t => `<span class="apptab${ACTIVE_TAB === t.id ? ' on' : ''}"><button type="button" class="apptab-name" onclick="showAppTab_('${t.id}')">${esc(t.title)}</button><button type="button" class="apptab-x" aria-label="Close ${esc(t.title)}" onclick="closeAppTab_('${t.id}')">×</button></span>`).join('');
+  bar.hidden = APP_TABS.length === 0;
+}
+
 function fieldHtml(f) {
   if (f.raw) return f.raw;
   const v = f.value == null ? '' : f.value;
@@ -434,20 +463,8 @@ const TAB_OPEN_OK = ['admSection', 'userModal', 'typeModal', 'roomModal', 'roleM
 /** Opens a form in a new browser tab, signed in through a one-time link. The tab opens at once so the browser allows it. */
 /* A form action is a call to one page function, e.g. userModal("U1"). Navigation and saving functions are excluded. */
 const TAB_EXPR_OK_RE = /^(?!(?:closeModal|act|appConfirm|appAlert|logout|refresh|go|tabRun_|tabOpen_)\b)[A-Za-z_$][\w$]*\([^]*\)\s*;?$/;
-async function tabOpen_(fn, args) { return tabRun_(fn + '(' + (args || []).map(a => JSON.stringify(a == null ? null : a)).join(',') + ')'); }
-/* Opens the form action in its own tab: the address is #/f?{expr}, a route of its own */
-async function tabRun_(expr) {
-  const w = window.open('about:blank', '_blank');
-  if (!w) { toast('Allow pop-ups for this app to open the form in a new tab.', true); return; }
-  try {
-    const id = await api('createHandover');
-    const base = ((document.querySelector('meta[name="exec-url"]') || {}).content) || '';
-    if (!base) throw new Error('The app address is not known. Reload the page and try again.');
-    const hash = '#/f?' + encodeURIComponent(JSON.stringify({ expr: expr }));
-    w.opener = null;
-    w.location.href = base + '?h=' + encodeURIComponent(id) + hash;
-  } catch (e) { try { w.close(); } catch (x) { /* ignore */ } toast(e.message, true); }
-}
+async function tabOpen_(fn, args) { openAppTab_(fn + '(' + (args || []).map(a => JSON.stringify(a == null ? null : a)).join(',') + ')', CLICK_LABEL || fn); }
+
 /** In a tab opened by tabOpen_: runs the dialog named in the address, once. */
 /* Route #/f: runs the form action named in the address and shows its form as the page */
 async function pgFormRoute() {
@@ -1231,6 +1248,7 @@ function renderPage_(page, param) {
     page = firstPage();
   }
   if (location.hash !== routeHash_(page, param)) history.replaceState(null, '', routeHash_(page, param));
+  if (S.page !== page) { ACTIVE_TAB = 'page'; renderAppTabs_(); }
   S.page = page; S.param = param || null;
   hideModal_();   // not closeModal(): in a tab that would close the window
   document.body.classList.remove('menu-open');
@@ -2313,7 +2331,7 @@ async function pgLog() {
  * ============================================================ */
 // [key, label, permission, scope]. 'prop' = property admin (hotel operations); 'sys' = system administrator only.
 const ADM_TABS = [['users', 'Staff users', 'users.manage', 'prop'], ['settings', 'Hotel settings', 'cfg.settings.view', 'prop'], ['types', 'Room types', 'cfg.roomtypes.view', 'prop'], ['rooms', 'Rooms', 'cfg.rooms.view', 'prop'], ['packages', 'Packages', 'cfg.packages.view', 'prop'], ['payments', 'Payment methods', 'cfg.payments.view', 'prop'],
-  ['padmins', 'Property admins', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['menu', 'Menu layout', 'system.manage', 'sys'], ['emails', 'Email messages', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys']];
+  ['padmins', 'Property admins', 'system.manage', 'sys'], ['roles', 'Roles & permissions', 'system.manage', 'sys'], ['menu', 'Menu layout', 'system.manage', 'sys'], ['emails', 'Email messages', 'system.manage', 'sys'], ['system', 'System settings', 'system.manage', 'sys'], ['updates', 'App version', 'system.manage', 'sys']];
 async function pgAdmin(scope) {
   const tabs = ADM_TABS.filter(t => t[3] === scope && can(t[2]));
   if (!tabs.length) { setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1><div class="card">You do not have access to this area.</div>`); return; }
@@ -2384,6 +2402,8 @@ async function pgAdmin(scope) {
     ], 'Save system settings', false) +
     `<h3>Integrations</h3><p class="muted">Each system receives JSON posts with the header X-Stayline-Key, whose value is the INTEGRATION_KEY script property. Save an address, then test it. A system must answer with status 200.</p>
     <div class="acts"><button class="btn ghost" type="button" onclick="integTest('pos')">Test POS</button><button class="btn ghost" type="button" onclick="integTest('tv')">Test television</button><button class="btn ghost" type="button" onclick="integTest('phone')">Test telephone</button><button class="btn ghost" type="button" onclick="integTest('card')">Test card terminal</button></div>`;
+  } else if (ADM === 'updates') {
+    body = await updatesHtml_();
   } else if (ADM === 'emails') {
     const s = await api('getSettings');
     body = `<h3>Email messages</h3><p class="muted">Only system administrators see this tab. These messages go to users for welcome, reset codes and password changes.</p>` + formHtml('fEmails', [
@@ -2521,14 +2541,33 @@ async function testEmail() {
   try { const r = await api('sendEmailTest'); toast('Test emails sent to ' + r.sentTo); }
   catch (e) { toast(e.message, true); }
 }
+/* App version: system admin can run an older version if the newest has problems */
+async function updatesHtml_() {
+  const r = await api('listVersions');
+  const pin = r.pinned ? '<p class="muted"><b>Pinned to an older version (' + esc(String(r.pinned).slice(0, 7)) + ').</b> Automatic updates are paused until you return to the latest version.</p><div class="acts" style="margin-bottom:12px"><button class="btn" type="button" onclick="returnLatestAct()">Return to latest version</button></div>' : '';
+  const rows = r.versions.map(v => tr([esc(v.version), esc(v.date), esc(v.message),
+    v.version === r.current ? pill('Running') : (can('system.manage') ? '<button class="btn sm ghost" type="button" onclick="useVersionAct(&#39;' + esc(v.sha) + '&#39;,&#39;' + esc(v.version) + '&#39;)">Use this version</button>' : '')]));
+  return '<h3>App version</h3><p class="muted">Running: <b>' + esc(r.current) + '</b>. Using an older version runs the code from that version. The sheet data is not changed, so check the version before you rely on it with live data.</p>' +
+    pin + table(['Version', 'Date', 'Change', ''], rows);
+}
+async function useVersionAct(sha, ver) {
+  const ok = await appConfirm('Use version ' + ver + '?', 'The app will run the code from that version and reload. Automatic updates pause until you choose Return to latest version.', { ok: 'Use this version', cancel: 'Cancel', tone: 'warn' });
+  if (!ok) return;
+  try { const msg = await api('downgradeTo', sha); toast(msg); setTimeout(() => location.reload(), 2500); }
+  catch (e) { toast(e.message, true); }
+}
+async function returnLatestAct() {
+  try { const msg = await api('returnToLatest'); toast(msg); setTimeout(() => location.reload(), 2500); }
+  catch (e) { toast(e.message, true); }
+}
 /* Settings sections with forms open in their own tab (in that tab they are full pages) */
 const ADM_FORM_TABS = ADM_TABS.map(t => t[0]);
 function admTabOpen(k) {
   if (window.STAY_TAB || ADM_FORM_TABS.indexOf(k) < 0) return admTab(k);
-  tabOpen_('admSection', [k]);
+  openAppTab_('admSection(' + JSON.stringify(k) + ')', (ADM_TABS.find(x => x[0] === k) || [])[1] || k);
 }
 /** Run in the new tab: shows the chosen admin section as the page */
-function admSection(k) { ADM = k; const t = ADM_TABS.find(x => x[0] === k); go(t && t[3] === 'sys' ? 'sysadmin' : 'admin'); }
+function admSection(k) { ADM = k; const t = ADM_TABS.find(x => x[0] === k); return pgAdmin(t && t[3] === 'sys' ? 'sys' : 'prop'); }
 function admTab(k) { ADM = k; const t = ADM_TABS.find(x => x[0] === k); go(t && t[3] === 'sys' ? 'sysadmin' : 'admin'); }
 /* Menu group for each permission prefix, used to group the permission checkboxes. */
 const PERM_GROUPS = { dashboard: 'Front office', rack: 'Front office', frontdesk: 'Front office', reservations: 'Front office', guests: 'Front office', groups: 'Front office',
