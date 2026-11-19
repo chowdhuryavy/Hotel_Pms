@@ -3454,7 +3454,7 @@ function forgotOpen(prefill) {
     e.preventDefault();
     const f = e.target, btn = f.querySelector('button[type=submit]'), ident = f.ident.value.trim();
     btn.disabled = true; btn.classList.add('spin-on'); formErr_('');
-    try { const r = await api('forgotRequest', ident); forgotCode(ident, r.sentTo); }
+    try { const r = await rpc('forgotRequest', ident); forgotCode(ident, r.sentTo); }
     catch (err) { formErr_(err.message); }
     finally { btn.disabled = false; btn.classList.remove('spin-on'); }
   });
@@ -3500,7 +3500,7 @@ function forgotCode(ident, sentTo) {
   }, 1000);
   resend.addEventListener('click', async () => {
     resend.disabled = true; resend.classList.add('spin-on');
-    try { const r = await api('forgotRequest', ident); toast('A new code was sent if the account matches.'); forgotCode(ident, r.sentTo); }
+    try { const r = await rpc('forgotRequest', ident); toast('A new code was sent if the account matches.'); forgotCode(ident, r.sentTo); }
     catch (err) { formErr_(err.message); }
     finally { resend.disabled = false; resend.classList.remove('spin-on'); }
   });

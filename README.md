@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.124**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.125**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.125: Fixed the reset code never being sent. The request was passing the session token in place of the username or email, so the server found no account and sent nothing. The Forgot password and Resend code buttons now send the request correctly.
 
 Release notes for 1.2.124: Verification code emails always carry the code in the subject, so Gmail offers its copy-code button, even for subjects saved earlier. If the email cannot be sent, the sign-in or reset screen now says so, and a new code can be requested right away.
 
