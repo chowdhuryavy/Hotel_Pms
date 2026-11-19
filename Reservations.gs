@@ -92,6 +92,7 @@ function createReservation(token, d, rid) {
     const dup = idemGet_(s, rid);
     if (dup) return dup;
     const out = createRes_(d, s.username);
+    try { reservationMail_(out.resNo); } catch (e) { Logger.log('Reservation mail: ' + e.message); }
     idemPut_(s, rid, out);
     return out;
   });

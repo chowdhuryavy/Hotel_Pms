@@ -249,3 +249,88 @@ function paidOutReceiptPdf(token, postingId) {
   audit_(s.username, 'PAIDOUT_PRINTED', 'Posting', pay.id, '');
   return docPdf_(html, 'Paid-out_' + pay.id + '.pdf');
 }
+
+/* ---------- Cashier shift cash-up ---------- */
+function shiftCashUpData_(sh) {
+  const x = shiftSummary_(sh);
+  const expected = sh.status === 'Closed' && sh.expectedCash !== '' ? num_(sh.expectedCash) : num_(Number(sh.openingFloat) + x.cashReceived);
+  return { sum: x.summary, cash: x.cashReceived, expected: expected,
+    counted: sh.countedCash === '' || sh.countedCash == null ? null : num_(sh.countedCash),
+    variance: sh.variance === '' || sh.variance == null ? null : num_(sh.variance) };
+}
+function shiftCashUpPdf(token, shiftId) {
+  const s = auth_(token);
+  const p = permMap_(s.role);
+  const sh = rows_(TBL.SHIFTS).find(r => r.id === shiftId);
+  if (!sh) throw new Error('Shift not found.');
+  if (!p['shifts.view'] && !p['shifts.manage'] && sh.user !== s.username) throw new Error('Permission denied: shifts.view');
+  const st = settings_();
+  const d = shiftCashUpData_(sh);
+  const body = '<h2>Shift</h2><table class="meta">' +
+    '<tr><td class="mk">Cashier</td><td class="mv">' + escHtml_(sh.user) + '</td><td class="mk">Shift no.</td><td class="mv">' + escHtml_(sh.id) + '</td></tr>' +
+    '<tr><td class="mk">Opened</td><td class="mv">' + escHtml_(sh.openedAt) + '</td><td class="mk">Closed</td><td class="mv">' + escHtml_(sh.closedAt || 'still open') + '</td></tr></table>' +
+    '<h2>Payments taken</h2>' + docGrid_(['Method', 'Amount'], d.sum.map(x => [escHtml_(x.code), docMoney_(x.amount)]), [1]) +
+    docBox_([
+      ['Opening float', docMoney_(sh.openingFloat)],
+      ['Cash received', docMoney_(d.cash)],
+      ['Expected cash in drawer', docMoney_(d.expected)],
+      ['Counted cash', d.counted === null ? '—' : docMoney_(d.counted)],
+      ['Variance (counted − expected)', d.variance === null ? '—' : docMoney_(d.variance)]
+    ], false);
+  const html = docShell_({ st: st, title: 'CASH-UP', docNo: 'Shift ' + sh.id, dateLabel: docDate_(String(sh.openedAt).slice(0, 10)), by: s.name, body: body,
+    note: 'Amounts in ' + escHtml_(st.currency || '') + '.' });
+  return docPdf_(html, 'CashUp_' + sh.id + '.pdf');
+}
+/** Emails the cash-up to the auditor when a shift closes (only when auto-send is on). */
+function mailCashUp_(cu, user) {
+  const st = settings_();
+  if (!st.auditorEmail || !flag_('auditorAutoSend')) return false;
+  const blob = Utilities.newBlob(Utilities.base64Decode(cu.base64), 'application/pdf', cu.name);
+  MailApp.sendEmail({ to: st.auditorEmail, subject: 'Cash-up · ' + user + ' · ' + (st.hotelName || ''),
+    body: 'The cash-up for ' + user + ' is attached.', htmlBody: mailHtml_('<p>The cash-up for <b>' + escHtml_(user) + '</b> is attached.</p>'),
+    attachments: [blob], name: appName_() });
+  return true;
+}
+
+/* ---------- Guest emails: confirmation and check-out receipt ---------- */
+function guestEmailOf_(resNo) {
+  const r = rows_(TBL.RES).find(x => x.resNo === resNo);
+  if (!r) return '';
+  const g = rows_(TBL.GUESTS).find(x => x.id === r.guestId);
+  return g && g.email ? String(g.email) : '';
+}
+function guestMail_(resNo, subject, bodyHtml, b64, fname) {
+  const to = guestEmailOf_(resNo);
+  if (!to) return false;
+  const opts = { to: to, subject: subject, body: bodyHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+    htmlBody: mailHtml_(bodyHtml), name: appName_() };
+  if (b64) opts.attachments = [Utilities.newBlob(Utilities.base64Decode(b64), 'application/pdf', fname || 'document.pdf')];
+  MailApp.sendEmail(opts);
+  return true;
+}
+function reservationMail_(resNo) {
+  const r = rows_(TBL.RES).find(x => x.resNo === resNo);
+  if (!r) return false;
+  const st = settings_();
+  const body = '<p>Dear ' + escHtml_(r.guestName || 'guest') + ',</p>' +
+    '<p>Thank you for choosing ' + escHtml_(st.hotelName || '') + '. Your reservation is confirmed.</p>' +
+    '<table role="presentation" cellpadding="6" style="border-collapse:collapse;font-size:14px">' +
+    '<tr><td><b>Reservation no.</b></td><td>' + escHtml_(r.resNo) + '</td></tr>' +
+    '<tr><td><b>Arrival</b></td><td>' + escHtml_(docDate_(r.arrival)) + '</td></tr>' +
+    '<tr><td><b>Departure</b></td><td>' + escHtml_(docDate_(r.departure)) + '</td></tr>' +
+    '<tr><td><b>Room type</b></td><td>' + escHtml_(r.roomType) + '</td></tr></table>' +
+    (st.hotelAppUrl ? '<p>Hotel app: <a href="' + escHtml_(st.hotelAppUrl) + '">' + escHtml_(st.hotelAppUrl) + '</a></p>' : '') +
+    '<p>We look forward to welcoming you.</p>';
+  return guestMail_(resNo, 'Reservation confirmed · ' + r.resNo, body, '', '');
+}
+function checkoutMail_(token, resNo, balance) {
+  const r = rows_(TBL.RES).find(x => x.resNo === resNo);
+  if (!r || !guestEmailOf_(resNo)) return false;
+  const st = settings_();
+  const folio = exportFolioPdf(token, resNo);
+  const body = '<p>Dear ' + escHtml_(r.guestName || 'guest') + ',</p>' +
+    '<p>Thank you for staying with ' + escHtml_(st.hotelName || '') + '. You have checked out.</p>' +
+    '<p>Balance at check-out: <b>' + docMoney_(balance) + ' ' + escHtml_(st.currency || '') + '</b>. Your folio is attached.</p>' +
+    '<p>We hope to welcome you again soon.</p>';
+  return guestMail_(resNo, 'Your receipt · ' + (st.hotelName || '') + ' · ' + resNo, body, folio.base64, folio.name);
+}

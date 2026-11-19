@@ -1,6 +1,6 @@
 const fs = require('fs'), vm = require('vm'), crypto = require('crypto');
 const SRC = '../';
-const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','FixedCharges','Documents','Recovery','Roles','Billing','Ledger','Admin','EodReports','FrontSearch','Menu','Updater'];
+const files = ['Config','Core','Setup','Rooms','Rates','Guests','Reservations','FrontDesk','Folio','Groups','NightAudit','Reports','Advanced','FixedCharges','Documents','Backup','Recovery','Roles','Billing','Ledger','Admin','EodReports','FrontSearch','Menu','Updater'];
 const code = files.map(f => fs.readFileSync(SRC + f + '.gs', 'utf8')).join('\n;\n');
 
 // ---- in-memory Spreadsheet ----

@@ -8,6 +8,7 @@ function onOpen() {
     .addItem('Set up database', 'menuSetup')
     .addItem('Check database', 'menuCheck')
     .addItem('Organise tabs', 'menuTabs')
+    .addItem('Back up now', 'menuBackup')
     .addItem('Load demo data', 'menuDemo')
     .addSeparator()
     .addItem('Update from GitHub', 'menuUpdate')
@@ -78,4 +79,10 @@ function menuTabs() {
   const ui = SpreadsheetApp.getUi();
   try { const n = organiseTabs_(); ui.alert('Tabs organised: ' + n + ' database tabs grouped by area and coloured.'); }
   catch (e) { ui.alert('Could not organise tabs: ' + e.message); }
+}
+
+function menuBackup() {
+  const ui = SpreadsheetApp.getUi();
+  try { const name = nightlyBackup_(); ui.alert('Backup saved: ' + name + ' (in the Stayline backups folder in Drive).'); }
+  catch (e) { ui.alert('Backup failed: ' + e.message); }
 }

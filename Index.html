@@ -43,6 +43,7 @@
     <div class="login-panel">
       <form class="login-box" onsubmit="doLogin(event)">
         <div class="login-head">
+          <span class="login-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-6h6v6"/><path d="M8 11h.01M16 11h.01M12 11h.01"/></svg></span>
           <h1 id="loginTitle"><?= appName ?></h1>
           <p class="muted" id="loginHotel"></p>
         </div>
@@ -54,7 +55,7 @@
           <span class="pw">
             <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
             <input name="p" id="loginPw" type="password" autocomplete="current-password" required onkeyup="capsCheck(event)" onkeydown="capsCheck(event)">
-            <button type="button" class="pw-toggle" onclick="togglePw()" aria-label="Show or hide password">Show</button>
+            <button type="button" class="pw-toggle" onclick="togglePw()" aria-label="Show password" aria-pressed="false" title="Show password"><svg class="eye-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.9 10.9 0 0 1 12 19c-6.4 0-10-7-10-7a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A10.9 10.9 0 0 1 12 4c6.4 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/></svg></button>
           </span></label>
         <div class="login-foot"><button type="button" class="linkbtn" onclick="forgotOpen(this.form.u.value)">Forgot password?</button></div>
         <p class="caps hidden" id="capsWarn">Caps Lock is on.</p>

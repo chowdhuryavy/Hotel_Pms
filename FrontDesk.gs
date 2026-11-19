@@ -120,6 +120,7 @@ function checkOut(token, resNo, force, rid) {
     if (g) patch_(TBL.GUESTS, g._row, { stays: (Number(g.stays) || 0) + 1, lastStay: bd });
     audit_(s.username, 'CHECK_OUT', 'Reservation', resNo, 'Room ' + r.roomNo + ' balance ' + balance.toFixed(2));
     const out = { balance: balance };
+    try { checkoutMail_(token, resNo, balance); } catch (e) { Logger.log('Check-out mail: ' + e.message); }
     idemPut_(s, rid, out);
     return out;
   });

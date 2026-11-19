@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.62**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.63**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.63: Admin functions (users, rates, settings and so on) open as full pages in their own tab instead of a small dialog. The system settings have a licence number field, shown in the sidebar licence box. Each closed cashier shift has a Cash-up PDF (in Cashier shifts history) and, when auditor auto-send is on, is emailed to the auditor. Guests get a reservation confirmation email and a check-out receipt with the folio PDF attached (sent only when the guest has an email address). A Room attendant page gives large tiles for room status on a tablet. A nightly database copy is saved to the Stayline backups folder in Drive at 02:00 (newest 30 kept); Back up now is in the spreadsheet menu. The login page has a brand mark and an eye button to show or hide the password, and on phones it shows only the sign-in form. Drive access is a new permission: the admin must approve it once.
 
 Release notes for 1.2.62: Connection dialogs can always be closed. Each dialog has a × button, and only one dialog is on screen at a time, so repeated Diagnose clicks no longer stack dialogs. A Diagnose run cannot start twice.
 
