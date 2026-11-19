@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.115**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.116**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.116: The desktop sign-in page has a richer look: a decorative ring and gradient title on the left, a card with a soft shadow, a larger sign-in button with a hover lift, and a glow behind the form. The phone layout is unchanged.
 
 Release notes for 1.2.115: The browser tab shows the hotel logo when one is set in Hotel settings. Without a logo, the default icon stays.
 

@@ -418,6 +418,23 @@
   .linkbtn{background:none;border:0;color:var(--brand-2);font-weight:600;cursor:pointer;padding:4px 0;font-size:13px}
   .linkbtn:hover{text-decoration:underline}
   .login-foot{display:flex;justify-content:flex-end;margin:-6px 0 10px}
+  /* Desktop sign-in page: richer panels, a decorative ring, a gradient title and a lifted sign-in button */
+  @media (min-width:901px){
+    .login-art{background:radial-gradient(700px 420px at 12% 6%,rgba(242,177,52,.20),transparent 60%),radial-gradient(820px 520px at 92% 96%,rgba(29,120,116,.6),transparent 62%),linear-gradient(160deg,#071f20,#0f3d3e 52%,#13504f)}
+    .login-art::before{content:"";position:absolute;left:50%;top:50%;width:620px;height:620px;transform:translate(-50%,-50%);border-radius:50%;border:1px solid rgba(255,255,255,.07);box-shadow:0 0 0 90px rgba(255,255,255,.015),0 0 0 180px rgba(255,255,255,.01);pointer-events:none;z-index:0}
+    .login-art .art-title{font-size:46px;line-height:1.08;background:linear-gradient(120deg,#ffffff 25%,#f2b134 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .login-art .art-text{font-size:16px;opacity:.85}
+    .login-art .art-foot{opacity:.7}
+    .login-panel{background:radial-gradient(640px 420px at 50% 0%,rgba(29,120,116,.14),transparent 70%)}
+    .login-box{padding:50px 46px 40px;border-radius:26px;background:var(--card);box-shadow:0 0 0 1px var(--line),0 44px 90px -34px rgba(5,25,26,.6)}
+    .login-logo{width:92px;height:92px;border-radius:26px;background:var(--card);box-shadow:0 0 0 1px var(--line),0 16px 36px -14px rgba(10,42,43,.45);padding:12px;margin-bottom:18px}
+    .login-head h1{font-size:27px;letter-spacing:-.3px}
+    .login-welcome{font-size:23px;letter-spacing:-.2px}
+    .login-box .login-btn{height:54px;font-size:16px;font-weight:700;letter-spacing:.2px;border-radius:14px;background:linear-gradient(135deg,var(--brand-2),#17605d);box-shadow:0 16px 34px -14px rgba(29,120,116,.75);transition:transform .2s ease,box-shadow .2s ease}
+    .login-box .login-btn:hover{transform:translateY(-2px);box-shadow:0 22px 40px -14px rgba(29,120,116,.9)}
+    .login-box .login-btn:active{transform:translateY(0)}
+    .login-box input{height:50px;border-radius:12px}
+  }
   @keyframes login-rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
   @keyframes login-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
   @keyframes login-drift{from{transform:translate(0,0) scale(1)}to{transform:translate(30px,-20px) scale(1.06)}}
