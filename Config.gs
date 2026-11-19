@@ -21,6 +21,7 @@ const TBL = {
   RATEPLANS: ['RatePlans', ['code','name','description','active']],
   RATES:     ['Rates', ['id','plan','roomType','startDate','endDate','rate','active']],
   CHARGES:   ['ChargeCodes', ['code','description','department','type','taxable','active']],
+  ACCOMP:    ['Accompany', ['id','resNo','title','firstName','lastName','age','idType','idNo','notes','createdAt']],
   GUESTS:    ['Guests', ['id','title','firstName','lastName','email','phone','nationality','idType','idNo','dob','vip','company','preferences','notes','stays','lastStay','createdAt','updatedAt','alert','alertLevel']],
   GROUPS:    ['Groups', ['id','name','contact','arrival','departure','roomType','roomCount','masterResNo','status','notes','createdAt','createdBy']],
   RES:       ['Reservations', ['resNo','status','guestId','guestName','groupId','roomNo','roomType','arrival','departure','adults','children','plan','rate','channel','market','company','vip','notes','createdBy','createdAt','updatedAt','checkedInAt','checkedOutAt','cancelReason']],
@@ -82,7 +83,7 @@ const PERMISSIONS = [
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.75';
+const APP_VERSION = '1.2.76';
 const SETTINGS_DEFAULT = {
   maxLoginAttempts: 5,      // wrong passwords before the account is locked (system admin, minimum 5)
   inactivityMinutes: 30,    // idle minutes before sign-out (system admin)

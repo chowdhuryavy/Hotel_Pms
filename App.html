@@ -1651,6 +1651,32 @@ async function pgRes() {
     <div class="card"><h3>Change log <span class="muted">${resLog.length}</span></h3><p class="muted" style="margin:0 0 8px">Every change to this reservation, its folios and postings, with date, time and user.</p>${table(['Date', 'Time', 'User', 'Action', 'Details'],
       resLog.map(l => tr([esc(String(l.at).slice(0, 10)), esc(String(l.at).slice(11)), esc(l.user), esc(resActionLabel_(l.action)), esc(l.details)])))}</div>`);
 }
+/* Accompanying guests of a booking: list, add, remove */
+async function accompanyModal(resNo) {
+  const list = await api('listAccompany', resNo);
+  const rows = list.map(g => tr([esc([g.title, g.firstName, g.lastName].filter(Boolean).join(' ')), esc(g.age === '' || g.age == null ? '' : g.age), esc(g.idType ? g.idType + ' ' + (g.idNo || '') : ''),
+    '<button class="btn sm ghost" type="button" onclick="removeAccompanyAct(&#39;' + esc(g.id) + '&#39;,&#39;' + esc(resNo) + '&#39;)">Remove</button>']));
+  openModal('Accompanying guests · ' + resNo,
+    '<p class="muted">People travelling with the guest. They are listed on the registration card.</p>' +
+    (rows.length ? table(['Name', 'Age', 'ID', ''], rows) : '<p class="muted">No accompanying guests yet.</p>') +
+    '<h3 style="margin-top:16px">Add a guest</h3>' +
+    formHtml('fAcc', [
+      { name: 'title', label: 'Title', type: 'select', options: ['', 'Mr', 'Mrs', 'Ms', 'Miss', 'Dr', 'Child'] },
+      { name: 'firstName', label: 'First name', required: true },
+      { name: 'lastName', label: 'Last name' },
+      { name: 'age', label: 'Age (for children)', type: 'number', min: 0 },
+      { name: 'idType', label: 'ID type', type: 'select', options: ['', 'Passport', 'National ID', 'Residence permit', 'Other'] },
+      { name: 'idNo', label: 'ID number' }
+    ], 'Add guest'));
+  bindForm('fAcc', async d => { await api('addAccompany', resNo, d); toast('Guest added'); accompanyModal(resNo); });
+}
+function removeAccompanyAct(id, resNo) {
+  appConfirm('Remove this guest?', 'They will be removed from the booking.', { ok: 'Remove', cancel: 'Cancel', tone: 'warn' }).then(async ok => {
+    if (!ok) return;
+    try { await api('removeAccompany', id); toast('Guest removed'); accompanyModal(resNo); }
+    catch (e) { toast(e.message, true); }
+  });
+}
 async function modifyModal(resNo) {
   const d = RES.res.resNo === resNo ? RES : await api('getReservation', resNo);
   const r = d.res, inH = r.status === 'In-House';
@@ -1667,7 +1693,10 @@ async function modifyModal(resNo) {
     { name: 'vip', label: 'VIP guest', type: 'select', options: [['false', 'No'], ['true', 'Yes']], value: r.vip === true ? 'true' : 'false' },
     { name: 'notes', label: 'Notes', type: 'textarea', wide: true, value: r.notes });
   const hint = inH ? `<p class="muted">Arrival, room type and rate are fixed during the stay. Use <b>Extend stay</b> to change the departure and <b>Move room</b> to change the room.</p>` : '';
-  openModal((inH ? 'Update stay · ' : 'Update reservation · ') + resNo, formHtml('fMod', fields, 'Save changes') + hint);
+  const openFolio = (d.folios || []).find(f => f.status === 'Open');
+  const extra = `<div class="acts" style="margin-top:14px;flex-wrap:wrap"><button class="btn ghost" type="button" onclick="accompanyModal('${esc(resNo)}')">Accompanying guests</button>` +
+    (inH && openFolio ? ` <button class="btn ghost" type="button" onclick="billPackageModal('${esc(resNo)}','${esc(openFolio.id)}')">Add package</button>` : '') + '</div>';
+  openModal((inH ? 'Update stay · ' : 'Update reservation · ') + resNo, formHtml('fMod', fields, 'Save changes') + hint + extra);
   bindForm('fMod', async f => { await api('modifyReservation', resNo, f); toast('Reservation updated'); closeModal(); refresh(); });
 }
 function cancelModal(resNo) {

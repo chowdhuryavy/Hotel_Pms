@@ -249,3 +249,36 @@ function rackData(token, start, days) {
     }))
   };
 }
+
+/* ---------- Accompanying guests: people travelling with the booked guest ---------- */
+function listAccompany(token, resNo) {
+  auth_(token, 'reservations.view');
+  const no = String(resNo).trim();
+  return rows_(TBL.ACCOMP).filter(x => x.resNo === no).map(x => ({ id: x.id, title: x.title, firstName: x.firstName,
+    lastName: x.lastName, age: x.age, idType: x.idType, idNo: x.idNo, notes: x.notes }));
+}
+function addAccompany(token, resNo, d) {
+  const s = auth_(token, 'reservations.modify');
+  return withLock_(() => {
+    const r = findRes_(resNo);
+    if (r.status !== 'Reserved' && r.status !== 'In-House') throw new Error('Accompanying guests can be added to reserved or in-house bookings only.');
+    const first = String((d && d.firstName) || '').trim();
+    if (!first) throw new Error('First name is required.');
+    const id = id_('AC');
+    append_(TBL.ACCOMP, { id: id, resNo: r.resNo, title: String(d.title || ''), firstName: first, lastName: String(d.lastName || ''),
+      age: d.age === '' || d.age == null ? '' : num_(d.age), idType: String(d.idType || ''), idNo: String(d.idNo || ''),
+      notes: String(d.notes || ''), createdAt: fmtTs_(new Date()) });
+    audit_(s.username, 'ACCOMP_ADDED', 'Reservation', r.resNo, (first + ' ' + (d.lastName || '')).trim());
+    return { id: id };
+  });
+}
+function removeAccompany(token, id) {
+  const s = auth_(token, 'reservations.modify');
+  return withLock_(() => {
+    const row = rows_(TBL.ACCOMP).find(x => x.id === String(id));
+    if (!row) throw new Error('Guest not found.');
+    sh_(TBL.ACCOMP).deleteRow(row._row);
+    audit_(s.username, 'ACCOMP_REMOVED', 'Reservation', row.resNo, (row.firstName + ' ' + (row.lastName || '')).trim());
+    return { ok: true };
+  });
+}
