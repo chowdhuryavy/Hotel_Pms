@@ -802,7 +802,8 @@ function billOptions_(resNo, roomNo, guestId) {
     [can('reservations.view'), 'Guest history', `guestHistoryModal('${guestId}')`],
     [can('reservations.modify'), 'Move room', `moveModal('${resNo}')`],
     [can('reservations.modify'), 'Extend stay', `extendModal('${resNo}')`],
-    [can('reservations.create'), 'Copy reservation', `copyModal('${resNo}')`]
+    [can('reservations.create'), 'Copy reservation', `copyModal('${resNo}')`],
+    [can('accounts.manage'), 'Link to company / AR account', `billRoomAccountModal('${resNo}','${roomNo}')`]
   ].filter(x => x[0]);
   openModal('Options · Room ' + roomNo, `<div class="opt-list">${rows.map(x => `<button type="button" class="btn ghost block" onclick="closeModal();${x[2]}">${x[1]}</button>`).join('')}</div>`);
 }
@@ -3301,6 +3302,22 @@ async function billToModal(folioId, current) {
   });
 }
 
+/* From a room's billing options: bill the room's open folio to a company or AR (city ledger) account */
+function billRoomAccountModal(resNo, roomNo) {
+  Promise.all([api('billingRoom', roomNo), api('listAccounts')]).then(([d, list]) => {
+    const open = ((d.res && d.res.folios) || []).filter(f => f.status === 'Open');
+    if (!open.length) { toast('Room ' + roomNo + ' has no open folio. Add a folio first.', true); return; }
+    const opts = [['', 'Guest pays (no company or AR account)']].concat((Array.isArray(list) ? list : []).filter(a => a.active).map(a => [a.id, a.name + ' · ' + a.code]));
+    const fields = [];
+    if (open.length > 1) fields.push({ name: 'folioId', label: 'Folio', type: 'select', wide: true, options: open.map(f => [f.id, f.folioNo + ' · ' + f.name]) });
+    fields.push({ name: 'accountId', label: 'Company or AR account', type: 'select', wide: true, options: opts, value: open[0].accountId || '' });
+    openModal('Link room ' + roomNo + ' to an account', formHtml('fRa', fields, 'Save link'));
+    bindForm('fRa', async dd => {
+      await api('setFolioAccount', dd.folioId || open[0].id, dd.accountId || '');
+      toast('Folio linked to account'); closeModal(); refresh();
+    });
+  }).catch(e => toast(e.message, true));
+}
 async function pgShifts() {
   const [sh, list] = await Promise.all([api('myShift'), api('listShifts')]);
   let mine = '';

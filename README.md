@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.83**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.84**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.84: The room billing Options menu has "Link to company / AR account". It bills the room's open folio to a company or city ledger account, or back to the guest. If the room has more than one open folio, you choose which one.
 
 Release notes for 1.2.83: Billing shows the in-house and reserved rooms by default; All rooms is a button for the rest. The posting window lists the in-house and reserved rooms before any search, each with a Post button. The Billing status column is labelled Status.
 
