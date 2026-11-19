@@ -51,6 +51,7 @@ const isNetErr_ = m => NET_ERR_RE.test(String(m || ''));
 const api = (fn, ...a) => {
   progressStart_();
   const limit = READ_FN_RE.test(fn) ? 30000 : 60000;   // a stalled request must not leave the screen waiting forever
+  const spinBtn = spinStart_();
   const attempt = n => withTimeout_(rpc(fn, S.token, ...a), limit).catch(e => {
     if (isNetErr_(e.message) && READ_FN_RE.test(fn) && n < 2) return new Promise(r => setTimeout(r, 700 * (n + 1))).then(() => attempt(n + 1));
     if (isNetErr_(e.message)) {
@@ -61,7 +62,7 @@ const api = (fn, ...a) => {
     }
     throw e;
   });
-  return attempt(0).finally(progressEnd_);
+  return attempt(0).finally(() => { progressEnd_(); spinEnd_(spinBtn); });
 };
 /* ---------- Connection indicator (system administrator): is the app really talking to the server and the database? ---------- */
 let CONN = { state: 'checking' }, CONN_TIMER = null;
@@ -181,20 +182,25 @@ function waitSplash_() {
   };
   tick();
 }
-/* Button feedback: every .btn spins while its action runs, and stops when the data has arrived. */
+/* Button feedback: a button spins only while a server call started from that click is running.
+   Buttons that just open a dialog (such as Check in) do not spin. */
+let CLICK_BTN = null, CLICK_T = 0;
 document.addEventListener('click', e => {
-  const b = e.target.closest && e.target.closest('.btn,.ab');
-  if (!b || b.disabled || b.hasAttribute('data-nospin')) return;
-  b.classList.add('spin-on');
-  const t0 = Date.now();
-  const tick = () => {
-    if (!b.isConnected) return;
-    const busy = (PROGRESS_N > 0 || VIEW_PENDING) && Date.now() - t0 < 20000;
-    if (busy || Date.now() - t0 < 450) return setTimeout(tick, 100);
-    b.classList.remove('spin-on');
-  };
-  setTimeout(tick, 60);
+  CLICK_BTN = e.target.closest && e.target.closest('.btn,.ab');
+  CLICK_T = Date.now();
 }, true);
+function spinStart_() {
+  const b = CLICK_BTN;
+  if (!b || !b.isConnected || Date.now() - CLICK_T > 3000) return null;
+  b._spin = (b._spin || 0) + 1;
+  b.classList.add('spin-on');
+  return b;
+}
+function spinEnd_(b) {
+  if (!b) return;
+  b._spin = Math.max(0, (b._spin || 1) - 1);
+  if (!b._spin) b.classList.remove('spin-on');
+}
 function progressStart_() { PROGRESS_N++; const p = document.getElementById('progress'); if (p) p.classList.add('on'); }
 function progressEnd_() { PROGRESS_N = Math.max(0, PROGRESS_N - 1); if (!PROGRESS_N) { const p = document.getElementById('progress'); if (p) p.classList.remove('on'); } }
 function skeleton_() {
