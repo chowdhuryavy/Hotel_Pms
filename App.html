@@ -51,12 +51,53 @@ function applyLanguage_(lang) {
 }
 
 /* ---------- Feedback ---------- */
+/* Notification pop: success or error with an icon. Replaces plain text messages. */
 function toast(msg, bad) {
   const t = $('toast');
-  t.textContent = msg;
+  t.innerHTML = `<span class="tico" aria-hidden="true">${bad ? '✕' : '✓'}</span><span>${esc(String(msg))}</span>`;
   t.className = 'toast show' + (bad ? ' bad' : '');
   clearTimeout(t._h);
-  t._h = setTimeout(() => { t.className = 'toast'; }, 3400);
+  t._h = setTimeout(() => { t.className = 'toast'; }, bad ? 5000 : 3400);
+}
+/* Styled dialog. Returns a promise: true for OK, false for Cancel (or Escape / clicking outside when there is a Cancel). */
+function appDialog_(o) {
+  return new Promise(resolve => {
+    const tone = o.tone || (o.danger ? 'bad' : 'info');
+    const ico = { info: 'i', ok: '✓', warn: '!', bad: '✕' }[tone] || 'i';
+    const bg = document.createElement('div');
+    bg.className = 'dlg-bg';
+    bg.innerHTML = `<div class="dlg ${tone}" role="dialog" aria-modal="true" aria-labelledby="dlgT">` +
+      `<div class="dlg-ico" aria-hidden="true">${ico}</div><h4 id="dlgT">${esc(o.title || '')}</h4>` +
+      `<p>${esc(o.message || '')}</p><div class="dlg-acts">` +
+      (o.cancel ? `<button class="btn ghost" data-r="0">${esc(o.cancel)}</button>` : '') +
+      `<button class="btn${o.danger ? ' danger' : ''}" data-r="1">${esc(o.ok || 'OK')}</button></div></div>`;
+    document.body.appendChild(bg);
+    const done = v => {
+      document.removeEventListener('keydown', onKey, true);
+      bg.classList.add('out');
+      setTimeout(() => bg.remove(), 180);
+      resolve(v);
+    };
+    const onKey = e => {
+      if (e.key === 'Escape') { e.preventDefault(); done(!o.cancel); }
+      else if (e.key === 'Enter') { e.preventDefault(); const f = bg.querySelector('button:focus'); if (f) f.click(); else done(true); }
+    };
+    bg.addEventListener('click', e => {
+      const b = e.target.closest('[data-r]');
+      if (b) done(b.dataset.r === '1');
+      else if (e.target === bg && o.cancel) done(false);
+    });
+    document.addEventListener('keydown', onKey, true);
+    setTimeout(() => { const b = bg.querySelector('[data-r="1"]'); if (b) b.focus(); }, 30);
+  });
+}
+/* Confirm before an action. Resolves true when the user confirms. */
+function appConfirm(title, message, opts) {
+  return appDialog_(Object.assign({ title: title, message: message, ok: 'Confirm', cancel: 'Cancel', tone: 'warn' }, opts || {}));
+}
+/* Message the user must acknowledge. */
+function appAlert(title, message, tone) {
+  return appDialog_({ title: title, message: message, ok: 'OK', tone: tone || 'info' });
 }
 async function act(fn, msg, ...args) {
   try { await api(fn, ...args); if (msg) toast(msg); refresh(); }
@@ -1408,8 +1449,9 @@ async function savePerms(role) {
     closeModal(); go('admin'); toast('Permissions saved');
   } catch (e) { toast(e.message, true); }
 }
-function removeRole(name) {
-  if (!confirm('Delete the role "' + name + '"? Its permissions are removed.')) return;
+async function removeRole(name) {
+  const yes = await appConfirm('Delete role', 'Delete the role "' + name + '"? Its permissions are removed.', { ok: 'Delete', danger: true, tone: 'bad' });
+  if (!yes) return;
   api('deleteRole', name).then(() => { go('admin'); toast('Role deleted'); }).catch(e => toast(e.message, true));
 }
 function userModal(id, presetRole) {

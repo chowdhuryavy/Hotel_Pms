@@ -128,6 +128,25 @@
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(120px);background:var(--brand);color:#fff;padding:12px 18px;border-radius:10px;transition:transform .25s;z-index:60;max-width:90vw;box-shadow:0 8px 24px rgba(0,0,0,.3)}
   .toast.show{transform:translateX(-50%) translateY(0)}
   .toast.bad{background:var(--bad)}
+  .toast{display:flex;align-items:center;gap:10px;max-width:min(92vw,460px);box-shadow:0 14px 34px rgba(0,0,0,.28);font-weight:600;font-size:14px;line-height:1.35}
+  .toast .tico{width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.22);display:grid;place-items:center;font-size:13px;flex:none}
+  .toast.show{animation:toast-in .35s cubic-bezier(.2,.8,.2,1)}
+  @keyframes toast-in{from{opacity:0;transform:translateX(-50%) translateY(20px) scale(.96)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
+  .dlg-bg{position:fixed;inset:0;z-index:120;background:rgba(5,15,18,.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:16px;animation:fade .2s ease}
+  .dlg-bg.out{opacity:0;transition:opacity .18s ease}
+  .dlg{background:var(--card);color:var(--text);border-radius:20px;width:min(420px,100%);padding:28px 24px 20px;box-shadow:0 28px 64px rgba(0,0,0,.4);text-align:center;animation:pop-in .35s cubic-bezier(.2,.8,.2,1) both;border-top:4px solid var(--brand)}
+  .dlg.warn{border-top-color:#f2b134}
+  .dlg.bad{border-top-color:var(--bad)}
+  .dlg.ok{border-top-color:#1d7874}
+  .dlg-ico{width:60px;height:60px;border-radius:50%;margin:0 auto 14px;display:grid;place-items:center;font-size:26px;font-weight:700;color:#fff;background:var(--brand);box-shadow:0 8px 20px rgba(0,0,0,.2);animation:pop-in .5s .1s cubic-bezier(.2,.8,.2,1) both}
+  .dlg.warn .dlg-ico{background:linear-gradient(135deg,#f2b134,#e09a1a);color:#3a2a05}
+  .dlg.bad .dlg-ico{background:linear-gradient(135deg,#e5484d,#b4232a)}
+  .dlg.ok .dlg-ico{background:linear-gradient(135deg,#2fa39f,#1d7874)}
+  .dlg h4{margin:0 0 8px;font-size:19px}
+  .dlg p{margin:0 0 22px;color:var(--muted);line-height:1.55;white-space:pre-line;font-size:14px}
+  .dlg-acts{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .dlg-acts .btn{min-width:120px;padding:10px 18px;font-size:14px}
+  .dlg-acts .btn:focus-visible{outline:3px solid rgba(242,177,52,.7);outline-offset:2px}
 
   @media (max-width:900px){
     .sidebar{position:fixed;left:-250px;z-index:40;transition:left .2s;height:100vh}

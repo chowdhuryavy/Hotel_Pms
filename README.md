@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.9**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.10**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.10: browser pop-ups are replaced by styled dialogs. Confirmations (for example deleting a role) show a confirm dialog with Cancel, Enter confirms and Escape cancels. Messages show as a styled notification with an icon.
 
 Release notes for 1.2.9: email messages (welcome, reset code, password changed, app link) have their own System admin tab, "Email messages". The end-of-day report (Reports → End-of-day report) has sections: manager flash, trial balance, guest ledger, package ledger and city ledger aging. More sections can be added in EodReports.gs.
 
