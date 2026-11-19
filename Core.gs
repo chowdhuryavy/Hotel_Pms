@@ -103,6 +103,23 @@ function permMap_(role) {
   if (role === ADMIN_ROLE) PERMISSIONS.forEach(p => { m[p[0]] = true; });
   return m;
 }
+/* Sidebar layout: { groups: [{ name, items: [page keys] }] }. The page keys are checked against the menu on the client. */
+function normalizeMenuLayout_(raw) {
+  if (raw === '' || raw === null || raw === undefined) return '';
+  let o;
+  try { o = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { throw new Error('Menu layout is not valid.'); }
+  if (!o || !Array.isArray(o.groups) || o.groups.length > 20) throw new Error('Menu layout is not valid.');
+  const groups = o.groups.map(g => {
+    if (!g || typeof g.name !== 'string' || !Array.isArray(g.items) || g.items.length > 80) throw new Error('Menu layout is not valid.');
+    const name = g.name.trim().slice(0, 40);
+    if (!name) throw new Error('Every menu group needs a name.');
+    const items = g.items.map(k => { if (typeof k !== 'string' || k.length > 40) throw new Error('Menu layout is not valid.'); return k; });
+    return { name: name, items: items };
+  });
+  const out = JSON.stringify({ groups: groups });
+  if (out.length > 8000) throw new Error('Menu layout is too large.');
+  return out;
+}
 /* Licence window set by the system administrator. Outside it only the system administrator can sign in. */
 function licenseStatus_() {
   const s = settings_();
@@ -123,7 +140,7 @@ function licenseGuard_(role) {
 }
 function publicSettings_() {
   const s = settings_();
-  return { appName: s.appName, hotelName: s.hotelName, logoUrl: s.logoUrl, loadingMessage: s.loadingMessage || '', loadingScreen: s.loadingScreen || 'random', licenseStart: String(s.licenseStart || ''), licenseExpiry: String(s.licenseExpiry || ''), licenseStatus: licenseStatus_().status, currency: s.currency || s.defaultCurrency, defaultLanguage: s.defaultLanguage, inactivityMinutes: inactivityMinutes_() };
+  return { appName: s.appName, hotelName: s.hotelName, logoUrl: s.logoUrl, loadingMessage: s.loadingMessage || '', loadingScreen: s.loadingScreen || 'random', menuLayout: String(s.menuLayout || ''), licenseStart: String(s.licenseStart || ''), licenseExpiry: String(s.licenseExpiry || ''), licenseStatus: licenseStatus_().status, currency: s.currency || s.defaultCurrency, defaultLanguage: s.defaultLanguage, inactivityMinutes: inactivityMinutes_() };
 }
 function getPublicSettings() { return publicSettings_(); }
 
@@ -282,6 +299,7 @@ function saveSettings(token, d) {
       if (v.length > 45000) throw new Error('Logo is too large. Use a smaller image.');
       d[k] = v;
     }
+    if (k === 'menuLayout') d[k] = normalizeMenuLayout_(d[k]);
     plan.push([k, d[k]]);
   });
   // The licence window: the values being saved, or the current ones

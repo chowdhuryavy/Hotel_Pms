@@ -78,7 +78,7 @@ const PERMISSIONS = [
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.15';
+const APP_VERSION = '1.2.16';
 const SETTINGS_DEFAULT = {
   maxLoginAttempts: 5,      // wrong passwords before the account is locked (system admin, minimum 5)
   inactivityMinutes: 30,    // idle minutes before sign-out (system admin)
@@ -86,6 +86,7 @@ const SETTINGS_DEFAULT = {
   hotelName: 'Stayline Hotel',
   hotelAddress: '',
   loadingMessage: 'Preparing your hotel…',   // shown on the loading screen
+  menuLayout: '',                      // system admin: sidebar groups and order (JSON), empty = default
   licenseStart: '',                    // system admin: first day the client can use the app (yyyy-mm-dd)
   licenseExpiry: '',                   // system admin: last day the client can use the app (yyyy-mm-dd)
   loadingScreen: 'random',             // system admin: random, classic, orbit, flip or pulse
@@ -112,7 +113,7 @@ const SETTINGS_DEFAULT = {
   welcomeBody: 'Hello {{name}},\n\nAn account has been created for you at {{hotelName}}.\n\nApp link: {{appUrl}}\nUsername: {{username}}\nTemporary password: {{tempPassword}}\nRole: {{role}}\n\nYou will be asked to choose a new password the first time you sign in.'
 };
 /** Settings only the system administrator can change (email templates and the app link). */
-const SYSTEM_SETTINGS = ['licenseStart', 'licenseExpiry', 'loadingScreen', 'maxLoginAttempts', 'inactivityMinutes', 'defaultLanguage', 'defaultCurrency', 'auditorEmail', 'auditorAutoSend', 'intPosUrl', 'intTvUrl', 'intPhoneUrl', 'intCardUrl', 'appUrl', 'welcomeSubject', 'welcomeBody', 'otpSubject', 'otpBody', 'doneSubject', 'doneBody'];
+const SYSTEM_SETTINGS = ['menuLayout', 'licenseStart', 'licenseExpiry', 'loadingScreen', 'maxLoginAttempts', 'inactivityMinutes', 'defaultLanguage', 'defaultCurrency', 'auditorEmail', 'auditorAutoSend', 'intPosUrl', 'intTvUrl', 'intPhoneUrl', 'intCardUrl', 'appUrl', 'welcomeSubject', 'welcomeBody', 'otpSubject', 'otpBody', 'doneSubject', 'doneBody'];
 
 const CHARGE_CODES_DEFAULT = [
   // [code, description, department, type, taxable]

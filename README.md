@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.15**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.16**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.16: the system administrator arranges the sidebar in System admin → Menu layout: order the groups and pages, move pages between groups, rename groups, and reset to default. Pages not placed keep their default group.
 
 Release notes for 1.2.15: the system administrator always has every permission, even before the Permissions sheet is updated (fixes "Permission denied: cfg.settings.view"). Run Stayline → Set up database once so Property Admin gets the new configuration rights.
 

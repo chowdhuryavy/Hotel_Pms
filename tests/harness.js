@@ -480,5 +480,12 @@ if (require.main === module) {
   ok(!!tryRun("modifyReservation(TOK, '" + IHR + "', {roomType: 'ZZZ'})").e, 'in-house stay: room type cannot change here');
   ok(!!tryRun("modifyReservation(TOK, '" + IHR + "', {rateOverride: 10})").e, 'in-house stay: rate cannot change here');
   ok(run("permMap_('Admin')['cfg.settings.view'] === true && permMap_('Admin')['cfg.accounts.delete'] === true"), 'system admin has every configuration permission');
+  // Sidebar layout: saved by the system administrator, validated on the server
+  ok(!tryRun("saveSettings(TOK, {menuLayout: JSON.stringify({groups: [{name: 'Front', items: ['arrivals', 'inhouse']}, {name: 'Ops', items: ['cashier']}]})})").e, 'system admin saves a menu layout');
+  ok(run("JSON.parse(settings_().menuLayout).groups.length") === 2, 'menu layout is stored');
+  ok(!!tryRun("saveSettings(TOK, {menuLayout: 'not json'})").e, 'menu layout must be valid JSON');
+  ok(!!tryRun("saveSettings(TOK, {menuLayout: JSON.stringify({groups: [{name: '', items: []}]})})").e, 'every menu group needs a name');
+  ok(!!tryRun("saveSettings(PT2, {menuLayout: JSON.stringify({groups: []})})").e, 'property admin cannot change the menu layout');
+  ok(!tryRun("saveSettings(TOK, {menuLayout: ''})").e && run("settings_().menuLayout") === '', 'menu layout can be reset to default');
   console.log('done');
 }
