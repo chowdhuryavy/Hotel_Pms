@@ -347,6 +347,8 @@ function toast(msg, bad) {
   const t = $('toast');
   t.innerHTML = `<span class="tico" aria-hidden="true">${bad ? '✕' : '✓'}</span><span>${esc(String(msg))}</span>`;
   t.className = 'toast show' + (bad ? ' bad' : '');
+  // A tap closes it, so it cannot stay on screen if the timer is paused in a background tab
+  t.onclick = () => { clearTimeout(t._h); t.className = 'toast'; };
   clearTimeout(t._h);
   t._h = setTimeout(() => { t.className = 'toast'; }, bad ? 5000 : 3400);
 }
