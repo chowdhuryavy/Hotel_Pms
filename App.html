@@ -123,6 +123,9 @@ function updateShow_(v) {
    frame itself, so the top window is sent to the web app's own address with a new version number. That address
    comes from the server (meta exec-url). The route cannot be carried across, so the main page opens. */
 function updateRefresh_() {
+  // Inside another site's page (for example your own domain), the top page must not leave that site: ask it to reload this frame
+  const embedded = window.top !== window.self && !!document.referrer && document.referrer.indexOf('script.google') < 0;
+  if (embedded) { try { window.parent.postMessage({ type: 'stayline-reload' }, '*'); return; } catch (e) { /* fall through */ } }
   const base = ((document.querySelector('meta[name="exec-url"]') || {}).content || '').trim();
   try { sessionStorage.setItem('st_resume', location.hash); } catch (e) { /* private mode */ }
   const dest = base ? base + (base.indexOf('?') >= 0 ? '&' : '?') + 'v=' + Date.now() : '';

@@ -52,6 +52,15 @@
       img.src = src;
     }
   </script>
+  <script>
+    // The app asks for a reload of its frame (for example after an update). The address stays on this site.
+    window.addEventListener('message', function (e) {
+      var f = document.querySelector('iframe');
+      if (!f || e.source !== f.contentWindow || !e.data || e.data.type !== 'stayline-reload') return;
+      var base = f.getAttribute('src').replace(/[?&]v=\d+/, '');
+      f.src = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'v=' + Date.now();
+    });
+  </script>
   <script src="https://script.google.com/macros/s/AKfycby7xsmwCZNBMgMet7dMtFrY5YdkU_ZC6_1NtWWrIG7Tn5KY6JcZOvm0yYo22xP_vICGeA/exec?nameFor=nameLoaded"></script>
 </body>
 </html>

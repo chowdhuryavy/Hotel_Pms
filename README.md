@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.167**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.168**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.168: On your own domain, the update Refresh button reloads the app inside the page instead of going to the Apps Script address.
 
 Release notes for 1.2.167: A Property Admin sees only staff users, never the system administrator's accounts. The system administrator is decided by the role, so a grant cannot give a Property Admin that access.
 
