@@ -117,6 +117,7 @@ function settings_() {
   const m = Object.assign({}, SETTINGS_DEFAULT);
   // a blank value in the sheet keeps the default (so an empty App name still shows Stayline)
   rows_(TBL.SETTINGS).forEach(r => { if (r.key && r.value !== '' && r.value != null) m[r.key] = r.value; });
+  delete m.resendApiKey;   // encrypted, read only by the mail sender (see Email.gs)
   m.taxRate = Number(m.taxRate) || 0;
   // the sheet can hold the business date as a date cell, read back as 'yyyy-mm-dd HH:mm'
   if (/^\d{4}-\d{2}-\d{2}/.test(String(m.businessDate))) m.businessDate = String(m.businessDate).slice(0, 10);

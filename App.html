@@ -2983,7 +2983,7 @@ async function pgAdmin(scope) {
   } else if (ADM === 'email') {
     const e = await api('getEmailConfig');
     const secret = (name, label, isSet, hint) => `<label class="wide field"><span>${label}</span><input name="${name}" type="password" autocomplete="new-password" placeholder="${isSet ? 'Saved. Type a new one to change it' : esc(hint)}"></label>`;
-    body = `<h3>Email sending (SMTP)</h3><p class="muted">When this is on, every email (sign-in codes, reset codes, welcome and password emails, night audit reports) goes through your SMTP server. When it is off, mail goes out from the Google account the app runs under.</p>
+    body = `<h3>Email sending (SMTP)</h3><p class="muted">When this is on, every email (sign-in codes, reset codes, welcome and password emails, night audit reports) goes through your SMTP server. If SMTP is off and Resend is on, Resend is used. If both are off, mail goes out from the Google account the app runs under.</p>
       <p class="muted">Apps Script cannot connect to an SMTP server directly, so the SMTP details are passed over HTTPS to a small mail relay you run (see <code>mail-relay/README.md</code>). The relay address and its secret come from that setup.</p>` +
       `<form id="fEmail" class="fgrid">` +
       fieldHtml({ name: 'active', label: 'Send email through my SMTP server', type: 'check', value: e.active }) +
@@ -2996,6 +2996,11 @@ async function pgAdmin(scope) {
       fieldHtml({ name: 'from', label: 'From address (emails are sent from this address)', value: e.from, wide: true }) +
       fieldHtml({ name: 'relayUrl', label: 'Mail relay address (https://…)', value: e.relayUrl, wide: true }) +
       secret('relaySecret', 'Mail relay secret', e.secretSet, 'Enter the relay secret') +
+      `<h4 style="margin:18px 0 6px">Resend (used when SMTP is off)</h4><p class="muted">Resend sends through its API. The from address must be on a domain you have verified in Resend. The API key is saved encrypted in the database and is never shown again.</p>` +
+      fieldHtml({ name: 'resendActive', label: 'Send email through Resend', type: 'check', value: e.resendActive }) +
+      fieldHtml({ name: 'resendFrom', label: 'Resend from address (on your verified domain)', value: e.resendFrom, wide: true }) +
+      secret('resendApiKey', 'Resend API key', e.resendKeySet, 'Enter the Resend API key') +
+      (e.resendKeySet ? fieldHtml({ name: 'clearResendKey', label: 'Remove the saved Resend API key', type: 'check', value: false }) : '') +
       `<div class="actions"><button class="btn ghost" type="button" onclick="testEmail()">Send a test email to me</button><button class="btn" type="submit">Save email sending</button></div></form>`;
   } else if (ADM === 'types') {
     const ts = await api('listRoomTypes');
@@ -3038,8 +3043,9 @@ async function pgAdmin(scope) {
   });
   if (ADM === 'email') bindForm('fEmail', async d => {
     const out = await api('saveEmailConfig', { active: d.active === 'true', host: d.host, port: Number(d.port), security: d.security,
-      user: d.user, password: d.password, clearPassword: d.clearPassword === 'true', from: d.from, relayUrl: d.relayUrl, relaySecret: d.relaySecret });
-    toast(out.active ? 'Email sending saved: SMTP is on' : 'Email sending saved: SMTP is off');
+      user: d.user, password: d.password, clearPassword: d.clearPassword === 'true', from: d.from, relayUrl: d.relayUrl, relaySecret: d.relaySecret,
+      resendActive: d.resendActive === 'true', resendFrom: d.resendFrom, resendApiKey: d.resendApiKey, clearResendKey: d.clearResendKey === 'true' });
+    toast(out.active ? 'Email sending saved: SMTP is on' : out.resendActive ? 'Email sending saved: Resend is on' : 'Email sending saved: Google account');
     pgAdmin('sys');   // redraws, so the saved hints show and typed secrets clear
   });
   if (ADM === 'security') bindForm('fSec', async d => {

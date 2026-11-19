@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.126**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.127**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.127: Resend added as a sending option in System admin → Email sending. The Resend API key is entered in the app and stored encrypted in the database, not in the code. Order: SMTP if on, else Resend if on, else the Google account.
 
 Release notes for 1.2.126: Email sending can go through the hotel's own SMTP server. Set it up in System admin → Email sending (SMTP). Apps Script cannot connect to SMTP directly, so mail-relay/ holds a small Cloudflare Worker that sends it. When SMTP is off, mail goes out from the Google account as before.
 

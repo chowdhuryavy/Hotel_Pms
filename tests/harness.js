@@ -63,6 +63,11 @@ const sandbox = {
   ScriptApp: { getProjectTriggers: () => [], deleteTrigger() {}, newTrigger: () => ({ timeBased: () => ({ everyMinutes: () => ({ create() {} }), everyHours: () => ({ create() {} }), everyDays: () => ({ atHour: () => ({ create() {} }) }) }) }) },
   Utilities: {
     getUuid: () => crypto.randomUUID(),
+    computeHmacSha256Signature: (value, key) => Array.from(crypto.createHmac('sha256', String(key)).update(String(value), 'utf8').digest()).map(x => x > 127 ? x - 256 : x),
+    base64Decode: str => Array.from(Buffer.from(String(str), 'base64')).map(x => x > 127 ? x - 256 : x),
+    newBlob: data => typeof data === 'string'
+      ? { getBytes: () => Array.from(Buffer.from(data, 'utf8')).map(x => x > 127 ? x - 256 : x) }
+      : { getDataAsString: () => Buffer.from(data.map(x => x & 0xff)).toString('utf8') },
     computeDigest: (alg, s) => Array.from(crypto.createHash('sha256').update(String(s), 'utf8').digest()),
     base64Encode: b => Buffer.from(b).toString('base64'),
     DigestAlgorithm: { SHA_256: 'SHA_256' },
@@ -539,5 +544,21 @@ if (require.main === module) {
   ok(run("(function(){ const n = mailbox.length; relayCalls.length = 0; sendMail_('g@x.com', 'Hi', 'Body', '<p>Body</p>'); const c = relayCalls[0]; return mailbox.length === n && relayCalls.length === 1 && c.u === 'https://r.example.com' && c.o.headers['X-Relay-Secret'] === 'relay-key-1' && JSON.parse(c.o.payload).smtp.host === 'mail.h.com'; })()"), 'SMTP on: mail goes through the relay');
   ok(run("(function(){ relayReply.next = { getResponseCode: () => 502, getContentText: () => JSON.stringify({error: '535 Authentication failed'}) }; try { sendMail_('g@x.com', 'Hi', 'B', 'B'); return false; } catch (e) { relayReply.next = null; return /535 Authentication failed/.test(e.message); } })()"), 'SMTP error from the relay is shown to the admin');
   ok(!tryRun("saveEmailConfig(TOK, {active: false, host: 'mail.h.com', port: 587, security: 'starttls', from: 'a@b.co', relayUrl: 'https://r.example.com', clearPassword: true})").e && run("getEmailConfig(TOK).passSet") === false, 'saved password can be removed');
+  // Resend: the API key is stored encrypted, never in clear, and is never sent to the screen
+  ok(!tryRun("saveEmailConfig(TOK, {resendActive: true, resendFrom: '', resendApiKey: 're_test_key_123'})").e === false, 'Resend on needs a from address');
+  ok(!!tryRun("saveEmailConfig(TOK, {resendActive: true, resendFrom: 'hotel@hotel.com'})").e, 'Resend on needs an API key');
+  ok(!!tryRun("saveEmailConfig(TOK, {resendActive: false, resendFrom: 'bad', resendApiKey: 'x'})").e, 'Resend from address must be an email');
+  ok(!tryRun("saveEmailConfig(TOK, {resendActive: true, resendFrom: 'hotel@hotel.com', resendApiKey: 're_test_key_123'})").e, 'Resend saved with its API key');
+  ok(run("(function(){ const raw = rawSetting_('resendApiKey'); return raw.indexOf('v1:') === 0 && raw.indexOf('re_test_key_123') < 0; })()"), 'the database holds the key only encrypted');
+  ok(run("(function(){ const c = getEmailConfig(TOK); return c.resendKeySet === true && JSON.stringify(c).indexOf('re_test_key_123') < 0; })()"), 'the screen only learns that a key is saved');
+  ok(run("settings_().resendApiKey === undefined && JSON.stringify(getSettings(TOK)).indexOf('re_test_key_123') < 0"), 'the settings sent to the browser never include the key');
+  ok(run("decryptSetting_(encryptSetting_('re_key_ü-ключ')) === 're_key_ü-ключ'"), 'encryption round-trips, including non-ASCII');
+  ok(run("(function(){ const e = encryptSetting_('abc'); const p = e.split(':'); const flip = p[2][0] === 'A' ? 'B' : 'A'; return (function(){ try { decryptSetting_(['v1', p[1], flip + p[2].slice(1), p[3]].join(':')); return false; } catch (x) { return /cannot be read/.test(x.message); } })(); })()"), 'a tampered secret is refused');
+  ok(run("(function(){ relayCalls.length = 0; const n = mailbox.length; sendMail_('g@x.com', 'Hi', 'Body', '<p>Body</p>'); const c = relayCalls[0]; const p = JSON.parse(c.o.payload); return mailbox.length === n && c.u === 'https://api.resend.com/emails' && c.o.headers.Authorization === 'Bearer re_test_key_123' && p.to[0] === 'g@x.com' && /<hotel@hotel\\.com>$/.test(p.from); })()"), 'Resend on: mail goes through the Resend API with the saved key');
+  ok(run("(function(){ relayCalls.length = 0; relayReply.next = { getResponseCode: () => 422, getContentText: () => JSON.stringify({message: 'The hotel.com domain is not verified'}) }; try { sendMail_('g@x.com', 'Hi', 'B', 'B'); return false; } catch (e) { relayReply.next = null; return /domain is not verified/.test(e.message); } })()"), 'a Resend error is shown to the admin');
+  ok(!tryRun("saveEmailConfig(TOK, {active: true, host: 'mail.h.com', port: 587, security: 'starttls', user: 'u@h.com', from: 'a@b.co', relayUrl: 'https://r.example.com', resendActive: true, resendFrom: 'hotel@hotel.com'})").e, 'SMTP on keeps Resend saved');
+  ok(run("(function(){ relayCalls.length = 0; sendMail_('g@x.com', 'Hi', 'B', 'B'); return relayCalls[0].u === 'https://r.example.com'; })()"), 'SMTP wins when both are on');
+  ok(!tryRun("saveEmailConfig(TOK, {active: false, host: 'mail.h.com', port: 587, security: 'starttls', from: 'a@b.co', relayUrl: 'https://r.example.com', resendActive: false, resendFrom: 'hotel@hotel.com', clearResendKey: true})").e && run("getEmailConfig(TOK).resendKeySet") === false, 'the Resend key can be removed');
+  ok(run("(function(){ const n = mailbox.length; sendMail_('g@x.com', 'Hi', 'B', 'B'); return mailbox.length === n + 1; })()"), 'with both off, mail goes out from the Google account');
   console.log('done');
 }
