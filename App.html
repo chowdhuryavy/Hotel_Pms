@@ -84,16 +84,12 @@ function updateShow_(v) {
 }
 /* Refresh: loads the newest version of the app. The app runs inside Google's frame, so the reload is
    sent to the top window with a new address (the fresh version is never served from the old cache). */
+/* Reloads the current page in place, keeping the current route (the URL hash). The app runs in a frame,
+   so the reload must stay in that frame: navigating the top window would open the frame's own address instead. */
 function updateRefresh_() {
   const u = new URL(location.href);
-  u.searchParams.set('v', String(Date.now()));
-  let done = false;
-  window.addEventListener('pagehide', () => { done = true; }, { once: true });
-  try { window.top.location.href = u.href; } catch (e) { /* the frame cannot navigate the top window */ }
-  setTimeout(() => {
-    if (done) return;
-    try { window.open(u.href, '_top'); } catch (e) { location.href = u.href; }
-  }, 900);
+  u.searchParams.set('v', String(Date.now()));   // new address each time, so the browser fetches the newest code
+  try { location.replace(u.href); } catch (e) { location.reload(); }
 }
 function updateLater_() {
   UPD_SNOOZE = Date.now() + 30 * 60 * 1000;   // ask again in 30 minutes
