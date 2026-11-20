@@ -55,7 +55,7 @@ const sandbox = {
   MailApp: { sendEmail: m => { mailbox.push(m); } },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: k => { delete props[k]; } }) },
   UrlFetchApp: { fetch: (u, o) => { relayCalls.push({ u, o }); return relayReply.next || { getResponseCode: () => 200, getContentText: () => '{}' }; } },
-  CacheService: { getScriptCache: () => ({ get: k => cache.get(k) || null, put: (k, v) => cache.set(k, v), remove: k => cache.delete(k) }) },
+  CacheService: { getScriptCache: () => ({ get: k => (cache.has(k) ? cache.get(k) : null), put: (k, v) => cache.set(k, v), remove: k => cache.delete(k) }) },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   SpreadsheetApp: {
     create(name) { const id = 'ss' + Object.keys(books).length; books[id] = makeSS(id); return books[id]; },
@@ -89,7 +89,8 @@ sandbox.global = sandbox;
 Object.assign(sandbox, { mailbox, relayCalls, relayReply });
 vm.createContext(sandbox);
 vm.runInContext(code, sandbox, { filename: 'stayline.js' });
-const run = (expr) => vm.runInContext(expr, sandbox);
+// Each call is a separate request in Apps Script: the per-request memory starts empty (the script cache persists)
+const run = (expr) => { vm.runInContext("ROWS_MEMO_ = {}; SETTINGS_MEMO_ = null; SHEET_MEMO_ = {}; SS_MEMO_ = null;", sandbox); return vm.runInContext(expr, sandbox); };
 sandbox.__io = IO;
 module.exports = { run, props, books };
 
@@ -643,10 +644,15 @@ if (require.main === module) {
     calls.forEach(fn => {
       const argsByFn = { listReservations: '' , rackData: '', frontDeskBoard: '', dashboardFlash: "'" + todayIso.slice(0, 8) + "01', '" + todayIso + "'", dashboardNight: "'" + todayIso.slice(0, 8) + "01', '" + todayIso + "'", searchGuests: "'a'", listAudit: '' };
       const arg = fn === 'myPermissions' || fn === 'changeStamp' || fn === 'notificationsList' || fn === 'getSettings' || fn === 'getUserFormData' || fn === 'listUsers' || fn === 'listRoles' || fn === 'listRooms' || fn === 'dashboardBoard' || fn === 'dashboardForecast' ? '' : (argsByFn[fn] || '');
-      run("__io.reads = 0; __io.writes = 0; ROWS_MEMO_ = {}; SETTINGS_MEMO_ = null; SHEET_MEMO_ = {}; SS_MEMO_ = null;");   // a fresh request: nothing carried over
-      const r = tryRun(fn + "(TOK" + (arg ? ', ' + arg : '') + ")");
+      const expr = fn + "(TOK" + (arg ? ', ' + arg : '') + ")";
+      // cold: the first request after a change (script cache empty); warm: the next request within a minute (cache filled)
+      run("__io.reads = 0; __io.writes = 0; ROWS_MEMO_ = {}; SETTINGS_MEMO_ = null; SHEET_MEMO_ = {}; SS_MEMO_ = null;");
+      const r = tryRun(expr);
+      const coldReads = run("__io.reads");
+      run("__io.reads = 0; __io.writes = 0; ROWS_MEMO_ = {}; SETTINGS_MEMO_ = null; SHEET_MEMO_ = {}; SS_MEMO_ = null;");
+      tryRun(expr);
       const reads = run("__io.reads"), writes = run("__io.writes");
-      console.log('MEASURE', fn.padEnd(20), 'sheet reads', String(reads).padStart(4), 'writes', String(writes).padStart(3), r.e ? 'ERR ' + r.e : '');
+      console.log('MEASURE', fn.padEnd(20), 'cold reads', String(coldReads).padStart(3), 'warm reads', String(reads).padStart(3), 'writes', String(writes).padStart(3), r.e ? 'ERR ' + r.e : '');
     });
   }
   console.log('done');

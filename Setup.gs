@@ -19,6 +19,8 @@ function setupDatabase() {
   SETTINGS_MEMO_ = null;
   SHEET_MEMO_ = {};
   ROWS_MEMO_ = {};
+  // Setup writes some tables directly (not through the write watcher), so clear every shared copy first
+  Object.keys(TBL).forEach(k => uncacheTbl_(TBL[k][0]));
   ss.setSpreadsheetTimeZone(TZ);
 
   // 1) Tabs and headers
@@ -75,6 +77,7 @@ function setupDatabase() {
   const msg = (appName_() || 'Hotel PMS') + ' database ready.\nSheet: ' + ss.getUrl() + firstAdminNote;
   Logger.log(msg);
   return msg;
+  Object.keys(TBL).forEach(k => uncacheTbl_(TBL[k][0]));   // direct sheet writes above: drop shared copies
 }
 
 function seedIfEmpty_(t, rows) {
@@ -120,6 +123,7 @@ function migrateSchema_() {
     if (missing.length) codes.getRange(codes.getLastRow() + 1, 1, missing.length, 6).setValues(missing);
   }
   ensureBuiltinRoles_();
+  Object.keys(TBL).forEach(k => uncacheTbl_(TBL[k][0]));   // direct sheet writes above: drop shared copies
 }
 
 function buildSampleRooms_() {

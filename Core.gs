@@ -24,7 +24,7 @@ function sh_(t) {
   // A table added by an update is created with its headers, once the database is set up. Rows are never touched.
   if (!s && ss.getSheetByName(TBL.SETTINGS[0])) { s = ss.insertSheet(t[0]); s.getRange(1, 1, 1, t[1].length).setValues([t[1]]); }
   if (!s) throw new Error('Missing sheet "' + t[0] + '". Run setupDatabase().');
-  SHEET_MEMO_[t[0]] = watchSheet_(s);
+  SHEET_MEMO_[t[0]] = watchSheet_(s, t[0]);
   return SHEET_MEMO_[t[0]];
 }
 /* Display dates as dd-mm-yyyy (PDF and printed text). Stored values stay yyyy-mm-dd. */
@@ -55,7 +55,7 @@ function rows_(t) {
 }
 /* Small tables read on every request (users for the session check, settings for the inactivity limit) are kept
    in the script cache between requests for one minute. Every write clears them at once (see uncacheTbls_). */
-const CROSS_TBLS_ = ['Users'];   // Settings holds the logo picture, which is too large to keep in the cache
+const CROSS_TBLS_ = ['Users', 'Settings', 'Permissions'];   // Settings are cached without the logo picture (kept apart, see logoValue_)
 /* Read-only view of a table for code that only reads it: no copy of every row. Never change the rows it returns. */
 function rowsRO_(t) {
   const key = t[0];
@@ -68,37 +68,50 @@ function crossRows_(t) {
   const raw = c.get(k);
   if (raw) { try { return JSON.parse(raw); } catch (e) { /* unreadable: read the sheet */ } }
   const rows = readRows_(t);
+  if (t[0] === TBL.SETTINGS[0]) rows.splice(0, rows.length, ...rows.filter(r => r.key !== 'logoUrl'));
   const txt = JSON.stringify(rows);
   if (txt.length < 90000) c.put(k, txt, 60);
   return rows;
 }
-function uncacheTbls_() {
+/* A write to one table clears that table's rows for this request and its shared copy, and no other table's */
+function uncacheTbl_(name) {
+  delete ROWS_MEMO_[name];
+  if (CROSS_TBLS_.indexOf(name) >= 0) CacheService.getScriptCache().remove('tbl:' + name);
+  if (name === TBL.SETTINGS[0]) CacheService.getScriptCache().remove('logoUrl');
+}
+/* The logo picture is kept on its own, so it does not make the settings too large for the cache. One minute. */
+function logoValue_() {
   const c = CacheService.getScriptCache();
-  CROSS_TBLS_.forEach(n => c.remove('tbl:' + n));
+  const hit = c.get('logoUrl');
+  if (hit !== null) return hit;
+  const row = readRows_(TBL.SETTINGS).find(r => r.key === 'logoUrl');
+  const v = row && row.value != null ? String(row.value) : '';
+  if (v.length < 90000) c.put('logoUrl', v, 60);
+  return v;
 }
 const SHEET_WRITES_ = ['appendRow', 'deleteRow', 'insertRow', 'insertRows', 'deleteRows', 'deleteColumn', 'deleteColumns', 'insertColumn', 'insertColumns', 'clear', 'clearContent', 'clearFormats', 'setValues', 'setValue', 'sort', 'setName', 'hideSheet', 'setFrozenRows', 'autoResizeColumns'];
 const RANGE_WRITES_ = ['setValue', 'setValues', 'clear', 'clearContent', 'clearFormat', 'clearFormats', 'setFormula', 'setFormulas', 'insertCheckboxes', 'removeCheckboxes', 'setFontWeight', 'setBackground', 'setFontColor', 'setNumberFormat', 'setDataValidation', 'merge', 'breakApart'];
 /* Wraps a sheet so every write clears the rows read earlier in this request. Reads pass straight through. */
-function watchSheet_(s) {
+function watchSheet_(s, name) {
   return new Proxy(s, { get(t, p) {
     const v = t[p];
     if (typeof v !== 'function') return v;
     return function (...a) {
       const out = v.apply(t, a);
-      if (SHEET_WRITES_.indexOf(p) >= 0) { ROWS_MEMO_ = {}; uncacheTbls_(); }
-      if (p === 'getRange' && out) return watchRange_(out);
+      if (SHEET_WRITES_.indexOf(p) >= 0) uncacheTbl_(name);
+      if (p === 'getRange' && out) return watchRange_(out, name);
       return out;
     };
   } });
 }
-function watchRange_(r) {
+function watchRange_(r, name) {
   return new Proxy(r, { get(t, p) {
     const v = t[p];
     if (typeof v !== 'function') return v;
     return function (...a) {
       const out = v.apply(t, a);
-      if (RANGE_WRITES_.indexOf(p) >= 0) { ROWS_MEMO_ = {}; uncacheTbls_(); }
-      return out === t ? watchRange_(t) : out;
+      if (RANGE_WRITES_.indexOf(p) >= 0) uncacheTbl_(name);
+      return out === t ? watchRange_(t, name) : out;
     };
   } });
 }
@@ -190,6 +203,8 @@ function readSettings_() {
   const m = Object.assign({}, SETTINGS_DEFAULT);
   // a blank value in the sheet keeps the default (so an empty App name still shows Stayline)
   rows_(TBL.SETTINGS).forEach(r => { if (r.key && r.value !== '' && r.value != null) m[r.key] = r.value; });
+  const logo = logoValue_();
+  if (logo !== '') m.logoUrl = logo;
   delete m.resendApiKey;   // encrypted, read only by the mail sender (see Email.gs)
   m.taxRate = Number(m.taxRate) || 0;
   // the sheet can hold the business date as a date cell, read back as 'yyyy-mm-dd HH:mm'

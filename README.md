@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.210**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.211**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.211: Faster repeated requests. A save clears only the table it changed, not every table. Users, settings and permissions are kept between requests for one minute and cleared on any save. The logo picture is kept apart from the settings, so the settings can be cached. Sheet reads per call, warm (after the first request): permission check 3 → 0, 15-second check 3 → 0, settings 3 → 0, user list 3 → 0, front desk board 6 → 1, flash report 7 → 1, night report 7 → 1, rack 5 → 3, reservation list 5 → 3. A person who edits the Users or Permissions sheet by hand sees the change within a minute; changes made in the app apply at once.
 
 Release notes for 1.2.210: Settings are read from the sheet on each request again, because the logo picture made the cache entry too large and could push out sign-in sessions (SESSION_EXPIRED). Users are still kept for one minute.
 
