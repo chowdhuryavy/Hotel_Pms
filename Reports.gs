@@ -49,10 +49,10 @@ function reportSections_(rep) {
  *  converter does not need to load it from the web. Falls back to the link, and to no logo if neither works. */
 function hotelLogoHtml_(st) {
   const h = x => String(x == null ? '' : x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  if (!st || !st.logoUrl) return '';
-  if (/^data:image\//i.test(st.logoUrl)) return '<img src="' + h(st.logoUrl) + '" style="height:56px"><br>';
+  if (!st || !st.hotelLogoUrl) return '';
+  if (/^data:image\//i.test(st.hotelLogoUrl)) return '<img src="' + h(st.hotelLogoUrl) + '" style="height:56px"><br>';
   try {
-    const r = UrlFetchApp.fetch(String(st.logoUrl), { muteHttpExceptions: true, followRedirects: true });
+    const r = UrlFetchApp.fetch(String(st.hotelLogoUrl), { muteHttpExceptions: true, followRedirects: true });
     const hd = r.getHeaders() || {};
     const type = String(hd['Content-Type'] || hd['content-type'] || '').split(';')[0].trim();
     const bytes = r.getContent();
@@ -60,7 +60,7 @@ function hotelLogoHtml_(st) {
       return '<img src="data:' + type + ';base64,' + Utilities.base64Encode(bytes) + '" style="height:56px"><br>';
     }
   } catch (e) { Logger.log('Hotel logo: ' + e.message); }
-  return '<img src="' + h(st.logoUrl) + '" style="height:56px"><br>';
+  return '<img src="' + h(st.hotelLogoUrl) + '" style="height:56px"><br>';
 }
 
 function buildReport_(type, from, to) {

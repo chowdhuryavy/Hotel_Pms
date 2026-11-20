@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.216**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.217**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.217: Two logos, both set in code at the top of Config.gs. APP_LOGO_URL is the app's logo (sign-in screen, sidebar, browser tab icon, Vercel page). HOTEL_LOGO_URL is the hotel's logo (printed documents, reports, hotel emails). Neither is stored in the Settings sheet.
 
 Release notes for 1.2.216: The logo is set in the code, not in the Settings sheet. Paste the link into LOGO_URL at the top of Config.gs. The sheet's logo row is ignored, and the settings page no longer has a logo field or upload. Saving settings never writes the logo.
 

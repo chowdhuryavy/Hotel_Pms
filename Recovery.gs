@@ -47,7 +47,7 @@ function htmlFromText_(text, code) {
 }
 /** Hotel logo for emails: the logo link or image from Settings, or the hotel's initial in a badge when none is set. */
 function mailLogo_(st, hotel) {
-  const url = String((st && st.logoUrl) || '');
+  const url = String((st && st.hotelLogoUrl) || '');
   if (/^(https?:\/\/|data:image\/)/i.test(url)) {
     return '<img src="' + escHtml_(url) + '" alt="' + hotel + '" width="56" height="56" style="display:block;width:56px;height:56px;border-radius:14px;background:#ffffff;object-fit:contain">';
   }

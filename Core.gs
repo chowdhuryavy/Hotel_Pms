@@ -77,8 +77,6 @@ function uncacheTbl_(name) {
   delete ROWS_MEMO_[name];
   if (CROSS_TBLS_.indexOf(name) >= 0) CacheService.getScriptCache().remove('tbl:' + name);
 }
-/* The logo link comes from LOGO_URL in Config.gs; it is not read from the sheet. */
-function logoValue_() { return LOGO_URL || ''; }
 const SHEET_WRITES_ = ['appendRow', 'deleteRow', 'insertRow', 'insertRows', 'deleteRows', 'deleteColumn', 'deleteColumns', 'insertColumn', 'insertColumns', 'clear', 'clearContent', 'clearFormats', 'setValues', 'setValue', 'sort', 'setName', 'hideSheet', 'setFrozenRows', 'autoResizeColumns'];
 const RANGE_WRITES_ = ['setValue', 'setValues', 'clear', 'clearContent', 'clearFormat', 'clearFormats', 'setFormula', 'setFormulas', 'insertCheckboxes', 'removeCheckboxes', 'setFontWeight', 'setBackground', 'setFontColor', 'setNumberFormat', 'setDataValidation', 'merge', 'breakApart'];
 /* Wraps a sheet so every write clears the rows read earlier in this request. Reads pass straight through. */
@@ -202,7 +200,8 @@ function readSettings_() {
   const m = Object.assign({}, SETTINGS_DEFAULT);
   // a blank value in the sheet keeps the default (so an empty App name still shows Stayline)
   rows_(TBL.SETTINGS).forEach(r => { if (r.key && r.value !== '' && r.value != null) m[r.key] = r.value; });
-  m.logoUrl = logoValue_();   // the logo link is in the code, so any logo row in the sheet is ignored
+  m.logoUrl = APP_LOGO_URL || '';          // logos are in the code (Config.gs), so any logo row in the sheet is ignored
+  m.hotelLogoUrl = HOTEL_LOGO_URL || '';
   delete m.resendApiKey;   // encrypted, read only by the mail sender (see Email.gs)
   m.taxRate = Number(m.taxRate) || 0;
   // the sheet can hold the business date as a date cell, read back as 'yyyy-mm-dd HH:mm'
@@ -535,7 +534,7 @@ function saveSettings(token, d, rid) {
   // 1) Check every value first, so a rejected save changes nothing
   const plan = [];
   Object.keys(SETTINGS_DEFAULT).forEach(k => {
-    if (k === 'businessDate' || k === 'logoUrl' || d[k] === undefined) return;   // the logo is in the code (LOGO_URL), not saved
+    if (k === 'businessDate' || k === 'logoUrl' || k === 'hotelLogoUrl' || d[k] === undefined) return;   // logos are in the code (Config.gs), not saved
     if (SYSTEM_SETTINGS.indexOf(k) >= 0 && !isSys) return;   // only the system administrator
     if (k === 'maxLoginAttempts' && Number(d[k]) < 5) throw new Error('Wrong-password limit must be at least 5.');
     if ((k === 'licenseStart' || k === 'licenseExpiry') && d[k] !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(d[k]))) throw new Error('Licence dates must be a date.');
