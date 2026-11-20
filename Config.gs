@@ -90,7 +90,11 @@ const PERMISSIONS = [
 ];
 
 /** Stayline version. Bump this on every release; it shows on the sign-in page and in the sidebar. */
-const APP_VERSION = '1.2.215';
+const APP_VERSION = '1.2.216';
+/* The logo link for the app, sign-in page and reports. Paste the https link between the quotes, e.g. 'https://example.com/logo.png'.
+   Leave '' for no logo. It is not stored in the Settings sheet. */
+const LOGO_URL = '';
+
 const SETTINGS_DEFAULT = {
   maxLoginAttempts: 5,      // wrong passwords before the account is locked (system admin, minimum 5)
   inactivityMinutes: 30,    // idle minutes before sign-out (system admin)
@@ -107,7 +111,7 @@ const SETTINGS_DEFAULT = {
   licenseExpiry: '',
   licenseNumber: '',                   // system admin: licence number (shown in the sidebar licence box)                   // system admin: last day the client can use the app (yyyy-mm-dd)
   loadingScreen: 'random',             // system admin: random, classic, orbit, flip or pulse
-  logoUrl: '',
+  logoUrl: LOGO_URL,                   // from LOGO_URL above (not saved to the sheet)
   currency: 'QAR',
   otpRoles: '',                        // roles that enter an emailed code at sign-in (system admin), comma-separated
   loginotpSubject: 'Your {{appName}} security code: {{code}}',

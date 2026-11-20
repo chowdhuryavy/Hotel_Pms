@@ -55,7 +55,7 @@ function rows_(t) {
 }
 /* Small tables read on every request (users for the session check, settings for the inactivity limit) are kept
    in the script cache between requests for one minute. Every write clears them at once (see uncacheTbls_). */
-const CROSS_TBLS_ = ['Users', 'Settings', 'Permissions'];   // Settings are cached without the logo picture (kept apart, see logoValue_)
+const CROSS_TBLS_ = ['Users', 'Settings', 'Permissions'];
 /* Read-only view of a table for code that only reads it: no copy of every row. Never change the rows it returns. */
 function rowsRO_(t) {
   const key = t[0];
@@ -68,7 +68,6 @@ function crossRows_(t) {
   const raw = c.get(k);
   if (raw) { try { return JSON.parse(raw); } catch (e) { /* unreadable: read the sheet */ } }
   const rows = readRows_(t);
-  if (t[0] === TBL.SETTINGS[0]) rows.splice(0, rows.length, ...rows.filter(r => r.key !== 'logoUrl'));
   const txt = JSON.stringify(rows);
   if (txt.length < 90000) c.put(k, txt, 60);
   return rows;
@@ -77,18 +76,9 @@ function crossRows_(t) {
 function uncacheTbl_(name) {
   delete ROWS_MEMO_[name];
   if (CROSS_TBLS_.indexOf(name) >= 0) CacheService.getScriptCache().remove('tbl:' + name);
-  if (name === TBL.SETTINGS[0]) CacheService.getScriptCache().remove('logoUrl');
 }
-/* The logo picture is kept on its own, so it does not make the settings too large for the cache. One minute. */
-function logoValue_() {
-  const c = CacheService.getScriptCache();
-  const hit = c.get('logoUrl');
-  if (hit !== null) return hit;
-  const row = readRows_(TBL.SETTINGS).find(r => r.key === 'logoUrl');
-  const v = row && row.value != null ? String(row.value) : '';
-  if (v.length < 90000) c.put('logoUrl', v, 60);
-  return v;
-}
+/* The logo link comes from LOGO_URL in Config.gs; it is not read from the sheet. */
+function logoValue_() { return LOGO_URL || ''; }
 const SHEET_WRITES_ = ['appendRow', 'deleteRow', 'insertRow', 'insertRows', 'deleteRows', 'deleteColumn', 'deleteColumns', 'insertColumn', 'insertColumns', 'clear', 'clearContent', 'clearFormats', 'setValues', 'setValue', 'sort', 'setName', 'hideSheet', 'setFrozenRows', 'autoResizeColumns'];
 const RANGE_WRITES_ = ['setValue', 'setValues', 'clear', 'clearContent', 'clearFormat', 'clearFormats', 'setFormula', 'setFormulas', 'insertCheckboxes', 'removeCheckboxes', 'setFontWeight', 'setBackground', 'setFontColor', 'setNumberFormat', 'setDataValidation', 'merge', 'breakApart'];
 /* Wraps a sheet so every write clears the rows read earlier in this request. Reads pass straight through. */
@@ -212,8 +202,7 @@ function readSettings_() {
   const m = Object.assign({}, SETTINGS_DEFAULT);
   // a blank value in the sheet keeps the default (so an empty App name still shows Stayline)
   rows_(TBL.SETTINGS).forEach(r => { if (r.key && r.value !== '' && r.value != null) m[r.key] = r.value; });
-  const logo = logoValue_();
-  if (logo !== '') m.logoUrl = logo;
+  m.logoUrl = logoValue_();   // the logo link is in the code, so any logo row in the sheet is ignored
   delete m.resendApiKey;   // encrypted, read only by the mail sender (see Email.gs)
   m.taxRate = Number(m.taxRate) || 0;
   // the sheet can hold the business date as a date cell, read back as 'yyyy-mm-dd HH:mm'
@@ -546,17 +535,11 @@ function saveSettings(token, d, rid) {
   // 1) Check every value first, so a rejected save changes nothing
   const plan = [];
   Object.keys(SETTINGS_DEFAULT).forEach(k => {
-    if (k === 'businessDate' || d[k] === undefined) return;
+    if (k === 'businessDate' || k === 'logoUrl' || d[k] === undefined) return;   // the logo is in the code (LOGO_URL), not saved
     if (SYSTEM_SETTINGS.indexOf(k) >= 0 && !isSys) return;   // only the system administrator
     if (k === 'maxLoginAttempts' && Number(d[k]) < 5) throw new Error('Wrong-password limit must be at least 5.');
     if ((k === 'licenseStart' || k === 'licenseExpiry') && d[k] !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(d[k]))) throw new Error('Licence dates must be a date.');
     if (k === 'loadingScreen' && ['random', 'classic', 'orbit', 'flip', 'pulse', 'ring', 'glow', 'slide', 'wave', 'spin', 'drop'].indexOf(d[k]) < 0) throw new Error('Choose a loading screen style.');
-    if (k === 'logoUrl') {
-      const v = String(d[k] || '').trim();
-      if (v && !/^(https:\/\/|data:image\/(png|jpeg|webp|svg\+xml);base64,)/i.test(v)) throw new Error('Logo must be an https link or an uploaded image.');
-      if (v.length > 45000) throw new Error('Logo is too large. Use a smaller image.');
-      d[k] = v;
-    }
     if (k === 'menuLayout') d[k] = normalizeMenuLayout_(d[k]);
     plan.push([k, d[k]]);
   });

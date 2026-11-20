@@ -3009,8 +3009,6 @@ async function pgAdmin(scope) {
       { name: 'hotelEmail', label: 'Email', type: 'email', value: s.hotelEmail || '' },
       { name: 'hotelAppUrl', label: 'Hotel app URL (printed on documents)', type: 'url', value: s.hotelAppUrl || '', wide: true, placeholder: 'https://…' },
       { name: 'loadingMessage', label: 'Loading screen message', value: s.loadingMessage, wide: true },
-      { name: 'logoUrl', label: 'Logo (https link, or upload below)', value: s.logoUrl, wide: true },
-      { name: 'logoPicker', raw: logoPickerHtml(s.logoUrl) },
       { name: 'currency', label: 'Currency code', value: s.currency },
       { name: 'taxRate', label: 'Tax rate (0.10 = 10%)', type: 'number', step: '0.0001', min: 0, value: s.taxRate },
       { name: 'checkInTime', label: 'Check-in time', value: s.checkInTime },
@@ -3111,21 +3109,12 @@ async function pgAdmin(scope) {
   if (ADM_BARE) { tabSetView_(`<h1>${esc((ADM_TABS.find(t => t[0] === ADM) || [])[1] || '')}</h1><div class="card">${body}</div>`); }
   else setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1>${scope === 'sys' ? connPanelHtml_() : ''}<p class="muted">${scope === 'sys' ? 'System administrator only: property admin accounts, roles and permissions, system settings and email templates.' : 'Hotel operations: staff users, hotel settings, rooms, packages and payment methods.'}</p>${bar}<div class="card">${body}</div>`);
   if (ADM === 'settings' && can('cfg.settings.edit')) bindForm('fSt', async d => {
-    const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, ownerName: d.ownerName, hotelAddress: d.hotelAddress, hotelPhone: d.hotelPhone, hotelEmail: d.hotelEmail, hotelAppUrl: d.hotelAppUrl, ...(d.logoUrl === String((S.settings && S.settings.logoUrl) || '') ? {} : { logoUrl: d.logoUrl }), currency: d.currency,
+    const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, ownerName: d.ownerName, hotelAddress: d.hotelAddress, hotelPhone: d.hotelPhone, hotelEmail: d.hotelEmail, hotelAppUrl: d.hotelAppUrl, currency: d.currency,
       taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit, loadingMessage: d.loadingMessage });
     S.settings = Object.assign({}, S.settings, { appName: out.appName, hotelName: out.hotelName, ownerName: d.ownerName, logoUrl: out.logoUrl, currency: out.currency, loadingScreen: d.loadingScreen, loadingMessage: d.loadingMessage });
     brand(); toast('Settings saved');
   });
   if (ADM === 'settings') {
-    const lf = $('logoFile'), lu = document.querySelector('#fSt [name=logoUrl]');
-    if (lf) lf.addEventListener('change', async () => {
-      try { const u = await readLogo_(lf.files[0]); if (u) { lu.value = u; setLogoPreview(u); toast('Logo ready. Save settings to apply it.'); } }
-      catch (e) { toast(e.message, true); }
-      lf.value = '';
-    });
-    if (lu) lu.addEventListener('change', () => setLogoPreview(lu.value.trim()));
-    const lc = $('logoClear');
-    if (lc) lc.addEventListener('click', () => { lu.value = ''; setLogoPreview(''); });
   }
   if (ADM === 'emails') bindForm('fEmails', async d => {
     await api('saveSettings', { appUrl: d.appUrl, welcomeSubject: d.welcomeSubject, welcomeBody: d.welcomeBody, otpSubject: d.otpSubject,

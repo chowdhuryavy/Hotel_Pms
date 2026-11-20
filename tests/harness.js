@@ -511,11 +511,9 @@ if (require.main === module) {
   ok(!tryRun("savePaymentMethod(TOK, {code:'DLPM', name:'Temp', kind:'Cash', chargeCode:'" + payCode + "', active:true})").e, 'payment method created for the delete test');
   ok(!tryRun("deleteConfig(PT2,'paymentMethod','DLPM')").e, 'property admin with settings.manage deletes a payment method');
   ok(!!tryRun("deleteConfig(TOK,'roomType','NOPE')").e, 'deleting an unknown item is refused');
-  ok(!!tryRun("saveSettings(TOK, {logoUrl: 'http://insecure.example/logo.png'})").e, 'logo must be an https link or an uploaded image');
-  ok(!tryRun("saveSettings(TOK, {logoUrl: 'https://example.com/logo.png'})").e, 'https logo link is saved');
-  ok(!tryRun("saveSettings(TOK, {logoUrl: 'data:image/png;base64,iVBORw0KGgo='})").e, 'uploaded logo is saved');
-  ok(!!tryRun("saveSettings(TOK, {logoUrl: 'data:image/png;base64," + 'A'.repeat(50000) + "'})").e, 'oversized logo is refused');
-  ok(!tryRun("saveSettings(TOK, {logoUrl: ''})").e, 'logo can be removed');
+  ok(!tryRun("saveSettings(TOK, {logoUrl: 'https://example.com/logo.png'})").e && run("settings_().logoUrl") === run("LOGO_URL"), 'an https logo sent to save is ignored');
+  ok(!tryRun("saveSettings(TOK, {logoUrl: 'data:image/png;base64,iVBORw0KGgo='})").e && run("settings_().logoUrl") === run("LOGO_URL"), 'an uploaded logo sent to save is ignored');
+  ok(!tryRun("saveSettings(TOK, {logoUrl: 'http://insecure.example/logo.png'})").e && run("settings_().logoUrl") === run("LOGO_URL"), 'a logo sent to save is ignored: the logo comes from LOGO_URL in the code');
   ok(run("frontLists(TOK).inHouse.length") >= 1 && run("Array.isArray(frontLists(TOK).arrivals) && Array.isArray(frontLists(TOK).departures)"), 'guest lists: in-house, arrivals and departures');
   ok(run("publicSettings_().defaultLanguage") === 'en' && run("settings_().auditorAutoSend") === 'false', 'system defaults: language and auditor email are off');
   ok(!!tryRun("saveSettings(TOK, {loadingScreen: 'neon'})").e, 'loading screen rejects unknown styles');

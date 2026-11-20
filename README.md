@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.215**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.216**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.216: The logo is set in the code, not in the Settings sheet. Paste the link into LOGO_URL at the top of Config.gs. The sheet's logo row is ignored, and the settings page no longer has a logo field or upload. Saving settings never writes the logo.
 
 Release notes for 1.2.215: Faster saves. Hotel settings: one read of the Settings table, and only the values that changed are written; the logo is sent only when it changes. A full settings save that changes one value: 31 reads and 16 writes before, 3 reads and 1 write now (harness, cold). Permission roles: the role's column is read once and only the changed rows are written, in one write for a run of changes. Row saves (patch_) write only the changed cells, so no unchanged cell or formula is rewritten. Setup and migration clear the shared copies when they finish (this was after a return, so it never ran).
 
