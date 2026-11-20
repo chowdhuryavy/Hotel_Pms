@@ -24,10 +24,17 @@ function table(headers, rows) {
   return `<div class="tbl"><table><thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.join('') : `<tr><td colspan="${headers.length}" class="muted">No records</td></tr>`}</tbody></table></div>`;
 }
 /* Page content. A page that finishes loading after a form tab was opened must not draw over that tab. */
+/* Last drawn screen of each page, so a page you open again shows at once (dimmed) while its data is refreshed */
+const PAGE_HTML = {};
 function setView(html) {
   if (ACTIVE_TAB !== 'page') { if (RUN_PAGE && RUN_PANE && RUN_PANE.isConnected) RUN_PANE.innerHTML = html; return; }
   $('view').innerHTML = html;
   $('view').classList.remove('stale');
+  if (/<h1/.test(html) && !/class="card err"/.test(html)) {
+    const k = location.hash || '';
+    PAGE_HTML[k] = html;
+    const ks = Object.keys(PAGE_HTML); if (ks.length > 30) delete PAGE_HTML[ks[0]];
+  }
 }
 /* Content of the open form tab */
 function tabSetView_(html) { (RUN_PANE && RUN_PANE.isConnected ? RUN_PANE : $('view')).innerHTML = html; }
@@ -1626,7 +1633,11 @@ function renderPage_(page, param) {
   document.title = label + ' · ' + ((S.settings && S.settings.appName) || '');
   // The last page stays on screen, dimmed and not clickable, until the new page's data arrives; the first page draws empty
   const vw = $('view');
-  if (ACTIVE_TAB === 'page' && vw && vw.querySelector('h1') && vw.innerHTML.trim()) {
+  const seen = PAGE_HTML[routeHash_(page, param)];
+  if (ACTIVE_TAB === 'page' && vw && seen) {
+    // This page was drawn before: show it at once, dimmed, until the fresh data arrives
+    vw.innerHTML = seen; vw.classList.add('stale');
+  } else if (ACTIVE_TAB === 'page' && vw && vw.querySelector('h1') && vw.innerHTML.trim()) {
     const h = vw.querySelector('h1'); if (h) h.textContent = page === 'f' ? '' : label;
     vw.classList.add('stale');
   } else setView(`<h1>${esc(page === 'f' ? '' : label)}</h1>` + skeleton_());

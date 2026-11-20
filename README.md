@@ -4,7 +4,9 @@ A multi-page property management system built on Google Apps Script with Google 
 
 ## Version
 
-Stayline **1.2.213**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+Stayline **1.2.214**. The version is set in `APP_VERSION` in `Config.gs` and shows on the sign-in page and in the sidebar. Bump it on every release.
+
+Release notes for 1.2.214: A page you have opened before appears at once, dimmed, with its last screen, while its data refreshes. The screen is replaced as soon as the new data arrives. Balances on that screen can be a little old for a moment; they are never shown as final until the refresh.
 
 Release notes for 1.2.213: Saving a row is one read and one write (the changed columns in one span), instead of one write per field. Check-out and other multi-field updates make fewer sheet calls. The harness has a test for it.
 
