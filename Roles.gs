@@ -92,13 +92,31 @@ function saveRolePerms(token, role, allowed) {
   const editable = p => isSys || (mine[p.permission] === true && p.permission !== 'system.manage');
   return withLock_(() => {
     const sh = sh_(TBL.PERMS);
+    const perms = rows_(TBL.PERMS);
     let n = 0;
-    rows_(TBL.PERMS).forEach(p => {
-      if (!editable(p)) { if (p[role] === true) n++; return; }
-      const on = want.has(p.permission);
-      if (on) n++;
-      sh.getRange(p._row, col).setValue(on);
-    });
+    if (perms.length) {
+      // One read of the role's column, the changed cells are set in memory, then one write
+      const first = Math.min.apply(null, perms.map(p => p._row));
+      const last = Math.max.apply(null, perms.map(p => p._row));
+      const block = sh.getRange(first, col, last - first + 1, 1).getValues();
+      const before = block.map(r => r[0]);
+      perms.forEach(p => {
+        const i = p._row - first;
+        if (!editable(p)) { if (block[i][0] === true) n++; return; }
+        const on = want.has(p.permission);
+        if (on) n++;
+        block[i][0] = on;
+      });
+      // Write only the rows that changed, in runs of adjacent rows (unchanged cells are not touched)
+      let i = 0;
+      while (i < block.length) {
+        if (block[i][0] === before[i]) { i++; continue; }
+        let j = i;
+        while (j + 1 < block.length && block[j + 1][0] !== before[j + 1]) j++;
+        sh.getRange(first + i, col, j - i + 1, 1).setValues(block.slice(i, j + 1));
+        i = j + 1;
+      }
+    }
     audit_(s.username, 'ROLE_PERMISSIONS_SAVED', 'Role', role, n + ' permissions');
     return { ok: true, count: n };
   });

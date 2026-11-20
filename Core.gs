@@ -140,14 +140,17 @@ function patch_(t, row, changes) {
   const s = sh_(t);
   const headers = t[1];
   const cols = [];
-  Object.keys(changes).forEach(k => { const c = headers.indexOf(k); if (c >= 0) cols.push([c, changes[k]]); });
+  Object.keys(changes).forEach(k => { const c = headers.indexOf(k); if (c >= 0) cols.push([c, changes[k] === undefined ? '' : changes[k]]); });
   if (!cols.length) return;
-  // One read and one write for the span of changed columns (cells between them are written back unchanged)
-  const lo = Math.min.apply(null, cols.map(x => x[0])), hi = Math.max.apply(null, cols.map(x => x[0]));
-  const rng = s.getRange(row, lo + 1, 1, hi - lo + 1);
-  const cur = rng.getValues()[0];
-  cols.forEach(x => { cur[x[0] - lo] = x[1]; });
-  rng.setValues([cur]);
+  // Only the changed cells are written, in runs of adjacent columns: no read, and no unchanged cell (or formula) is touched
+  cols.sort((a, b) => a[0] - b[0]);
+  let i = 0;
+  while (i < cols.length) {
+    let j = i;
+    while (j + 1 < cols.length && cols[j + 1][0] === cols[j][0] + 1) j++;
+    s.getRange(row, cols[i][0] + 1, 1, j - i + 1).setValues([cols.slice(i, j + 1).map(x => x[1])]);
+    i = j + 1;
+  }
 }
 /* Runs a database write under the script lock. When the write succeeds, the change stamp moves,
    so every open app sees that something was posted and reloads its current page. */
@@ -566,10 +569,23 @@ function saveSettings(token, d, rid) {
   return withLock_(() => {
     const dup = idemGet_(s, rid);
     if (dup) return dup;
+    // One read of the Settings table, then only the cells whose value changed are written (the logo is not
+    // rewritten unless it changed). Keys that are not in the sheet yet are added at the end.
+    const t = TBL.SETTINGS, sh = sh_(t), headers = t[1];
+    const kc = headers.indexOf('key'), vc = headers.indexOf('value');
+    const n = Math.max(sh.getLastRow() - 1, 0);
+    const block = n ? sh.getRange(2, 1, n, headers.length).getValues() : [];
+    const at = {};
+    block.forEach((r, i) => { at[String(r[kc])] = i; });
+    const fresh = [];
     plan.forEach(([k, v]) => {
-      const row = rows_(TBL.SETTINGS).find(r => r.key === k);
-      if (row) patch_(TBL.SETTINGS, row._row, { value: v }); else append_(TBL.SETTINGS, { key: k, value: v });
+      const i = at[k];
+      if (i === undefined) { fresh.push({ key: k, value: v }); return; }
+      const now = block[i][vc];
+      if (String(now == null ? '' : now) === String(v == null ? '' : v)) return;   // unchanged: no write
+      sh.getRange(i + 2, vc + 1).setValue(v);
     });
+    fresh.forEach(o => append_(t, o));
     audit_(s.username, 'SETTINGS_SAVED', 'Settings', '', Object.keys(d).join(','));
     const out = settings_();
     idemPut_(s, rid, out);

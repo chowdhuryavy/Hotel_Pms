@@ -3111,7 +3111,7 @@ async function pgAdmin(scope) {
   if (ADM_BARE) { tabSetView_(`<h1>${esc((ADM_TABS.find(t => t[0] === ADM) || [])[1] || '')}</h1><div class="card">${body}</div>`); }
   else setView(`<h1>${scope === 'sys' ? 'System admin' : 'Property admin'}</h1>${scope === 'sys' ? connPanelHtml_() : ''}<p class="muted">${scope === 'sys' ? 'System administrator only: property admin accounts, roles and permissions, system settings and email templates.' : 'Hotel operations: staff users, hotel settings, rooms, packages and payment methods.'}</p>${bar}<div class="card">${body}</div>`);
   if (ADM === 'settings' && can('cfg.settings.edit')) bindForm('fSt', async d => {
-    const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, ownerName: d.ownerName, hotelAddress: d.hotelAddress, hotelPhone: d.hotelPhone, hotelEmail: d.hotelEmail, hotelAppUrl: d.hotelAppUrl, logoUrl: d.logoUrl, currency: d.currency,
+    const out = await api('saveSettings', { appName: d.appName, hotelName: d.hotelName, ownerName: d.ownerName, hotelAddress: d.hotelAddress, hotelPhone: d.hotelPhone, hotelEmail: d.hotelEmail, hotelAppUrl: d.hotelAppUrl, ...(d.logoUrl === String((S.settings && S.settings.logoUrl) || '') ? {} : { logoUrl: d.logoUrl }), currency: d.currency,
       taxRate: Number(d.taxRate) || 0, checkInTime: d.checkInTime, checkOutTime: d.checkOutTime, allowCheckoutWithBalance: d.allowCheckoutWithBalance, autoNoShowOnAudit: d.autoNoShowOnAudit, loadingMessage: d.loadingMessage });
     S.settings = Object.assign({}, S.settings, { appName: out.appName, hotelName: out.hotelName, ownerName: d.ownerName, logoUrl: out.logoUrl, currency: out.currency, loadingScreen: d.loadingScreen, loadingMessage: d.loadingMessage });
     brand(); toast('Settings saved');

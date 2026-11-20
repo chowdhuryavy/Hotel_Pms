@@ -74,10 +74,10 @@ function setupDatabase() {
   }
 
   try { organiseTabs_(); } catch (e) { Logger.log('Tab order: ' + e.message); }
+  Object.keys(TBL).forEach(k => uncacheTbl_(TBL[k][0]));   // direct sheet writes above: drop shared copies
   const msg = (appName_() || 'Hotel PMS') + ' database ready.\nSheet: ' + ss.getUrl() + firstAdminNote;
   Logger.log(msg);
   return msg;
-  Object.keys(TBL).forEach(k => uncacheTbl_(TBL[k][0]));   // direct sheet writes above: drop shared copies
 }
 
 function seedIfEmpty_(t, rows) {
