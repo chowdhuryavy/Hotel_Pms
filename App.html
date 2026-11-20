@@ -771,19 +771,25 @@ function startApp() {
 /* Real-time: every save moves the server's change stamp. This checks it every 15 seconds while the app is
    visible (a small call), and when it moves, the current page reloads and a notice shows. */
 let STAMP_LAST = null, STAMP_TIMER = null, STAMP_BUSY = false;
+let STAMP_IDLE = 0;   // checks in a row with no change; after 5 minutes the check runs every 30 seconds instead of 15
+async function checkStamp_() {
+  if (document.hidden || !S.token || STAMP_BUSY) return;
+  STAMP_BUSY = true;
+  try {
+    const r = await rpc('changeStamp', S.token);
+    if (STAMP_LAST !== null && r.stamp !== STAMP_LAST) { onDataChanged_(); STAMP_IDLE = 0; }
+    else STAMP_IDLE++;
+    if (r.stamp !== STAMP_LAST) loadBell_();   // the bell follows every change, including this user's own
+    STAMP_LAST = r.stamp;
+    if (STAMP_IDLE === 20) { clearInterval(STAMP_TIMER); STAMP_TIMER = setInterval(checkStamp_, 30000); }
+  } catch (e) { /* offline or session ended: try again on the next tick */ }
+  finally { STAMP_BUSY = false; }
+}
 function watchChanges_() {
   if (STAMP_TIMER) return;
-  STAMP_TIMER = setInterval(async () => {
-    if (document.hidden || !S.token || STAMP_BUSY) return;
-    STAMP_BUSY = true;
-    try {
-      const r = await rpc('changeStamp', S.token);
-      if (STAMP_LAST !== null && r.stamp !== STAMP_LAST) onDataChanged_();
-      if (r.stamp !== STAMP_LAST) loadBell_();   // the bell follows every change, including this user's own
-      STAMP_LAST = r.stamp;
-    } catch (e) { /* offline or session ended: try again on the next tick */ }
-    finally { STAMP_BUSY = false; }
-  }, 15000);
+  STAMP_TIMER = setInterval(checkStamp_, 15000);
+  // Coming back to the app checks at once, so a change made while it was in the background shows straight away
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { STAMP_IDLE = Math.min(STAMP_IDLE, 19); checkStamp_(); } });
 }
 /* Bell: the alerts for this user. Marking read or clearing is saved on the server, so it stays that way on refresh. */
 let BELL_OPEN = false, BELL_ITEMS = [];
