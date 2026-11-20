@@ -637,6 +637,8 @@ if (require.main === module) {
   ok(run("appNameScript_('nameLoaded').getContent()") === "nameLoaded(" + JSON.stringify({ appName: run("settings_().appName"), logoUrl: run("settings_().logoUrl || ''") }) + ");", 'the name script carries the Settings app name and logo');
   run("sendMail_('log.test@example.com', 'Log check', 'text', '<p>text</p>')");
   ok(run("listEmailLog(TOK)[0].to") === 'log.test@example.com' && run("listEmailLog(TOK)[0].via") === run("mailRoute_()") && run("listEmailLog(TOK)[0].status") === 'Sent', 'every sent email is logged with the service used');
+  // patch_ writes a span of columns in one call: the fields it changes are set, the cells around them are kept
+  ok(run("(() => { const r = rows_(TBL.ROOMS)[0]; const before = rows_(TBL.ROOMS)[0]; patch_(TBL.ROOMS, r._row, { housekeeping: 'Clean', assignedTo: 'Test' }); const a = rows_(TBL.ROOMS).find(x => x.roomNo === r.roomNo); return a.housekeeping === 'Clean' && a.assignedTo === 'Test' && a.type === before.type && a.floor === before.floor && a.status === before.status && a.statusReason === before.statusReason; })()"), 'patch_ changes two fields and keeps the cells between them');
   if (process.env.MEASURE) {
     // Sheet reads and writes per call, for the performance measurement (not a pass/fail test)
     const calls = ['getUserFormData', 'listUsers', 'myPermissions', 'notificationsList', 'changeStamp', 'listRoles', 'listReservations', 'listRooms', 'frontDeskBoard', 'rackData', 'dashboardBoard', 'dashboardFlash', 'dashboardForecast', 'dashboardNight', 'searchGuests', 'getSettings', 'listAudit'];

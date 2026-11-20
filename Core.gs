@@ -138,10 +138,16 @@ function append_(t, obj) {
 function patch_(t, row, changes) {
   SETTINGS_MEMO_ = null;
   const s = sh_(t);
-  Object.keys(changes).forEach(k => {
-    const c = t[1].indexOf(k) + 1;
-    if (c > 0) s.getRange(row, c).setValue(changes[k]);
-  });
+  const headers = t[1];
+  const cols = [];
+  Object.keys(changes).forEach(k => { const c = headers.indexOf(k); if (c >= 0) cols.push([c, changes[k]]); });
+  if (!cols.length) return;
+  // One read and one write for the span of changed columns (cells between them are written back unchanged)
+  const lo = Math.min.apply(null, cols.map(x => x[0])), hi = Math.max.apply(null, cols.map(x => x[0]));
+  const rng = s.getRange(row, lo + 1, 1, hi - lo + 1);
+  const cur = rng.getValues()[0];
+  cols.forEach(x => { cur[x[0] - lo] = x[1]; });
+  rng.setValues([cur]);
 }
 /* Runs a database write under the script lock. When the write succeeds, the change stamp moves,
    so every open app sees that something was posted and reloads its current page. */
